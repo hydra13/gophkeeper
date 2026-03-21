@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package data;
+
+option go_package = "gophkeeper/api/proto/data";
+
+service DataService {
+  // LoginPassword CRUD
+  rpc CreateLoginPassword(CreateLoginPasswordRequest) returns (CreateLoginPasswordResponse);
+  rpc GetLoginPassword(GetLoginPasswordRequest) returns (GetLoginPasswordResponse);
+  rpc ListLoginPasswords(ListLoginPasswordsRequest) returns (ListLoginPasswordsResponse);
+  rpc UpdateLoginPassword(UpdateLoginPasswordRequest) returns (UpdateLoginPasswordResponse);
+  rpc DeleteLoginPassword(DeleteLoginPasswordRequest) returns (DeleteLoginPasswordResponse);
+
+  // TextData CRUD
+  rpc CreateTextData(CreateTextDataRequest) returns (CreateTextDataResponse);
+  rpc GetTextData(GetTextDataRequest) returns (GetTextDataResponse);
+  rpc ListTextData(ListTextDataRequest) returns (ListTextDataResponse);
+  rpc UpdateTextData(UpdateTextDataRequest) returns (UpdateTextDataResponse);
+  rpc DeleteTextData(DeleteTextDataRequest) returns (DeleteTextDataResponse);
+
+  // BinaryData CRUD
+  rpc CreateBinaryData(CreateBinaryDataRequest) returns (CreateBinaryDataResponse);
+  rpc GetBinaryData(GetBinaryDataRequest) returns (GetBinaryDataResponse);
+  rpc ListBinaryData(ListBinaryDataRequest) returns (ListBinaryDataResponse);
+  rpc UpdateBinaryData(UpdateBinaryDataRequest) returns (UpdateBinaryDataResponse);
+  rpc DeleteBinaryData(DeleteBinaryDataRequest) returns (DeleteBinaryDataResponse);
+
+  // BankCard CRUD
+  rpc CreateBankCard(CreateBankCardRequest) returns (CreateBankCardResponse);
+  rpc GetBankCard(GetBankCardRequest) returns (GetBankCardResponse);
+  rpc ListBankCards(ListBankCardsRequest) returns (ListBankCardsResponse);
+  rpc UpdateBankCard(UpdateBankCardRequest) returns (UpdateBankCardResponse);
+  rpc DeleteBankCard(DeleteBankCardRequest) returns (DeleteBankCardResponse);
+}
+
+// TODO: добавить сообщения для каждого типа данных
