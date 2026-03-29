@@ -1,10 +1,8 @@
-// Package uploads_by_id_v1_get implements the HTTP endpoint for getting upload/download session status
-// and initiating chunk download with resume support.
+// Package uploads_by_id_v1_get implements the HTTP endpoint for getting upload/download session status.
 //
 // GET /api/v1/uploads/{id}
 //
 // Returns upload session status including missing chunks for resume.
-// When used for download, returns download session with remaining chunks.
 package uploads_by_id_v1_get
 
 import (

@@ -29,11 +29,11 @@ func TestHandler_Handle(t *testing.T) {
 	}{
 		{
 			name: "Success",
-			body: LoginRequest{Email: "user@example.com", Password: "password123"},
+			body: LoginRequest{Email: "user@example.com", Password: "password123", DeviceID: "device-1", DeviceName: "MacBook", ClientType: "cli"},
 			setupMock: func(mc *minimock.Controller) UserService {
 				return mocks.NewUserServiceMock(mc).
 					LoginMock.
-					Expect(minimock.AnyContext, "user@example.com", "password123").
+					Expect(minimock.AnyContext, "user@example.com", "password123", "device-1", "MacBook", "cli").
 					Return("access-token", "refresh-token", nil)
 			},
 			wantStatus: http.StatusOK,
@@ -49,7 +49,7 @@ func TestHandler_Handle(t *testing.T) {
 		},
 		{
 			name: "Empty email",
-			body: LoginRequest{Email: "", Password: "password123"},
+			body: LoginRequest{Email: "", Password: "password123", DeviceID: "device-1"},
 			setupMock: func(mc *minimock.Controller) UserService {
 				return mocks.NewUserServiceMock(mc)
 			},
@@ -58,7 +58,16 @@ func TestHandler_Handle(t *testing.T) {
 		},
 		{
 			name: "Empty password",
-			body: LoginRequest{Email: "user@example.com", Password: ""},
+			body: LoginRequest{Email: "user@example.com", Password: "", DeviceID: "device-1"},
+			setupMock: func(mc *minimock.Controller) UserService {
+				return mocks.NewUserServiceMock(mc)
+			},
+			wantStatus: http.StatusBadRequest,
+			wantErr:    true,
+		},
+		{
+			name: "Empty device_id",
+			body: LoginRequest{Email: "user@example.com", Password: "password123"},
 			setupMock: func(mc *minimock.Controller) UserService {
 				return mocks.NewUserServiceMock(mc)
 			},
@@ -67,11 +76,11 @@ func TestHandler_Handle(t *testing.T) {
 		},
 		{
 			name: "Invalid credentials",
-			body: LoginRequest{Email: "user@example.com", Password: "wrong"},
+			body: LoginRequest{Email: "user@example.com", Password: "wrong", DeviceID: "device-1"},
 			setupMock: func(mc *minimock.Controller) UserService {
 				return mocks.NewUserServiceMock(mc).
 					LoginMock.
-					Expect(minimock.AnyContext, "user@example.com", "wrong").
+					Expect(minimock.AnyContext, "user@example.com", "wrong", "device-1", "", "").
 					Return("", "", models.ErrInvalidCredentials)
 			},
 			wantStatus: http.StatusUnauthorized,
@@ -79,11 +88,11 @@ func TestHandler_Handle(t *testing.T) {
 		},
 		{
 			name: "User not found",
-			body: LoginRequest{Email: "unknown@example.com", Password: "password123"},
+			body: LoginRequest{Email: "unknown@example.com", Password: "password123", DeviceID: "device-1"},
 			setupMock: func(mc *minimock.Controller) UserService {
 				return mocks.NewUserServiceMock(mc).
 					LoginMock.
-					Expect(minimock.AnyContext, "unknown@example.com", "password123").
+					Expect(minimock.AnyContext, "unknown@example.com", "password123", "device-1", "", "").
 					Return("", "", models.ErrUserNotFound)
 			},
 			wantStatus: http.StatusUnauthorized,
@@ -91,11 +100,11 @@ func TestHandler_Handle(t *testing.T) {
 		},
 		{
 			name: "Internal error",
-			body: LoginRequest{Email: "user@example.com", Password: "password123"},
+			body: LoginRequest{Email: "user@example.com", Password: "password123", DeviceID: "device-1"},
 			setupMock: func(mc *minimock.Controller) UserService {
 				return mocks.NewUserServiceMock(mc).
 					LoginMock.
-					Expect(minimock.AnyContext, "user@example.com", "password123").
+					Expect(minimock.AnyContext, "user@example.com", "password123", "device-1", "", "").
 					Return("", "", context.DeadlineExceeded)
 			},
 			wantStatus: http.StatusInternalServerError,

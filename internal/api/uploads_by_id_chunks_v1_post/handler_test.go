@@ -220,6 +220,27 @@ func TestChunkUploadHandler_UploadAborted(t *testing.T) {
 	}
 }
 
+func TestChunkUploadHandler_UploadNotPending(t *testing.T) {
+	mock := &mockChunkUploader{
+		uploadChunkFunc: func(uploadID, chunkIndex int64, data []byte) (int64, int64, bool, []int64, error) {
+			return 0, 0, false, nil, errors.New("upload session is not pending")
+		},
+	}
+
+	h := NewHandler(mock)
+
+	body, _ := json.Marshal(ChunkRequest{ChunkIndex: 0, Data: []byte("data")})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/uploads/1/chunks", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusConflict {
+		t.Fatalf("expected status 409, got %d", w.Code)
+	}
+}
+
 func TestChunkUploadHandler_ChunkOutOfRange(t *testing.T) {
 	mock := &mockChunkUploader{
 		uploadChunkFunc: func(uploadID, chunkIndex int64, data []byte) (int64, int64, bool, []int64, error) {
@@ -251,6 +272,27 @@ func TestChunkUploadHandler_DuplicateChunk(t *testing.T) {
 	h := NewHandler(mock)
 
 	body, _ := json.Marshal(ChunkRequest{ChunkIndex: 0, Data: []byte("data")})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/uploads/1/chunks", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusConflict {
+		t.Fatalf("expected status 409, got %d", w.Code)
+	}
+}
+
+func TestChunkUploadHandler_ChunkOutOfOrder(t *testing.T) {
+	mock := &mockChunkUploader{
+		uploadChunkFunc: func(uploadID, chunkIndex int64, data []byte) (int64, int64, bool, []int64, error) {
+			return 0, 0, false, nil, errors.New("chunk order violated")
+		},
+	}
+
+	h := NewHandler(mock)
+
+	body, _ := json.Marshal(ChunkRequest{ChunkIndex: 2, Data: []byte("data")})
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/uploads/1/chunks", bytes.NewReader(body))
 	w := httptest.NewRecorder()

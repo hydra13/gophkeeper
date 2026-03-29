@@ -33,6 +33,10 @@ type SyncConflict struct {
 	Resolved bool
 	// Resolution — выбранное разрешение: "local" (оставить локальную) или "server" (принять серверную).
 	Resolution string
+	// LocalRecord — полные данные локальной версии записи (может быть nil).
+	LocalRecord *Record
+	// ServerRecord — полные данные серверной версии записи (может быть nil).
+	ServerRecord *Record
 }
 
 // Resolve разрешает конфликт с указанной стратегией.

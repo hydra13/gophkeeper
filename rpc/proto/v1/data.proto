@@ -1,37 +1,181 @@
 syntax = "proto3";
 
-package data;
+package gophkeeper.v1;
 
-option go_package = "gophkeeper/api/proto/data";
+option go_package = "github.com/hydra13/gophkeeper/internal/rpc/pbv1";
 
+import "rpc/proto/v1/shared.proto";
+import "google/protobuf/timestamp.proto";
+
+// DataService — CRUD операции над записями секрета.
+// Единая модель Record покрывает все типы (login, text, binary, card)
+// через типизированный payload.
 service DataService {
-  // LoginPassword CRUD
-  rpc CreateLoginPassword(CreateLoginPasswordRequest) returns (CreateLoginPasswordResponse);
-  rpc GetLoginPassword(GetLoginPasswordRequest) returns (GetLoginPasswordResponse);
-  rpc ListLoginPasswords(ListLoginPasswordsRequest) returns (ListLoginPasswordsResponse);
-  rpc UpdateLoginPassword(UpdateLoginPasswordRequest) returns (UpdateLoginPasswordResponse);
-  rpc DeleteLoginPassword(DeleteLoginPasswordRequest) returns (DeleteLoginPasswordResponse);
-
-  // TextData CRUD
-  rpc CreateTextData(CreateTextDataRequest) returns (CreateTextDataResponse);
-  rpc GetTextData(GetTextDataRequest) returns (GetTextDataResponse);
-  rpc ListTextData(ListTextDataRequest) returns (ListTextDataResponse);
-  rpc UpdateTextData(UpdateTextDataRequest) returns (UpdateTextDataResponse);
-  rpc DeleteTextData(DeleteTextDataRequest) returns (DeleteTextDataResponse);
-
-  // BinaryData CRUD
-  rpc CreateBinaryData(CreateBinaryDataRequest) returns (CreateBinaryDataResponse);
-  rpc GetBinaryData(GetBinaryDataRequest) returns (GetBinaryDataResponse);
-  rpc ListBinaryData(ListBinaryDataRequest) returns (ListBinaryDataResponse);
-  rpc UpdateBinaryData(UpdateBinaryDataRequest) returns (UpdateBinaryDataResponse);
-  rpc DeleteBinaryData(DeleteBinaryDataRequest) returns (DeleteBinaryDataResponse);
-
-  // BankCard CRUD
-  rpc CreateBankCard(CreateBankCardRequest) returns (CreateBankCardResponse);
-  rpc GetBankCard(GetBankCardRequest) returns (GetBankCardResponse);
-  rpc ListBankCards(ListBankCardsRequest) returns (ListBankCardsResponse);
-  rpc UpdateBankCard(UpdateBankCardRequest) returns (UpdateBankCardResponse);
-  rpc DeleteBankCard(DeleteBankCardRequest) returns (DeleteBankCardResponse);
+  // CreateRecord — создание новой записи.
+  rpc CreateRecord(CreateRecordRequest) returns (CreateRecordResponse);
+  // GetRecord — получение записи по ID.
+  rpc GetRecord(GetRecordRequest) returns (GetRecordResponse);
+  // ListRecords — список записей пользователя с фильтрацией по типу.
+  rpc ListRecords(ListRecordsRequest) returns (ListRecordsResponse);
+  // UpdateRecord — обновление существующей записи.
+  rpc UpdateRecord(UpdateRecordRequest) returns (UpdateRecordResponse);
+  // DeleteRecord — мягкое удаление записи (soft delete).
+  rpc DeleteRecord(DeleteRecordRequest) returns (DeleteRecordResponse);
 }
 
-// TODO: добавить сообщения для каждого типа данных
+// Record — единая доменная сущность хранения секрета.
+message Record {
+  // id — уникальный идентификатор записи.
+  int64 id = 1;
+  // user_id — владелец записи.
+  int64 user_id = 2;
+  // type — тип секрета.
+  gophkeeper.v1.RecordType type = 3;
+  // name — пользовательское название записи.
+  string name = 4;
+  // metadata — произвольная текстовая метаинформация.
+  string metadata = 5;
+  // payload — типизированные данные записи.
+  oneof payload {
+    LoginPayload login = 6;
+    TextPayload text = 7;
+    BinaryPayload binary = 8;
+    CardPayload card = 9;
+  }
+  // revision — монотонно возрастающая версия записи.
+  int64 revision = 10;
+  // deleted_at — время soft delete; null означает активную запись.
+  google.protobuf.Timestamp deleted_at = 11;
+  // device_id — идентификатор устройства, создавшего/изменившего запись.
+  string device_id = 12;
+  // key_version — версия серверного ключа шифрования.
+  int64 key_version = 13;
+  // payload_version — версия payload (для binary данных).
+  int64 payload_version = 14;
+  // created_at — время создания записи.
+  google.protobuf.Timestamp created_at = 15;
+  // updated_at — время последнего обновления записи.
+  google.protobuf.Timestamp updated_at = 16;
+}
+
+// LoginPayload — данные типа логин/пароль.
+message LoginPayload {
+  string login = 1;
+  string password = 2;
+}
+
+// TextPayload — произвольные текстовые данные.
+message TextPayload {
+  string content = 1;
+}
+
+// BinaryPayload — произвольные бинарные данные.
+// Содержимое передаётся через chunk upload/download (UploadsService).
+message BinaryPayload {
+  bytes data = 1;
+}
+
+// CardPayload — данные банковской карты.
+message CardPayload {
+  string number = 1;
+  string holder_name = 2;
+  string expiry_date = 3;
+  string cvv = 4;
+}
+
+// CreateRecordRequest — запрос на создание записи.
+message CreateRecordRequest {
+  // type — тип создаваемой записи.
+  gophkeeper.v1.RecordType type = 1;
+  // name — название записи.
+  string name = 2;
+  // metadata — текстовая метаинформация.
+  string metadata = 3;
+  // payload — типизированные данные.
+  oneof payload {
+    LoginPayload login = 4;
+    TextPayload text = 5;
+    BinaryPayload binary = 6;
+    CardPayload card = 7;
+  }
+  // device_id — идентификатор устройства.
+  string device_id = 8;
+  // key_version — версия ключа шифрования.
+  int64 key_version = 9;
+  // payload_version — версия payload (обязательно > 0 для binary).
+  int64 payload_version = 10;
+}
+
+// CreateRecordResponse — ответ создания записи.
+message CreateRecordResponse {
+  // record — созданная запись.
+  Record record = 1;
+}
+
+// GetRecordRequest — запрос получения записи.
+message GetRecordRequest {
+  // id — идентификатор записи.
+  int64 id = 1;
+}
+
+// GetRecordResponse — ответ получения записи.
+message GetRecordResponse {
+  // record — запрошенная запись.
+  Record record = 1;
+}
+
+// ListRecordsRequest — запрос списка записей.
+message ListRecordsRequest {
+  // type — фильтр по типу; UNSPECIFIED = все типы.
+  gophkeeper.v1.RecordType type = 1;
+  // include_deleted — включать soft-deleted записи.
+  bool include_deleted = 2;
+}
+
+// ListRecordsResponse — ответ списка записей.
+message ListRecordsResponse {
+  // records — список записей.
+  repeated Record records = 1;
+}
+
+// UpdateRecordRequest — запрос обновления записи.
+message UpdateRecordRequest {
+  // id — идентификатор обновляемой записи.
+  int64 id = 1;
+  // name — новое название записи.
+  string name = 2;
+  // metadata — новая метаинформация.
+  string metadata = 3;
+  // payload — новые типизированные данные.
+  oneof payload {
+    LoginPayload login = 4;
+    TextPayload text = 5;
+    BinaryPayload binary = 6;
+    CardPayload card = 7;
+  }
+  // device_id — идентификатор устройства, выполняющего обновление.
+  string device_id = 8;
+  // key_version — версия ключа шифрования.
+  int64 key_version = 9;
+  // payload_version — новая версия payload.
+  int64 payload_version = 10;
+  // revision — ожидаемая текущая ревизия (для optimistic locking).
+  int64 revision = 11;
+}
+
+// UpdateRecordResponse — ответ обновления записи.
+message UpdateRecordResponse {
+  // record — обновлённая запись.
+  Record record = 1;
+}
+
+// DeleteRecordRequest — запрос мягкого удаления записи.
+message DeleteRecordRequest {
+  // id — идентификатор удаляемой записи.
+  int64 id = 1;
+  // device_id — идентификатор устройства, выполняющего удаление.
+  string device_id = 2;
+}
+
+// DeleteRecordResponse — ответ удаления записи.
+message DeleteRecordResponse {}

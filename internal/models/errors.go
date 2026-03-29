@@ -68,6 +68,8 @@ var (
 	ErrChunkOutOfRange = errors.New("chunk index out of range")
 	// ErrDuplicateChunk — чанк с таким индексом уже принят.
 	ErrDuplicateChunk = errors.New("chunk already received")
+	// ErrChunkOutOfOrder — нарушен ожидаемый порядок чанков.
+	ErrChunkOutOfOrder = errors.New("chunk order violated")
 )
 
 // Ошибки скачивания (download).

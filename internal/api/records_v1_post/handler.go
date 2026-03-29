@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/hydra13/gophkeeper/internal/api/records_common"
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
@@ -59,9 +60,7 @@ type CardPayload struct {
 
 // CreateRecordResponse — DTO ответа при создании записи.
 type CreateRecordResponse struct {
-	ID        int64  `json:"id"`
-	Revision  int64  `json:"revision"`
-	CreatedAt string `json:"created_at"`
+	Record recordscommon.RecordDTO `json:"record"`
 }
 
 // RecordService — интерфейс бизнес-логики для работы с записями.
@@ -83,42 +82,40 @@ func NewHandler(service RecordService) *Handler {
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	var req CreateRecordRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSONError(w, http.StatusBadRequest, "invalid request body")
+		recordscommon.WriteError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
 	record, err := requestToRecord(&req)
 	if err != nil {
-		writeJSONError(w, http.StatusBadRequest, err.Error())
+		recordscommon.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	// UserID извлекается из контекста middleware аутентификации.
 	userID, ok := r.Context().Value(userIDKey{}).(int64)
 	if !ok || userID <= 0 {
-		writeJSONError(w, http.StatusUnauthorized, "unauthorized")
+		recordscommon.WriteError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	record.UserID = userID
 
 	if err := record.Validate(); err != nil {
-		writeJSONError(w, http.StatusBadRequest, err.Error())
+		recordscommon.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	if err := h.service.CreateRecord(record); err != nil {
 		if errors.Is(err, models.ErrRevisionConflict) {
-			writeJSONError(w, http.StatusConflict, "revision conflict")
+			recordscommon.WriteConflict(w, "revision conflict", nil, nil)
 			return
 		}
-		writeJSONError(w, http.StatusInternalServerError, "internal error")
+		recordscommon.WriteError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
 
 	resp := CreateRecordResponse{
-		ID:        record.ID,
-		Revision:  record.Revision,
-		CreatedAt: record.CreatedAt.Format("2006-01-02T15:04:05Z"),
+		Record: recordscommon.RecordToDTO(*record),
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -184,10 +181,3 @@ func requestToRecord(req *CreateRecordRequest) (*models.Record, error) {
 }
 
 type userIDKey struct{}
-
-// writeJSONError записывает JSON-ошибку в ответ.
-func writeJSONError(w http.ResponseWriter, code int, message string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(code)
-	json.NewEncoder(w).Encode(map[string]string{"error": message})
-}

@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package gophkeeper.v1;
+
+option go_package = "github.com/hydra13/gophkeeper/internal/rpc/pbv1";
+
+import "rpc/proto/v1/shared.proto";
+
+// HealthService — проверка здоровья сервиса.
+// Используется балансировщиками нагрузки и мониторингом.
+service HealthService {
+  // HealthCheck — возвращает текущий статус сервиса.
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+}
+
+// HealthCheckRequest — запрос проверки здоровья.
+message HealthCheckRequest {}
+
+// HealthCheckResponse — ответ проверки здоровья.
+message HealthCheckResponse {
+  // status — статус сервиса.
+  gophkeeper.v1.HealthStatus status = 1;
+}

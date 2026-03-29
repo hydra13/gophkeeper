@@ -38,6 +38,7 @@ tasks:
   - id: task_4
     title: "gRPC контракты в rpc/proto/v1"
     file: ".memory-bank/tasks/task_4.md"
+    status: "completed"
     phase: 3
     parallel_group: 4
     mvp: true
@@ -48,6 +49,7 @@ tasks:
   - id: task_5
     title: "HTTP auth endpoints в api/"
     file: ".memory-bank/tasks/task_5.md"
+    status: "completed"
     phase: 3
     parallel_group: 4
     mvp: true
@@ -58,6 +60,7 @@ tasks:
   - id: task_6
     title: "HTTP records endpoints в api/"
     file: ".memory-bank/tasks/task_6.md"
+    status: "completed"
     phase: 3
     parallel_group: 4
     mvp: true
@@ -68,6 +71,7 @@ tasks:
   - id: task_7
     title: "HTTP sync, uploads и health endpoints в api/"
     file: ".memory-bank/tasks/task_7.md"
+    status: "completed"
     phase: 3
     parallel_group: 4
     mvp: true

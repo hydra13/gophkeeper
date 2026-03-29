@@ -7,21 +7,22 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/hydra13/gophkeeper/internal/api/records_common"
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
 // UpdateRecordRequest — DTO для обновления записи.
 type UpdateRecordRequest struct {
-	Name           string        `json:"name"`
-	Metadata       string        `json:"metadata,omitempty"`
-	Revision       int64         `json:"revision"`
-	DeviceID       string        `json:"device_id"`
-	KeyVersion     int64         `json:"key_version"`
-	PayloadVersion int64         `json:"payload_version,omitempty"`
-	Login          *LoginPayload `json:"login,omitempty"`
-	Text           *TextPayload  `json:"text,omitempty"`
+	Name           string         `json:"name"`
+	Metadata       string         `json:"metadata,omitempty"`
+	Revision       int64          `json:"revision"`
+	DeviceID       string         `json:"device_id"`
+	KeyVersion     int64          `json:"key_version"`
+	PayloadVersion int64          `json:"payload_version,omitempty"`
+	Login          *LoginPayload  `json:"login,omitempty"`
+	Text           *TextPayload   `json:"text,omitempty"`
 	Binary         *BinaryPayload `json:"binary,omitempty"`
-	Card           *CardPayload  `json:"card,omitempty"`
+	Card           *CardPayload   `json:"card,omitempty"`
 }
 
 // LoginPayload — DTO для логин/пароль.
@@ -50,9 +51,7 @@ type CardPayload struct {
 
 // UpdateRecordResponse — DTO ответа при обновлении записи.
 type UpdateRecordResponse struct {
-	ID        int64  `json:"id"`
-	Revision  int64  `json:"revision"`
-	UpdatedAt string `json:"updated_at"`
+	Record recordscommon.RecordDTO `json:"record"`
 }
 
 // RecordService — интерфейс бизнес-логики для работы с записями.
@@ -77,45 +76,46 @@ type userIDKey struct{}
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value(userIDKey{}).(int64)
 	if !ok || userID <= 0 {
-		writeJSONError(w, http.StatusUnauthorized, "unauthorized")
+		recordscommon.WriteError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	idStr := r.PathValue("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil || id <= 0 {
-		writeJSONError(w, http.StatusBadRequest, "invalid record id")
+		recordscommon.WriteError(w, http.StatusBadRequest, "invalid record id")
 		return
 	}
 
 	var req UpdateRecordRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSONError(w, http.StatusBadRequest, "invalid request body")
+		recordscommon.WriteError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
 	existing, err := h.service.GetRecord(id)
 	if err != nil {
 		if errors.Is(err, models.ErrRecordNotFound) {
-			writeJSONError(w, http.StatusNotFound, "record not found")
+			recordscommon.WriteError(w, http.StatusNotFound, "record not found")
 			return
 		}
-		writeJSONError(w, http.StatusInternalServerError, "internal error")
+		recordscommon.WriteError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
 
 	if existing.UserID != userID {
-		writeJSONError(w, http.StatusForbidden, "access denied")
+		recordscommon.WriteError(w, http.StatusForbidden, "access denied")
 		return
 	}
 
 	if existing.IsDeleted() {
-		writeJSONError(w, http.StatusBadRequest, "record is deleted")
+		recordscommon.WriteError(w, http.StatusBadRequest, "record is deleted")
 		return
 	}
 
-	if req.Revision <= existing.Revision {
-		writeJSONError(w, http.StatusConflict, "revision conflict")
+	currentRevision := existing.Revision
+	if req.Revision <= currentRevision {
+		recordscommon.WriteConflict(w, "revision conflict", &req.Revision, &currentRevision)
 		return
 	}
 
@@ -127,29 +127,27 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 
 	payload, err := buildPayload(existing.Type, &req)
 	if err != nil {
-		writeJSONError(w, http.StatusBadRequest, err.Error())
+		recordscommon.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	existing.Payload = payload
 
 	if err := existing.BumpRevision(req.Revision, req.DeviceID); err != nil {
-		writeJSONError(w, http.StatusBadRequest, err.Error())
+		recordscommon.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	if err := h.service.UpdateRecord(existing); err != nil {
 		if errors.Is(err, models.ErrRevisionConflict) {
-			writeJSONError(w, http.StatusConflict, "revision conflict")
+			recordscommon.WriteConflict(w, "revision conflict", &req.Revision, nil)
 			return
 		}
-		writeJSONError(w, http.StatusInternalServerError, "internal error")
+		recordscommon.WriteError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
 
 	resp := UpdateRecordResponse{
-		ID:        existing.ID,
-		Revision:  existing.Revision,
-		UpdatedAt: existing.UpdatedAt.Format("2006-01-02T15:04:05Z"),
+		Record: recordscommon.RecordToDTO(*existing),
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -186,11 +184,4 @@ func buildPayload(rt models.RecordType, req *UpdateRecordRequest) (models.Record
 	default:
 		return nil, errors.New("invalid record type")
 	}
-}
-
-// writeJSONError записывает JSON-ошибку в ответ.
-func writeJSONError(w http.ResponseWriter, code int, message string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(code)
-	json.NewEncoder(w).Encode(map[string]string{"error": message})
 }

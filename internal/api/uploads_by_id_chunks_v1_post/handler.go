@@ -123,9 +123,13 @@ func mapChunkError(w http.ResponseWriter, err error) {
 		http.Error(w, err.Error(), http.StatusConflict)
 	case isErr(err, "upload session is aborted"):
 		http.Error(w, err.Error(), http.StatusGone)
+	case isErr(err, "upload session is not pending"):
+		http.Error(w, err.Error(), http.StatusConflict)
 	case isErr(err, "chunk index out of range"):
 		http.Error(w, err.Error(), http.StatusBadRequest)
 	case isErr(err, "chunk already received"):
+		http.Error(w, err.Error(), http.StatusConflict)
+	case isErr(err, "chunk order violated"):
 		http.Error(w, err.Error(), http.StatusConflict)
 	default:
 		http.Error(w, "internal server error", http.StatusInternalServerError)

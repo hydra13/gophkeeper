@@ -14,13 +14,16 @@ import (
 
 // UserService определяет зависимости, необходимые для логина.
 type UserService interface {
-	Login(ctx context.Context, email, password string) (accessToken, refreshToken string, err error)
+	Login(ctx context.Context, email, password, deviceID, deviceName, clientType string) (accessToken, refreshToken string, err error)
 }
 
 // LoginRequest — DTO запроса на логин.
 type LoginRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Email      string `json:"email"`
+	Password   string `json:"password"`
+	DeviceID   string `json:"device_id"`
+	DeviceName string `json:"device_name"`
+	ClientType string `json:"client_type"`
 }
 
 // LoginResponse — DTO успешного ответа логина.
@@ -58,7 +61,7 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	accessToken, refreshToken, err := h.userService.Login(r.Context(), req.Email, req.Password)
+	accessToken, refreshToken, err := h.userService.Login(r.Context(), req.Email, req.Password, req.DeviceID, req.DeviceName, req.ClientType)
 	if err != nil {
 		mapError(w, h.log, err, "login")
 		return
@@ -76,6 +79,9 @@ func validateLogin(req LoginRequest) error {
 	}
 	if req.Password == "" {
 		return errors.New("password is required")
+	}
+	if req.DeviceID == "" {
+		return errors.New("device_id is required")
 	}
 	return nil
 }

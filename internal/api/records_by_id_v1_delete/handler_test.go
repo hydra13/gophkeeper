@@ -1,7 +1,9 @@
 package recordsbyidv1delete
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -33,6 +35,7 @@ func TestHandler_Handle(t *testing.T) {
 		name       string
 		recordID   string
 		userID     int64
+		deviceID   string
 		serviceErr error
 		record     *models.Record
 		deleteErr  error
@@ -42,6 +45,7 @@ func TestHandler_Handle(t *testing.T) {
 			name:     "success",
 			recordID: "1",
 			userID:   1,
+			deviceID: "dev-1",
 			record:   activeRecord,
 			wantCode: http.StatusOK,
 		},
@@ -49,18 +53,28 @@ func TestHandler_Handle(t *testing.T) {
 			name:     "unauthorized",
 			recordID: "1",
 			userID:   0,
+			deviceID: "dev-1",
 			wantCode: http.StatusUnauthorized,
 		},
 		{
 			name:     "invalid record id",
 			recordID: "abc",
 			userID:   1,
+			deviceID: "dev-1",
+			wantCode: http.StatusBadRequest,
+		},
+		{
+			name:     "missing device_id",
+			recordID: "1",
+			userID:   1,
+			deviceID: "",
 			wantCode: http.StatusBadRequest,
 		},
 		{
 			name:       "record not found",
 			recordID:   "999",
 			userID:     1,
+			deviceID:   "dev-1",
 			serviceErr: models.ErrRecordNotFound,
 			wantCode:   http.StatusNotFound,
 		},
@@ -68,6 +82,7 @@ func TestHandler_Handle(t *testing.T) {
 			name:     "access denied - wrong user",
 			recordID: "1",
 			userID:   2,
+			deviceID: "dev-1",
 			record:   activeRecord,
 			wantCode: http.StatusForbidden,
 		},
@@ -75,6 +90,7 @@ func TestHandler_Handle(t *testing.T) {
 			name:     "already deleted",
 			recordID: "1",
 			userID:   1,
+			deviceID: "dev-1",
 			record:   deletedRecord,
 			wantCode: http.StatusBadRequest,
 		},
@@ -82,6 +98,7 @@ func TestHandler_Handle(t *testing.T) {
 			name:       "internal error on get",
 			recordID:   "1",
 			userID:     1,
+			deviceID:   "dev-1",
 			serviceErr: errors.New("db error"),
 			wantCode:   http.StatusInternalServerError,
 		},
@@ -89,6 +106,7 @@ func TestHandler_Handle(t *testing.T) {
 			name:      "internal error on delete",
 			recordID:  "1",
 			userID:    1,
+			deviceID:  "dev-1",
 			record:    activeRecord,
 			deleteErr: errors.New("db error"),
 			wantCode:  http.StatusInternalServerError,
@@ -106,7 +124,13 @@ func TestHandler_Handle(t *testing.T) {
 			}
 			handler := NewHandler(mock)
 
-			req := httptest.NewRequest(http.MethodDelete, "/api/v1/records/{id}", nil)
+			var body []byte
+			if tt.recordID != "abc" && tt.userID != 0 {
+				body, _ = json.Marshal(DeleteRecordRequest{DeviceID: tt.deviceID})
+			} else {
+				body, _ = json.Marshal(DeleteRecordRequest{DeviceID: tt.deviceID})
+			}
+			req := httptest.NewRequest(http.MethodDelete, "/api/v1/records/{id}", bytes.NewReader(body))
 			req.SetPathValue("id", tt.recordID)
 			if tt.userID > 0 {
 				ctx := context.WithValue(req.Context(), userIDKey{}, tt.userID)
@@ -133,6 +157,6 @@ func (m *recordServiceMock) GetRecord(id int64) (*models.Record, error) {
 	return m.record, m.getErr
 }
 
-func (m *recordServiceMock) DeleteRecord(id int64) error {
+func (m *recordServiceMock) DeleteRecord(id int64, deviceID string) error {
 	return m.deleteErr
 }

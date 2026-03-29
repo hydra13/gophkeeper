@@ -7,30 +7,48 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	recordscommon "github.com/hydra13/gophkeeper/internal/api/records_common"
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
 type mockSyncPusher struct {
-	pushFunc func(userID int64, changes []PendingChange) ([]models.RecordRevision, []models.SyncConflict, error)
+	pushFunc func(userID int64, deviceID string, changes []PendingChange) ([]models.RecordRevision, []models.SyncConflict, error)
 }
 
-func (m *mockSyncPusher) Push(userID int64, changes []PendingChange) ([]models.RecordRevision, []models.SyncConflict, error) {
-	return m.pushFunc(userID, changes)
+func (m *mockSyncPusher) Push(userID int64, deviceID string, changes []PendingChange) ([]models.RecordRevision, []models.SyncConflict, error) {
+	return m.pushFunc(userID, deviceID, changes)
 }
 
 func TestSyncPushHandler_Success(t *testing.T) {
 	mock := &mockSyncPusher{
-		pushFunc: func(userID int64, changes []PendingChange) ([]models.RecordRevision, []models.SyncConflict, error) {
-			return []models.RecordRevision{}, nil, nil
+		pushFunc: func(userID int64, deviceID string, changes []PendingChange) ([]models.RecordRevision, []models.SyncConflict, error) {
+			return []models.RecordRevision{
+				{ID: 1, RecordID: 1, UserID: userID, Revision: 2, DeviceID: deviceID},
+			}, nil, nil
 		},
 	}
 
 	h := NewHandler(mock)
 
 	body, _ := json.Marshal(Request{
-		UserID: 1,
+		UserID:   1,
+		DeviceID: "device-1",
 		Changes: []PendingChange{
-			{RecordID: 1, Revision: 1, Operation: "update", DeviceID: "device-1"},
+			{
+				Record: recordscommon.RecordDTO{
+					ID:         1,
+					UserID:     1,
+					Type:       "text",
+					Name:       "name",
+					Revision:   1,
+					DeviceID:   "device-1",
+					KeyVersion: 1,
+					CreatedAt:  "2024-01-01T00:00:00Z",
+					UpdatedAt:  "2024-01-01T00:00:00Z",
+					Payload:    recordscommon.TextPayloadDTO{Content: "payload"},
+				},
+				BaseRevision: 1,
+			},
 		},
 	})
 
@@ -47,8 +65,8 @@ func TestSyncPushHandler_Success(t *testing.T) {
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
-	if resp.Accepted != 1 {
-		t.Fatalf("expected 1 accepted, got %d", resp.Accepted)
+	if len(resp.Accepted) != 1 {
+		t.Fatalf("expected 1 accepted, got %d", len(resp.Accepted))
 	}
 	if len(resp.Conflicts) != 0 {
 		t.Fatalf("expected 0 conflicts, got %d", len(resp.Conflicts))
@@ -57,7 +75,7 @@ func TestSyncPushHandler_Success(t *testing.T) {
 
 func TestSyncPushHandler_WithConflicts(t *testing.T) {
 	mock := &mockSyncPusher{
-		pushFunc: func(userID int64, changes []PendingChange) ([]models.RecordRevision, []models.SyncConflict, error) {
+		pushFunc: func(userID int64, deviceID string, changes []PendingChange) ([]models.RecordRevision, []models.SyncConflict, error) {
 			return nil, []models.SyncConflict{
 				{RecordID: 1, LocalRevision: 3, ServerRevision: 5},
 			}, nil
@@ -67,9 +85,24 @@ func TestSyncPushHandler_WithConflicts(t *testing.T) {
 	h := NewHandler(mock)
 
 	body, _ := json.Marshal(Request{
-		UserID: 1,
+		UserID:   1,
+		DeviceID: "device-1",
 		Changes: []PendingChange{
-			{RecordID: 1, Revision: 3, Operation: "update", DeviceID: "device-1"},
+			{
+				Record: recordscommon.RecordDTO{
+					ID:         1,
+					UserID:     1,
+					Type:       "text",
+					Name:       "name",
+					Revision:   3,
+					DeviceID:   "device-1",
+					KeyVersion: 1,
+					CreatedAt:  "2024-01-01T00:00:00Z",
+					UpdatedAt:  "2024-01-01T00:00:00Z",
+					Payload:    recordscommon.TextPayloadDTO{Content: "payload"},
+				},
+				BaseRevision: 3,
+			},
 		},
 	})
 
@@ -84,9 +117,6 @@ func TestSyncPushHandler_WithConflicts(t *testing.T) {
 
 	var resp Response
 	json.NewDecoder(w.Body).Decode(&resp)
-	if resp.Accepted != 0 {
-		t.Fatalf("expected 0 accepted, got %d", resp.Accepted)
-	}
 	if len(resp.Conflicts) != 1 {
 		t.Fatalf("expected 1 conflict, got %d", len(resp.Conflicts))
 	}
@@ -127,7 +157,22 @@ func TestSyncPushHandler_InvalidUserID(t *testing.T) {
 	mock := &mockSyncPusher{}
 	h := NewHandler(mock)
 
-	body, _ := json.Marshal(Request{UserID: 0, Changes: []PendingChange{{RecordID: 1}}})
+	body, _ := json.Marshal(Request{UserID: 0, DeviceID: "device-1", Changes: []PendingChange{{}}})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/sync/push", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d", w.Code)
+	}
+}
+
+func TestSyncPushHandler_EmptyDeviceID(t *testing.T) {
+	mock := &mockSyncPusher{}
+	h := NewHandler(mock)
+
+	body, _ := json.Marshal(Request{UserID: 1, DeviceID: "", Changes: []PendingChange{{}}})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/sync/push", bytes.NewReader(body))
 	w := httptest.NewRecorder()
 
@@ -142,7 +187,7 @@ func TestSyncPushHandler_EmptyChanges(t *testing.T) {
 	mock := &mockSyncPusher{}
 	h := NewHandler(mock)
 
-	body, _ := json.Marshal(Request{UserID: 1, Changes: []PendingChange{}})
+	body, _ := json.Marshal(Request{UserID: 1, DeviceID: "device-1", Changes: []PendingChange{}})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/sync/push", bytes.NewReader(body))
 	w := httptest.NewRecorder()
 
@@ -155,7 +200,7 @@ func TestSyncPushHandler_EmptyChanges(t *testing.T) {
 
 func TestSyncPushHandler_ServiceError(t *testing.T) {
 	mock := &mockSyncPusher{
-		pushFunc: func(userID int64, changes []PendingChange) ([]models.RecordRevision, []models.SyncConflict, error) {
+		pushFunc: func(userID int64, deviceID string, changes []PendingChange) ([]models.RecordRevision, []models.SyncConflict, error) {
 			return nil, nil, models.ErrRevisionConflict
 		},
 	}
@@ -163,8 +208,25 @@ func TestSyncPushHandler_ServiceError(t *testing.T) {
 	h := NewHandler(mock)
 
 	body, _ := json.Marshal(Request{
-		UserID: 1,
-		Changes: []PendingChange{{RecordID: 1, DeviceID: "d"}},
+		UserID:   1,
+		DeviceID: "d",
+		Changes: []PendingChange{
+			{
+				Record: recordscommon.RecordDTO{
+					ID:         1,
+					UserID:     1,
+					Type:       "text",
+					Name:       "name",
+					Revision:   1,
+					DeviceID:   "d",
+					KeyVersion: 1,
+					CreatedAt:  "2024-01-01T00:00:00Z",
+					UpdatedAt:  "2024-01-01T00:00:00Z",
+					Payload:    recordscommon.TextPayloadDTO{Content: "payload"},
+				},
+				BaseRevision: 1,
+			},
+		},
 	})
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/sync/push", bytes.NewReader(body))

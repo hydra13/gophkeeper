@@ -7,20 +7,24 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/hydra13/gophkeeper/internal/api/records_common"
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
+// DeleteRecordRequest — DTO запроса на удаление записи.
+type DeleteRecordRequest struct {
+	// DeviceID — идентификатор устройства, выполняющего удаление.
+	DeviceID string `json:"device_id"`
+}
+
 // DeleteRecordResponse — DTO ответа при удалении записи.
 type DeleteRecordResponse struct {
-	ID        int64  `json:"id"`
-	Deleted   bool   `json:"deleted"`
-	UpdatedAt string `json:"updated_at"`
 }
 
 // RecordService — интерфейс бизнес-логики для работы с записями.
 type RecordService interface {
 	GetRecord(id int64) (*models.Record, error)
-	DeleteRecord(id int64) error
+	DeleteRecord(id int64, deviceID string) error
 }
 
 // Handler — HTTP-обработчик для DELETE /api/v1/records/{id}.
@@ -39,56 +43,59 @@ type userIDKey struct{}
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value(userIDKey{}).(int64)
 	if !ok || userID <= 0 {
-		writeJSONError(w, http.StatusUnauthorized, "unauthorized")
+		recordscommon.WriteError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	idStr := r.PathValue("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil || id <= 0 {
-		writeJSONError(w, http.StatusBadRequest, "invalid record id")
+		recordscommon.WriteError(w, http.StatusBadRequest, "invalid record id")
+		return
+	}
+
+	var req DeleteRecordRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		recordscommon.WriteError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.DeviceID == "" {
+		recordscommon.WriteError(w, http.StatusBadRequest, "device_id is required")
 		return
 	}
 
 	record, err := h.service.GetRecord(id)
 	if err != nil {
 		if errors.Is(err, models.ErrRecordNotFound) {
-			writeJSONError(w, http.StatusNotFound, "record not found")
+			recordscommon.WriteError(w, http.StatusNotFound, "record not found")
 			return
 		}
-		writeJSONError(w, http.StatusInternalServerError, "internal error")
+		recordscommon.WriteError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
 
 	if record.UserID != userID {
-		writeJSONError(w, http.StatusForbidden, "access denied")
+		recordscommon.WriteError(w, http.StatusForbidden, "access denied")
 		return
 	}
 
 	if record.IsDeleted() {
-		writeJSONError(w, http.StatusBadRequest, "record is already deleted")
+		recordscommon.WriteError(w, http.StatusBadRequest, "record is already deleted")
 		return
 	}
 
-	if err := h.service.DeleteRecord(id); err != nil {
-		writeJSONError(w, http.StatusInternalServerError, "internal error")
+	if err := h.service.DeleteRecord(id, req.DeviceID); err != nil {
+		if errors.Is(err, models.ErrRevisionConflict) {
+			recordscommon.WriteConflict(w, "revision conflict", nil, nil)
+			return
+		}
+		recordscommon.WriteError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
 
-	resp := DeleteRecordResponse{
-		ID:        id,
-		Deleted:   true,
-		UpdatedAt: record.UpdatedAt.Format("2006-01-02T15:04:05Z"),
-	}
+	resp := DeleteRecordResponse{}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(resp)
-}
-
-// writeJSONError записывает JSON-ошибку в ответ.
-func writeJSONError(w http.ResponseWriter, code int, message string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(code)
-	json.NewEncoder(w).Encode(map[string]string{"error": message})
 }

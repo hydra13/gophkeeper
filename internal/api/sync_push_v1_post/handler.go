@@ -10,52 +10,65 @@ import (
 	"encoding/json"
 	"net/http"
 
+	recordscommon "github.com/hydra13/gophkeeper/internal/api/records_common"
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
 // PendingChange — DTO одной локальной операции, отправляемой на сервер.
 type PendingChange struct {
-	// RecordID — идентификатор записи (0 для новой записи).
-	RecordID int64 `json:"record_id"`
-	// Revision — ревизия, на которой основано изменение (для conflict detection).
-	Revision int64 `json:"revision"`
-	// Operation — тип операции: "create", "update", "delete".
-	Operation string `json:"operation"`
-	// DeviceID — устройство, инициировавшее изменение.
-	DeviceID string `json:"device_id"`
+	// Record — полные данные записи (создание или обновление).
+	Record recordscommon.RecordDTO `json:"record"`
+	// Deleted — признак удаления записи.
+	Deleted bool `json:"deleted"`
+	// BaseRevision — ревизия, на основе которой было сделано изменение.
+	BaseRevision int64 `json:"base_revision"`
 }
 
 // Request — DTO для запроса push-синхронизации.
 type Request struct {
 	// UserID — идентификатор пользователя (из JWT-токена).
 	UserID int64 `json:"user_id"`
+	// DeviceID — устройство, выполняющее push.
+	DeviceID string `json:"device_id"`
 	// Changes — список локальных операций для отправки на сервер.
 	Changes []PendingChange `json:"changes"`
 }
 
-// ConflictInfo — DTO информации о конфликте для одной записи.
-type ConflictInfo struct {
-	// RecordID — запись с конфликтом.
-	RecordID int64 `json:"record_id"`
-	// LocalRevision — ревизия клиента.
-	LocalRevision int64 `json:"local_revision"`
-	// ServerRevision — текущая ревизия на сервере.
-	ServerRevision int64 `json:"server_revision"`
+// RecordRevisionDTO — DTO изменённой записи (ревизии).
+type RecordRevisionDTO struct {
+	ID       int64  `json:"id"`
+	RecordID int64  `json:"record_id"`
+	UserID   int64  `json:"user_id"`
+	Revision int64  `json:"revision"`
+	DeviceID string `json:"device_id"`
+}
+
+// SyncConflictDTO — DTO конфликта синхронизации.
+type SyncConflictDTO struct {
+	ID             int64                    `json:"id"`
+	UserID         int64                    `json:"user_id"`
+	RecordID       int64                    `json:"record_id"`
+	LocalRevision  int64                    `json:"local_revision"`
+	ServerRevision int64                    `json:"server_revision"`
+	Resolved       bool                     `json:"resolved"`
+	Resolution     string                   `json:"resolution"`
+	LocalRecord    *recordscommon.RecordDTO `json:"local_record,omitempty"`
+	ServerRecord   *recordscommon.RecordDTO `json:"server_record,omitempty"`
 }
 
 // Response — DTO для ответа push-синхронизации.
 type Response struct {
-	// Accepted — количество принятых изменений.
-	Accepted int `json:"accepted"`
+	// Accepted — список принятых изменений с обновлёнными ревизиями.
+	Accepted []RecordRevisionDTO `json:"accepted"`
 	// Conflicts — список конфликтов (если есть).
-	Conflicts []ConflictInfo `json:"conflicts,omitempty"`
+	Conflicts []SyncConflictDTO `json:"conflicts,omitempty"`
 }
 
 // SyncPusher — интерфейс сервиса push-синхронизации.
 type SyncPusher interface {
 	// Push отправляет локальные изменения на сервер.
 	// Возвращает принятые ревизии и список конфликтов.
-	Push(userID int64, changes []PendingChange) ([]models.RecordRevision, []models.SyncConflict, error)
+	Push(userID int64, deviceID string, changes []PendingChange) ([]models.RecordRevision, []models.SyncConflict, error)
 }
 
 // Handler обрабатывает POST /api/v1/sync/push.
@@ -85,26 +98,50 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid user_id", http.StatusBadRequest)
 		return
 	}
+	if req.DeviceID == "" {
+		http.Error(w, "device_id is required", http.StatusBadRequest)
+		return
+	}
 	if len(req.Changes) == 0 {
 		http.Error(w, "changes are required", http.StatusBadRequest)
 		return
 	}
 
-	_, conflicts, err := h.service.Push(req.UserID, req.Changes)
+	accepted, conflicts, err := h.service.Push(req.UserID, req.DeviceID, req.Changes)
 	if err != nil {
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 
-	resp := Response{
-		Accepted: len(req.Changes) - len(conflicts),
-	}
-	for _, c := range conflicts {
-		resp.Conflicts = append(resp.Conflicts, ConflictInfo{
-			RecordID:       c.RecordID,
-			LocalRevision:  c.LocalRevision,
-			ServerRevision: c.ServerRevision,
+	resp := Response{}
+	for _, rev := range accepted {
+		resp.Accepted = append(resp.Accepted, RecordRevisionDTO{
+			ID:       rev.ID,
+			RecordID: rev.RecordID,
+			UserID:   rev.UserID,
+			Revision: rev.Revision,
+			DeviceID: rev.DeviceID,
 		})
+	}
+	for _, conflict := range conflicts {
+		dto := SyncConflictDTO{
+			ID:             conflict.ID,
+			UserID:         conflict.UserID,
+			RecordID:       conflict.RecordID,
+			LocalRevision:  conflict.LocalRevision,
+			ServerRevision: conflict.ServerRevision,
+			Resolved:       conflict.Resolved,
+			Resolution:     conflict.Resolution,
+		}
+		if conflict.LocalRecord != nil {
+			localDTO := recordscommon.RecordToDTO(*conflict.LocalRecord)
+			dto.LocalRecord = &localDTO
+		}
+		if conflict.ServerRecord != nil {
+			serverDTO := recordscommon.RecordToDTO(*conflict.ServerRecord)
+			dto.ServerRecord = &serverDTO
+		}
+		resp.Conflicts = append(resp.Conflicts, dto)
 	}
 
 	w.Header().Set("Content-Type", "application/json")

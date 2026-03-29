@@ -1,5 +1,8 @@
 # Task 7. HTTP sync, uploads и health endpoints в `api/`
 
+## Статус
+Выполнена.
+
 ## Цель
 Подготовить endpoint-first HTTP-контракты и каркас обработчиков для sync, chunk uploads/downloads и health-check.
 
@@ -15,8 +18,8 @@
 6. Добавить unit-тесты на типовые и ошибочные сценарии.
 
 ## Критерии приемки
-- [ ] Для sync, uploads и health есть отдельные endpoint-first пакеты в `api/`.
-- [ ] HTTP-контракты отражают chunk upload/download и resume.
-- [ ] Sync DTO покрывают курсоры, pending changes и конфликты.
-- [ ] Обработаны ошибки незавершенной загрузки и некорректного порядка чанков.
-- [ ] На каждый endpoint есть базовые unit-тесты.
+- [x] Для sync, uploads и health есть отдельные endpoint-first пакеты в `api/`.
+- [x] HTTP-контракты отражают chunk upload/download и resume.
+- [x] Sync DTO покрывают курсоры, pending changes и конфликты.
+- [x] Обработаны ошибки незавершенной загрузки и некорректного порядка чанков.
+- [x] На каждый endpoint есть базовые unit-тесты.

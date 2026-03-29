@@ -1,29 +1,138 @@
 syntax = "proto3";
 
-package sync;
+package gophkeeper.v1;
 
-option go_package = "gophkeeper/api/proto/sync";
+option go_package = "github.com/hydra13/gophkeeper/internal/rpc/pbv1";
 
+import "rpc/proto/v1/shared.proto";
+import "rpc/proto/v1/data.proto";
+import "google/protobuf/timestamp.proto";
+
+// SyncService — синхронизация записей между устройствами.
+// Поддерживает pull/push модели, курсорную навигацию,
+// обнаружение и разрешение конфликтов.
 service SyncService {
-  rpc Sync(SyncRequest) returns (SyncResponse);
+  // Pull — получить изменения с сервера начиная с указанной ревизии/курсора.
+  rpc Pull(PullRequest) returns (PullResponse);
+  // Push — отправить локальные изменения на сервер.
+  rpc Push(PushRequest) returns (PushResponse);
+  // GetConflicts — получить список неразрешённых конфликтов.
+  rpc GetConflicts(GetConflictsRequest) returns (GetConflictsResponse);
+  // ResolveConflict — разрешить конфликт с выбранной стратегией.
+  rpc ResolveConflict(ResolveConflictRequest) returns (ResolveConflictResponse);
 }
 
-message SyncRequest {
-  int64 user_id = 1;
-  string since = 2;
-}
-
-message SyncResponse {
-  repeated SyncRecord records = 1;
-}
-
-message SyncRecord {
+// RecordRevision — точка изменения записи для синхронизации.
+message RecordRevision {
+  // id — уникальный идентификатор ревизии.
   int64 id = 1;
+  // record_id — ссылка на изменённую запись.
+  int64 record_id = 2;
+  // user_id — владелец записи.
+  int64 user_id = 3;
+  // revision — монотонно возрастающий номер ревизии записи.
+  int64 revision = 4;
+  // device_id — устройство, инициировавшее изменение.
+  string device_id = 5;
+  // created_at — время создания ревизии.
+  google.protobuf.Timestamp created_at = 6;
+}
+
+// SyncConflict — зафиксированный конфликт синхронизации.
+message SyncConflict {
+  // id — уникальный идентификатор конфликта.
+  int64 id = 1;
+  // user_id — владелец записи с конфликтом.
   int64 user_id = 2;
-  string data_type = 3;
-  int64 data_id = 4;
-  int64 version = 5;
-  bool deleted = 6;
-  string created_at = 7;
-  string updated_at = 8;
+  // record_id — запись, вызвавшая конфликт.
+  int64 record_id = 3;
+  // local_revision — ревизия локальной версии клиента.
+  int64 local_revision = 4;
+  // server_revision — ревизия серверной версии.
+  int64 server_revision = 5;
+  // resolved — флаг разрешения конфликта.
+  bool resolved = 6;
+  // resolution — выбранное разрешение.
+  gophkeeper.v1.ConflictResolution resolution = 7;
+  // local_record — полные данные локальной версии записи.
+  gophkeeper.v1.Record local_record = 8;
+  // server_record — полные данные серверной версии записи.
+  gophkeeper.v1.Record server_record = 9;
+}
+
+// PullRequest — запрос на получение изменений с сервера.
+message PullRequest {
+  // since_revision — получать изменения начиная с этой ревизии (эксклюзивно).
+  // 0 = получить все изменения.
+  int64 since_revision = 1;
+  // device_id — идентификатор устройства, выполняющего pull.
+  // Позволяет серверу оптимизировать и не отправлять изменения,
+  // сделанные этим же устройством.
+  string device_id = 2;
+  // limit — максимальное количество изменений в ответе.
+  int32 limit = 3;
+}
+
+// PullResponse — ответ с серверными изменениями.
+message PullResponse {
+  // changes — список изменений записей.
+  repeated RecordRevision changes = 1;
+  // records — полные данные изменённых записей.
+  repeated gophkeeper.v1.Record records = 2;
+  // has_more — признак наличия дальнейших изменений.
+  bool has_more = 3;
+  // next_revision — курсор для следующего pull-запроса.
+  int64 next_revision = 4;
+  // conflicts — обнаруженные конфликты (если есть).
+  repeated SyncConflict conflicts = 5;
+}
+
+// PushRequest — запрос на отправку локальных изменений.
+message PushRequest {
+  // changes — локальные изменения для отправки на сервер.
+  repeated PendingChange changes = 1;
+  // device_id — идентификатор устройства, выполняющего push.
+  string device_id = 2;
+}
+
+// PendingChange — локальное изменение, ожидающее отправки на сервер.
+message PendingChange {
+  // record — полные данные записи (создание или обновление).
+  gophkeeper.v1.Record record = 1;
+  // deleted — признак удаления записи.
+  bool deleted = 2;
+  // base_revision — ревизия, на основе которой было сделано изменение.
+  // Используется для обнаружения конфликтов (optimistic locking).
+  int64 base_revision = 3;
+}
+
+// PushResponse — ответ отправки изменений.
+message PushResponse {
+  // accepted — список принятых изменений с обновлёнными ревизиями.
+  repeated RecordRevision accepted = 1;
+  // conflicts — обнаруженные конфликты (ревизия на сервере новее).
+  repeated SyncConflict conflicts = 2;
+}
+
+// GetConflictsRequest — запрос списка неразрешённых конфликтов.
+message GetConflictsRequest {}
+
+// GetConflictsResponse — ответ со списком конфликтов.
+message GetConflictsResponse {
+  // conflicts — неразрешённые конфликты.
+  repeated SyncConflict conflicts = 1;
+}
+
+// ResolveConflictRequest — запрос разрешения конфликта.
+message ResolveConflictRequest {
+  // conflict_id — идентификатор конфликта.
+  int64 conflict_id = 1;
+  // resolution — выбранная стратегия разрешения.
+  gophkeeper.v1.ConflictResolution resolution = 2;
+}
+
+// ResolveConflictResponse — ответ разрешения конфликта.
+message ResolveConflictResponse {
+  // record — итоговая версия записи после разрешения.
+  gophkeeper.v1.Record record = 1;
 }

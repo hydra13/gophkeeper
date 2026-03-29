@@ -16,9 +16,9 @@ type UserServiceMock struct {
 	t          minimock.Tester
 	finishOnce sync.Once
 
-	funcLogin          func(ctx context.Context, email string, password string) (accessToken string, refreshToken string, err error)
+	funcLogin          func(ctx context.Context, email string, password string, deviceID string, deviceName string, clientType string) (accessToken string, refreshToken string, err error)
 	funcLoginOrigin    string
-	inspectFuncLogin   func(ctx context.Context, email string, password string)
+	inspectFuncLogin   func(ctx context.Context, email string, password string, deviceID string, deviceName string, clientType string)
 	afterLoginCounter  uint64
 	beforeLoginCounter uint64
 	LoginMock          mUserServiceMockLogin
@@ -66,16 +66,22 @@ type UserServiceMockLoginExpectation struct {
 
 // UserServiceMockLoginParams contains parameters of the UserService.Login
 type UserServiceMockLoginParams struct {
-	ctx      context.Context
-	email    string
-	password string
+	ctx        context.Context
+	email      string
+	password   string
+	deviceID   string
+	deviceName string
+	clientType string
 }
 
 // UserServiceMockLoginParamPtrs contains pointers to parameters of the UserService.Login
 type UserServiceMockLoginParamPtrs struct {
-	ctx      *context.Context
-	email    *string
-	password *string
+	ctx        *context.Context
+	email      *string
+	password   *string
+	deviceID   *string
+	deviceName *string
+	clientType *string
 }
 
 // UserServiceMockLoginResults contains results of the UserService.Login
@@ -87,10 +93,13 @@ type UserServiceMockLoginResults struct {
 
 // UserServiceMockLoginOrigins contains origins of expectations of the UserService.Login
 type UserServiceMockLoginExpectationOrigins struct {
-	origin         string
-	originCtx      string
-	originEmail    string
-	originPassword string
+	origin           string
+	originCtx        string
+	originEmail      string
+	originPassword   string
+	originDeviceID   string
+	originDeviceName string
+	originClientType string
 }
 
 // Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
@@ -104,7 +113,7 @@ func (mmLogin *mUserServiceMockLogin) Optional() *mUserServiceMockLogin {
 }
 
 // Expect sets up expected params for UserService.Login
-func (mmLogin *mUserServiceMockLogin) Expect(ctx context.Context, email string, password string) *mUserServiceMockLogin {
+func (mmLogin *mUserServiceMockLogin) Expect(ctx context.Context, email string, password string, deviceID string, deviceName string, clientType string) *mUserServiceMockLogin {
 	if mmLogin.mock.funcLogin != nil {
 		mmLogin.mock.t.Fatalf("UserServiceMock.Login mock is already set by Set")
 	}
@@ -117,7 +126,7 @@ func (mmLogin *mUserServiceMockLogin) Expect(ctx context.Context, email string, 
 		mmLogin.mock.t.Fatalf("UserServiceMock.Login mock is already set by ExpectParams functions")
 	}
 
-	mmLogin.defaultExpectation.params = &UserServiceMockLoginParams{ctx, email, password}
+	mmLogin.defaultExpectation.params = &UserServiceMockLoginParams{ctx, email, password, deviceID, deviceName, clientType}
 	mmLogin.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
 	for _, e := range mmLogin.expectations {
 		if minimock.Equal(e.params, mmLogin.defaultExpectation.params) {
@@ -197,8 +206,77 @@ func (mmLogin *mUserServiceMockLogin) ExpectPasswordParam3(password string) *mUs
 	return mmLogin
 }
 
+// ExpectDeviceIDParam4 sets up expected param deviceID for UserService.Login
+func (mmLogin *mUserServiceMockLogin) ExpectDeviceIDParam4(deviceID string) *mUserServiceMockLogin {
+	if mmLogin.mock.funcLogin != nil {
+		mmLogin.mock.t.Fatalf("UserServiceMock.Login mock is already set by Set")
+	}
+
+	if mmLogin.defaultExpectation == nil {
+		mmLogin.defaultExpectation = &UserServiceMockLoginExpectation{}
+	}
+
+	if mmLogin.defaultExpectation.params != nil {
+		mmLogin.mock.t.Fatalf("UserServiceMock.Login mock is already set by Expect")
+	}
+
+	if mmLogin.defaultExpectation.paramPtrs == nil {
+		mmLogin.defaultExpectation.paramPtrs = &UserServiceMockLoginParamPtrs{}
+	}
+	mmLogin.defaultExpectation.paramPtrs.deviceID = &deviceID
+	mmLogin.defaultExpectation.expectationOrigins.originDeviceID = minimock.CallerInfo(1)
+
+	return mmLogin
+}
+
+// ExpectDeviceNameParam5 sets up expected param deviceName for UserService.Login
+func (mmLogin *mUserServiceMockLogin) ExpectDeviceNameParam5(deviceName string) *mUserServiceMockLogin {
+	if mmLogin.mock.funcLogin != nil {
+		mmLogin.mock.t.Fatalf("UserServiceMock.Login mock is already set by Set")
+	}
+
+	if mmLogin.defaultExpectation == nil {
+		mmLogin.defaultExpectation = &UserServiceMockLoginExpectation{}
+	}
+
+	if mmLogin.defaultExpectation.params != nil {
+		mmLogin.mock.t.Fatalf("UserServiceMock.Login mock is already set by Expect")
+	}
+
+	if mmLogin.defaultExpectation.paramPtrs == nil {
+		mmLogin.defaultExpectation.paramPtrs = &UserServiceMockLoginParamPtrs{}
+	}
+	mmLogin.defaultExpectation.paramPtrs.deviceName = &deviceName
+	mmLogin.defaultExpectation.expectationOrigins.originDeviceName = minimock.CallerInfo(1)
+
+	return mmLogin
+}
+
+// ExpectClientTypeParam6 sets up expected param clientType for UserService.Login
+func (mmLogin *mUserServiceMockLogin) ExpectClientTypeParam6(clientType string) *mUserServiceMockLogin {
+	if mmLogin.mock.funcLogin != nil {
+		mmLogin.mock.t.Fatalf("UserServiceMock.Login mock is already set by Set")
+	}
+
+	if mmLogin.defaultExpectation == nil {
+		mmLogin.defaultExpectation = &UserServiceMockLoginExpectation{}
+	}
+
+	if mmLogin.defaultExpectation.params != nil {
+		mmLogin.mock.t.Fatalf("UserServiceMock.Login mock is already set by Expect")
+	}
+
+	if mmLogin.defaultExpectation.paramPtrs == nil {
+		mmLogin.defaultExpectation.paramPtrs = &UserServiceMockLoginParamPtrs{}
+	}
+	mmLogin.defaultExpectation.paramPtrs.clientType = &clientType
+	mmLogin.defaultExpectation.expectationOrigins.originClientType = minimock.CallerInfo(1)
+
+	return mmLogin
+}
+
 // Inspect accepts an inspector function that has same arguments as the UserService.Login
-func (mmLogin *mUserServiceMockLogin) Inspect(f func(ctx context.Context, email string, password string)) *mUserServiceMockLogin {
+func (mmLogin *mUserServiceMockLogin) Inspect(f func(ctx context.Context, email string, password string, deviceID string, deviceName string, clientType string)) *mUserServiceMockLogin {
 	if mmLogin.mock.inspectFuncLogin != nil {
 		mmLogin.mock.t.Fatalf("Inspect function is already set for UserServiceMock.Login")
 	}
@@ -223,7 +301,7 @@ func (mmLogin *mUserServiceMockLogin) Return(accessToken string, refreshToken st
 }
 
 // Set uses given function f to mock the UserService.Login method
-func (mmLogin *mUserServiceMockLogin) Set(f func(ctx context.Context, email string, password string) (accessToken string, refreshToken string, err error)) *UserServiceMock {
+func (mmLogin *mUserServiceMockLogin) Set(f func(ctx context.Context, email string, password string, deviceID string, deviceName string, clientType string) (accessToken string, refreshToken string, err error)) *UserServiceMock {
 	if mmLogin.defaultExpectation != nil {
 		mmLogin.mock.t.Fatalf("Default expectation is already set for the UserService.Login method")
 	}
@@ -239,14 +317,14 @@ func (mmLogin *mUserServiceMockLogin) Set(f func(ctx context.Context, email stri
 
 // When sets expectation for the UserService.Login which will trigger the result defined by the following
 // Then helper
-func (mmLogin *mUserServiceMockLogin) When(ctx context.Context, email string, password string) *UserServiceMockLoginExpectation {
+func (mmLogin *mUserServiceMockLogin) When(ctx context.Context, email string, password string, deviceID string, deviceName string, clientType string) *UserServiceMockLoginExpectation {
 	if mmLogin.mock.funcLogin != nil {
 		mmLogin.mock.t.Fatalf("UserServiceMock.Login mock is already set by Set")
 	}
 
 	expectation := &UserServiceMockLoginExpectation{
 		mock:               mmLogin.mock,
-		params:             &UserServiceMockLoginParams{ctx, email, password},
+		params:             &UserServiceMockLoginParams{ctx, email, password, deviceID, deviceName, clientType},
 		expectationOrigins: UserServiceMockLoginExpectationOrigins{origin: minimock.CallerInfo(1)},
 	}
 	mmLogin.expectations = append(mmLogin.expectations, expectation)
@@ -281,17 +359,17 @@ func (mmLogin *mUserServiceMockLogin) invocationsDone() bool {
 }
 
 // Login implements mm_auth_login_v1_post.UserService
-func (mmLogin *UserServiceMock) Login(ctx context.Context, email string, password string) (accessToken string, refreshToken string, err error) {
+func (mmLogin *UserServiceMock) Login(ctx context.Context, email string, password string, deviceID string, deviceName string, clientType string) (accessToken string, refreshToken string, err error) {
 	mm_atomic.AddUint64(&mmLogin.beforeLoginCounter, 1)
 	defer mm_atomic.AddUint64(&mmLogin.afterLoginCounter, 1)
 
 	mmLogin.t.Helper()
 
 	if mmLogin.inspectFuncLogin != nil {
-		mmLogin.inspectFuncLogin(ctx, email, password)
+		mmLogin.inspectFuncLogin(ctx, email, password, deviceID, deviceName, clientType)
 	}
 
-	mm_params := UserServiceMockLoginParams{ctx, email, password}
+	mm_params := UserServiceMockLoginParams{ctx, email, password, deviceID, deviceName, clientType}
 
 	// Record call args
 	mmLogin.LoginMock.mutex.Lock()
@@ -310,7 +388,7 @@ func (mmLogin *UserServiceMock) Login(ctx context.Context, email string, passwor
 		mm_want := mmLogin.LoginMock.defaultExpectation.params
 		mm_want_ptrs := mmLogin.LoginMock.defaultExpectation.paramPtrs
 
-		mm_got := UserServiceMockLoginParams{ctx, email, password}
+		mm_got := UserServiceMockLoginParams{ctx, email, password, deviceID, deviceName, clientType}
 
 		if mm_want_ptrs != nil {
 
@@ -329,6 +407,21 @@ func (mmLogin *UserServiceMock) Login(ctx context.Context, email string, passwor
 					mmLogin.LoginMock.defaultExpectation.expectationOrigins.originPassword, *mm_want_ptrs.password, mm_got.password, minimock.Diff(*mm_want_ptrs.password, mm_got.password))
 			}
 
+			if mm_want_ptrs.deviceID != nil && !minimock.Equal(*mm_want_ptrs.deviceID, mm_got.deviceID) {
+				mmLogin.t.Errorf("UserServiceMock.Login got unexpected parameter deviceID, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmLogin.LoginMock.defaultExpectation.expectationOrigins.originDeviceID, *mm_want_ptrs.deviceID, mm_got.deviceID, minimock.Diff(*mm_want_ptrs.deviceID, mm_got.deviceID))
+			}
+
+			if mm_want_ptrs.deviceName != nil && !minimock.Equal(*mm_want_ptrs.deviceName, mm_got.deviceName) {
+				mmLogin.t.Errorf("UserServiceMock.Login got unexpected parameter deviceName, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmLogin.LoginMock.defaultExpectation.expectationOrigins.originDeviceName, *mm_want_ptrs.deviceName, mm_got.deviceName, minimock.Diff(*mm_want_ptrs.deviceName, mm_got.deviceName))
+			}
+
+			if mm_want_ptrs.clientType != nil && !minimock.Equal(*mm_want_ptrs.clientType, mm_got.clientType) {
+				mmLogin.t.Errorf("UserServiceMock.Login got unexpected parameter clientType, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmLogin.LoginMock.defaultExpectation.expectationOrigins.originClientType, *mm_want_ptrs.clientType, mm_got.clientType, minimock.Diff(*mm_want_ptrs.clientType, mm_got.clientType))
+			}
+
 		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
 			mmLogin.t.Errorf("UserServiceMock.Login got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
 				mmLogin.LoginMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
@@ -341,9 +434,9 @@ func (mmLogin *UserServiceMock) Login(ctx context.Context, email string, passwor
 		return (*mm_results).accessToken, (*mm_results).refreshToken, (*mm_results).err
 	}
 	if mmLogin.funcLogin != nil {
-		return mmLogin.funcLogin(ctx, email, password)
+		return mmLogin.funcLogin(ctx, email, password, deviceID, deviceName, clientType)
 	}
-	mmLogin.t.Fatalf("Unexpected call to UserServiceMock.Login. %v %v %v", ctx, email, password)
+	mmLogin.t.Fatalf("Unexpected call to UserServiceMock.Login. %v %v %v %v %v %v", ctx, email, password, deviceID, deviceName, clientType)
 	return
 }
 

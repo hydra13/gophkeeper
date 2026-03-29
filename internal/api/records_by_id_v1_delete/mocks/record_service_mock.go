@@ -23,7 +23,7 @@ func (m *RecordServiceMock) GetRecord(id int64) (*models.Record, error) {
 }
 
 // DeleteRecord implements recordsbyidv1delete.RecordService.
-func (m *RecordServiceMock) DeleteRecord(id int64) error {
+func (m *RecordServiceMock) DeleteRecord(id int64, deviceID string) error {
 	return m.deleteErr
 }
 

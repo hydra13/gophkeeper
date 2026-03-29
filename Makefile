@@ -1,4 +1,4 @@
-.PHONY: fmt lint test cover proto build build-server build-client clean
+.PHONY: fmt lint test cover proto proto-check build build-server build-client clean
 
 fmt:
 	goimports -w .
@@ -16,6 +16,12 @@ proto:
 	protoc --go_out=. --go_opt=paths=source_relative \
 	       --go-grpc_out=. --go-grpc_opt=paths=source_relative \
 	       rpc/proto/v1/*.proto
+
+proto-check:
+	@echo "==> Checking proto compilation..."
+	@protoc --go_out=. --go_opt=paths=source_relative \
+	        --go-grpc_out=. --go-grpc_opt=paths=source_relative \
+	        rpc/proto/v1/*.proto && echo "Proto compilation OK"
 
 build-server:
 	go build -o bin/server ./cmd/server
