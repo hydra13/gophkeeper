@@ -137,12 +137,13 @@ tasks:
   - id: task_13
     title: "Use-case слой uploads и бинарных вложений"
     file: ".memory-bank/tasks/task_13.md"
+    status: "completed"
     phase: 6
     parallel_group: 8
     mvp: true
     depends_on: [task_4, task_7, task_8, task_9, task_10, task_11]
     blocks: [task_14, task_15, task_17]
-    notes: "Chunk upload/download и resume вынесены отдельно, чтобы уменьшить размер задачи."
+    notes: "Повторная валидация пройдена: замечания закрыты, все критерии приёмки выполнены."
 
   - id: task_14
     title: "Sync use-case и разрешение конфликтов"

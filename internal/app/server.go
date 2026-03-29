@@ -69,6 +69,11 @@ type AppDeps struct {
 		GetUploadStatus(uploadID int64) (*uploads_by_id_v1_get.UploadStatusResponse, error)
 		UploadChunk(uploadID, chunkIndex int64, data []byte) (received, total int64, completed bool, missing []int64, err error)
 		DownloadChunk(uploadID, chunkIndex int64) (*uploads_by_id_chunks_v1_get.ChunkDownloadResponse, error)
+		GetUploadSessionByID(uploadID int64) (*models.UploadSession, error)
+		CreateDownloadSession(userID, recordID int64) (*models.DownloadSession, error)
+		DownloadChunkByID(downloadID, chunkIndex int64) (*models.Chunk, error)
+		ConfirmChunk(downloadID, chunkIndex int64) (confirmed, total int64, status models.DownloadStatus, err error)
+		GetDownloadStatus(downloadID int64) (*models.DownloadSession, error)
 	}
 }
 
@@ -307,7 +312,7 @@ func buildGRPCServer(cfg *config.Config, log zerolog.Logger, limiter *middleware
 	authRPCService := rpc.NewAuthService(deps.AuthService, log)
 	dataService := rpc.NewDataService(deps.RecordService, log)
 	syncService := rpc.NewSyncService()
-	uploadsService := rpc.NewUploadsService()
+	uploadsService := rpc.NewUploadsService(deps.UploadService, log)
 	healthService := rpc.NewHealthService()
 
 	rpc.NewServer(authRPCService, dataService, syncService, uploadsService, healthService).Register(grpcServer)
@@ -440,5 +445,25 @@ func (s *stubUploadsService) UploadChunk(uploadID, chunkIndex int64, data []byte
 }
 
 func (s *stubUploadsService) DownloadChunk(uploadID, chunkIndex int64) (*uploads_by_id_chunks_v1_get.ChunkDownloadResponse, error) {
+	return nil, errors.New("uploads service not implemented")
+}
+
+func (s *stubUploadsService) GetUploadSessionByID(uploadID int64) (*models.UploadSession, error) {
+	return nil, errors.New("uploads service not implemented")
+}
+
+func (s *stubUploadsService) CreateDownloadSession(userID, recordID int64) (*models.DownloadSession, error) {
+	return nil, errors.New("uploads service not implemented")
+}
+
+func (s *stubUploadsService) DownloadChunkByID(downloadID, chunkIndex int64) (*models.Chunk, error) {
+	return nil, errors.New("uploads service not implemented")
+}
+
+func (s *stubUploadsService) ConfirmChunk(downloadID, chunkIndex int64) (confirmed, total int64, status models.DownloadStatus, err error) {
+	return 0, 0, "", errors.New("uploads service not implemented")
+}
+
+func (s *stubUploadsService) GetDownloadStatus(downloadID int64) (*models.DownloadSession, error) {
 	return nil, errors.New("uploads service not implemented")
 }

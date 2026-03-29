@@ -18,6 +18,7 @@ import (
 	cryptosvc "github.com/hydra13/gophkeeper/internal/services/crypto"
 	keysvc "github.com/hydra13/gophkeeper/internal/services/keys"
 	recordsvc "github.com/hydra13/gophkeeper/internal/services/records"
+	uploadsvc "github.com/hydra13/gophkeeper/internal/services/uploads"
 	"github.com/hydra13/gophkeeper/internal/storage"
 )
 
@@ -107,11 +108,16 @@ func wireDeps(cfg *config.Config, log zerolog.Logger) (app.AppDeps, func(), erro
 		return app.AppDeps{}, cleanup, err
 	}
 
+	uploadService, err := uploadsvc.NewService(repo)
+	if err != nil {
+		return app.AppDeps{}, cleanup, err
+	}
+
 	stubs := app.NewStubDeps()
 	return app.AppDeps{
 		AuthService:   authService,
 		RecordService: recordService,
 		SyncService:   stubs.SyncService,
-		UploadService: stubs.UploadService,
+		UploadService: uploadService,
 	}, cleanup, nil
 }

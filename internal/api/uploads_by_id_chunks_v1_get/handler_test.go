@@ -229,6 +229,60 @@ func TestChunkDownloadHandler_ChunkOutOfOrder(t *testing.T) {
 	}
 }
 
+func TestChunkDownloadHandler_UploadSessionNotFound(t *testing.T) {
+	mock := &mockChunkDownloader{
+		downloadChunkFunc: func(uploadID, chunkIndex int64) (*ChunkDownloadResponse, error) {
+			return nil, errors.New("upload session not found")
+		},
+	}
+
+	h := NewHandler(mock)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/uploads/1/chunks/0", nil)
+	w := httptest.NewRecorder()
+
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected status 404, got %d", w.Code)
+	}
+}
+
+func TestChunkDownloadHandler_ChunkNotFound(t *testing.T) {
+	mock := &mockChunkDownloader{
+		downloadChunkFunc: func(uploadID, chunkIndex int64) (*ChunkDownloadResponse, error) {
+			return nil, errors.New("chunk 0 not found for upload 1")
+		},
+	}
+
+	h := NewHandler(mock)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/uploads/1/chunks/0", nil)
+	w := httptest.NewRecorder()
+
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected status 404, got %d", w.Code)
+	}
+}
+
+func TestChunkDownloadHandler_InternalError(t *testing.T) {
+	mock := &mockChunkDownloader{
+		downloadChunkFunc: func(uploadID, chunkIndex int64) (*ChunkDownloadResponse, error) {
+			return nil, errors.New("something unexpected")
+		},
+	}
+
+	h := NewHandler(mock)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/uploads/1/chunks/0", nil)
+	w := httptest.NewRecorder()
+
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected status 500, got %d", w.Code)
+	}
+}
+
 func TestExtractUploadIDAndChunkIndex(t *testing.T) {
 	tests := []struct {
 		path    string

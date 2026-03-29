@@ -59,6 +59,7 @@ type SessionRepository interface {
 type UploadRepository interface {
 	CreateUploadSession(session *models.UploadSession) error
 	GetUploadSession(id int64) (*models.UploadSession, error)
+	GetCompletedUploadByRecordID(recordID int64) (*models.UploadSession, error)
 	UpdateUploadSession(session *models.UploadSession) error
 	SaveChunk(chunk *models.Chunk) error
 	GetChunks(uploadID int64) ([]models.Chunk, error)

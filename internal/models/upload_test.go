@@ -122,15 +122,15 @@ func TestUploadSessionCompleteChunk_OutOfRange(t *testing.T) {
 
 func TestUploadSessionCompleteChunk_Duplicate(t *testing.T) {
 	u := &UploadSession{
-		Status:         UploadStatusPending,
-		TotalChunks:    3,
-		ReceivedChunks: 0,
+		Status:           UploadStatusPending,
+		TotalChunks:      3,
+		ReceivedChunks:   1,
+		ReceivedChunkSet: map[int64]bool{0: true},
 	}
-	if err := u.CompleteChunk(0); err != nil {
-		t.Fatalf("first chunk 0: unexpected error: %v", err)
-	}
-	if err := u.CompleteChunk(0); err != ErrDuplicateChunk {
-		t.Fatalf("expected ErrDuplicateChunk for duplicate chunk, got: %v", err)
+	// Пытаемся отправить чанк 0 повторно — но порядок проверяется первым,
+	// поэтому дубликат при строгом порядке = ErrChunkOutOfOrder
+	if err := u.CompleteChunk(0); err != ErrChunkOutOfOrder {
+		t.Fatalf("expected ErrChunkOutOfOrder for duplicate chunk (out of order), got: %v", err)
 	}
 	if u.ReceivedChunks != 1 {
 		t.Fatalf("expected 1 received chunk after duplicate attempt, got %d", u.ReceivedChunks)
@@ -322,15 +322,15 @@ func TestDownloadSessionConfirmChunk_OutOfRange(t *testing.T) {
 
 func TestDownloadSessionConfirmChunk_Duplicate(t *testing.T) {
 	d := &DownloadSession{
-		Status:          DownloadStatusActive,
-		TotalChunks:     3,
-		ConfirmedChunks: 0,
+		Status:            DownloadStatusActive,
+		TotalChunks:       3,
+		ConfirmedChunks:   1,
+		ConfirmedChunkSet: map[int64]bool{0: true},
 	}
-	if err := d.ConfirmChunk(0); err != nil {
-		t.Fatalf("first confirm chunk 0: unexpected error: %v", err)
-	}
-	if err := d.ConfirmChunk(0); err != ErrChunkAlreadyConfirmed {
-		t.Fatalf("expected ErrChunkAlreadyConfirmed, got: %v", err)
+	// Пытаемся подтвердить чанк 0 повторно — но порядок проверяется первым,
+	// поэтому дубликат при строгом порядке = ErrChunkOutOfOrder
+	if err := d.ConfirmChunk(0); err != ErrChunkOutOfOrder {
+		t.Fatalf("expected ErrChunkOutOfOrder for duplicate confirm (out of order), got: %v", err)
 	}
 	if d.ConfirmedChunks != 1 {
 		t.Fatalf("expected 1 confirmed chunk after duplicate, got %d", d.ConfirmedChunks)

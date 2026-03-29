@@ -113,6 +113,10 @@ func extractUploadIDAndChunkIndex(path string) (int64, int64, error) {
 // mapDownloadError мапит ошибки домена на HTTP-статусы.
 func mapDownloadError(w http.ResponseWriter, err error) {
 	switch {
+	case isErr(err, "upload session not found"):
+		http.Error(w, err.Error(), http.StatusNotFound)
+	case isErr(err, "chunk") && isErr(err, "not found"):
+		http.Error(w, err.Error(), http.StatusNotFound)
 	case isErr(err, "download session not found"):
 		http.Error(w, err.Error(), http.StatusNotFound)
 	case isErr(err, "download session already completed"):

@@ -57,6 +57,8 @@ func (u *UploadSession) IsResumable() bool {
 }
 
 // CompleteChunk регистрирует получение очередного чанка.
+// Чанки должны поступать строго по порядку: следующий ожидаемый индекс равен ReceivedChunks.
+// Возвращает ErrChunkOutOfOrder если индекс не совпадает с ожидаемым.
 // Возвращает ErrDuplicateChunk если чанк с таким индексом уже был принят.
 // Возвращает ErrChunkOutOfRange если индекс вне диапазона.
 // Возвращает ErrUploadNotPending или ErrUploadAborted если статус не позволяет принять чанк.
@@ -72,6 +74,9 @@ func (u *UploadSession) CompleteChunk(chunkIndex int64) error {
 	}
 	if chunkIndex < 0 || chunkIndex >= u.TotalChunks {
 		return ErrChunkOutOfRange
+	}
+	if chunkIndex != u.ReceivedChunks {
+		return ErrChunkOutOfOrder
 	}
 	if u.ReceivedChunkSet != nil && u.ReceivedChunkSet[chunkIndex] {
 		return ErrDuplicateChunk
@@ -166,6 +171,8 @@ func (d *DownloadSession) IsResumable() bool {
 }
 
 // ConfirmChunk подтверждает получение чанка клиентом.
+// Чанки подтверждаются строго по порядку: следующий ожидаемый индекс равен ConfirmedChunks.
+// Возвращает ErrChunkOutOfOrder если индекс не совпадает с ожидаемым.
 // Возвращает ErrDownloadCompleted если сессия уже завершена.
 // Возвращает ErrDownloadAborted если сессия прервана.
 // Возвращает ErrDownloadNotActive если сессия не в статусе active.
@@ -183,6 +190,9 @@ func (d *DownloadSession) ConfirmChunk(chunkIndex int64) error {
 	}
 	if chunkIndex < 0 || chunkIndex >= d.TotalChunks {
 		return ErrChunkOutOfRange
+	}
+	if chunkIndex != d.ConfirmedChunks {
+		return ErrChunkOutOfOrder
 	}
 	if d.ConfirmedChunkSet != nil && d.ConfirmedChunkSet[chunkIndex] {
 		return ErrChunkAlreadyConfirmed

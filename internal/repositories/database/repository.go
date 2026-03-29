@@ -719,6 +719,56 @@ func (r *Repository) GetUploadSession(id int64) (*models.UploadSession, error) {
 	return &session, nil
 }
 
+// GetCompletedUploadByRecordID возвращает завершённую upload-сессию по recordID.
+func (r *Repository) GetCompletedUploadByRecordID(recordID int64) (*models.UploadSession, error) {
+	row := r.db.QueryRowContext(context.Background(), `
+		SELECT id, record_id, user_id, status, total_chunks, received_chunks, chunk_size, total_size, key_version
+		FROM upload_sessions
+		WHERE record_id = $1 AND status = 'completed'
+		ORDER BY updated_at DESC
+		LIMIT 1
+	`, recordID)
+	var session models.UploadSession
+	if err := row.Scan(
+		&session.ID,
+		&session.RecordID,
+		&session.UserID,
+		&session.Status,
+		&session.TotalChunks,
+		&session.ReceivedChunks,
+		&session.ChunkSize,
+		&session.TotalSize,
+		&session.KeyVersion,
+	); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, models.ErrUploadNotFound
+		}
+		return nil, err
+	}
+
+	chunksRows, err := r.db.QueryContext(context.Background(), `
+		SELECT chunk_index FROM upload_chunks WHERE upload_id = $1
+	`, session.ID)
+	if err != nil {
+		return nil, err
+	}
+	defer chunksRows.Close()
+
+	session.ReceivedChunkSet = make(map[int64]bool)
+	for chunksRows.Next() {
+		var idx int64
+		if err := chunksRows.Scan(&idx); err != nil {
+			return nil, err
+		}
+		session.ReceivedChunkSet[idx] = true
+	}
+	if err := chunksRows.Err(); err != nil {
+		return nil, err
+	}
+
+	return &session, nil
+}
+
 // UpdateUploadSession обновляет состояние upload-сессии.
 func (r *Repository) UpdateUploadSession(session *models.UploadSession) error {
 	if session == nil {

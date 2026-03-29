@@ -49,3 +49,26 @@ cp configs/config.example.json configs/config.local.json
 | `crypto.master_key`     | `GK_MASTER_KEY`           | Мастер-ключ шифрования данных       |
 
 Все соединения работают только через TLS.
+
+### База данных
+
+Для развёртывания PostgreSQL используется Docker:
+
+```bash
+docker run -d \
+  --name gophkeeper-postgres \
+  -p 5432:5432 \
+  -e POSTGRES_PASSWORD=postgres \
+  -e POSTGRES_DB=gophkeeper \
+  -e PGDATA=/var/lib/postgresql/data/pgdata \
+  -v ./.db:/var/lib/postgresql/data \
+  postgres:15-alpine
+```
+
+DSN для подключения: `postgres://postgres:postgres@localhost:5432/gophkeeper?sslmode=disable`
+
+Для запуска интеграционных тестов:
+
+```bash
+GK_TEST_DATABASE_DSN="postgres://postgres:postgres@localhost:5432/gophkeeper?sslmode=disable" make test
+```
