@@ -17,7 +17,7 @@ gophkeeper/
 │   └── proto/
 │       └── v1/
 │           ├── auth.proto                 # gRPC auth API
-│           ├── records.proto              # CRUD и metadata
+│           ├── data.proto                 # CRUD и metadata
 │           ├── sync.proto                 # Синхронизация
 │           └── uploads.proto              # Chunk upload/download
 │
@@ -112,21 +112,22 @@ gophkeeper/
 │   │   ├── loader.go
 │   │   └── validate.go
 │   │
-│   ├── domain/
+│   ├── models/
 │   │   ├── user.go                        # Пользователь
-│   │   ├── record.go                      # Базовая запись
-│   │   ├── record_types.go                # login/text/binary/card
+│   │   ├── login_password.go              # Данные типа login/password
+│   │   ├── text_data.go                   # Произвольный текст
+│   │   ├── binary_data.go                 # Бинарные данные
+│   │   ├── bank_card.go                   # Банковские карты
 │   │   ├── metadata.go                    # Произвольная metadata
-│   │   ├── session.go                     # device-aware sessions
 │   │   ├── sync.go                        # Ревизии и конфликты
+│   │   ├── session.go                     # device-aware sessions
 │   │   ├── upload.go                      # Upload session/chunks
-│   │   ├── key_version.go                 # active/deprecated/retired
 │   │   └── errors.go
 │   │
-│   ├── grpc/
+│   ├── rpc/
 │   │   ├── server.go
 │   │   ├── auth_service.go
-│   │   ├── records_service.go
+│   │   ├── data_service.go
 │   │   ├── sync_service.go
 │   │   └── uploads_service.go
 │   │
@@ -134,28 +135,17 @@ gophkeeper/
 │   │   ├── auth.go                        # HTTP auth middleware
 │   │   ├── logger.go                      # Логирование запросов/ответов
 │   │   ├── ratelimit.go
+│   │   ├── compression.go
 │   │   └── tls.go                         # Проверка transport-конфига
 │   │
-│   ├── interceptors/
-│   │   ├── auth.go                        # gRPC auth interceptor
-│   │   ├── logger.go
-│   │   └── ratelimit.go
-│   │
 │   ├── repositories/
-│   │   ├── users.go
-│   │   ├── records.go
-│   │   ├── sessions.go
-│   │   ├── sync_state.go
-│   │   ├── uploads.go
-│   │   ├── key_versions.go
-│   │   ├── postgres/
-│   │   │   ├── users.go
-│   │   │   ├── records.go
-│   │   │   ├── sessions.go
-│   │   │   ├── uploads.go
-│   │   │   └── key_versions.go
-│   │   └── fileblob/
-│   │       └── storage.go                 # Файловое хранение binary payload
+│   │   ├── repository.go
+│   │   ├── database/
+│   │   │   └── repository.go
+│   │   ├── file/
+│   │   │   └── repository.go
+│   │   └── inmemory/
+│   │       └── repository.go
 │   │
 │   ├── services/
 │   │   ├── auth/
@@ -234,16 +224,16 @@ gophkeeper/
 
 ## Что важно учесть в структуре
 
-### 1. Домен отделён от transport слоя
-`internal/domain` и `internal/services` не должны зависеть от HTTP или gRPC деталей.
+### 1. Модели отделены от transport слоя
+`internal/models` и `internal/services` не должны зависеть от HTTP или gRPC деталей.
 Оба transport слоя используют один и тот же use-case слой.
 
 ### 2. HTTP и gRPC равноправны
 Нельзя сводить HTTP к gateway-обёртке, потому что по утверждённому плану это отдельный полноценный API.
-Из-за этого нужны отдельные endpoint-пакеты в `api/`, отдельный `internal/grpc/` и отдельные integration tests для обоих transport слоёв.
+Из-за этого нужны отдельные endpoint-пакеты в `api/`, отдельный `internal/rpc/` и отдельные integration tests для обоих transport слоёв.
 
 ### 3. HTTP-слой проектируется endpoint-first
-Каждая HTTP-ручка живёт в отдельном пакете по шаблону `api/<path через нижнее подчеркивание>_<версия>_<http-метод>`.
+Каждая HTTP-ручка живёт в отдельном пакете по шаблону `api/<path через нижнее подчеркивание>_<версия в формате vN>_<http-метод>`.
 Внутри пакета должны лежать как минимум `handler.go`, `handler_test.go` и каталог `mocks/` под зависимости конкретной ручки.
 
 ### 4. Chunk upload закладывается сразу
@@ -302,13 +292,12 @@ README должен отражать текущий scope:
 4. Упрощённую модель binary storage без upload sessions.
 
 ### Добавить обязательно
-1. `rpc/proto/` для gRPC контрактов.
+1. `rpc/proto/v1/` для gRPC контрактов.
 2. Endpoint-first пакеты в `api/` для HTTP-ручек.
-3. `internal/interceptors/` для gRPC middleware.
-4. `internal/services/uploads/` и `internal/domain/upload.go`.
-5. `internal/services/crypto/key_manager.go`.
-6. `internal/jobs/reencrypt/`.
-7. `pkg/clientcore/` и `pkg/cache/uploads.go`.
+3. `internal/services/uploads/` и `internal/models/upload.go`.
+4. `internal/services/crypto/key_manager.go`.
+5. `internal/jobs/reencrypt/`.
+6. `pkg/clientcore/` и `pkg/cache/uploads.go`.
 7. `tests/integration/http`, `tests/integration/grpc`, `tests/e2e/uploads`, `tests/e2e/reencrypt`.
 
 ## Почему эта структура лучше подходит текущему плану

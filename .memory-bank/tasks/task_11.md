@@ -10,14 +10,14 @@
 1. Реализовать сценарии `register`, `login`, `refresh`, `logout` и при необходимости `logout-all-devices`.
 2. Определить формат access/refresh токенов, сроки жизни и правила обновления.
 3. Добавить хранение и обновление device-aware сессий в базе данных.
-4. Подключить auth use-case к HTTP auth endpoint-пакетам и gRPC auth service на основе зафиксированных transport-контрактов.
-5. Реализовать HTTP middleware и gRPC interceptors, которые проверяют токен и валидируют сессию.
+4. Подключить auth use-case к HTTP auth endpoint-пакетам в `api/` и gRPC auth service в `internal/rpc` на основе зафиксированных transport-контрактов.
+5. Реализовать HTTP middleware и gRPC auth-проверки, которые проверяют токен и валидируют сессию.
 6. Написать unit/integration-тесты на happy-path, истечение сессии, отзыв устройства и ошибки авторизации.
 
 ## Критерии приемки
 - [ ] Пользователь может зарегистрироваться и аутентифицироваться через оба transport-слоя.
 - [ ] Access/refresh flow работает согласованно для HTTP и gRPC.
 - [ ] Для каждой активной сессии сохраняются `device_id`, имя устройства, тип клиента и `last_seen_at`.
-- [ ] HTTP auth endpoints и gRPC auth service используют один и тот же use-case слой.
-- [ ] Middleware/interceptors защищают приватные методы от неавторизованного доступа.
+- [ ] HTTP auth endpoint-пакеты в `api/` и gRPC auth service в `internal/rpc` используют один и тот же use-case слой.
+- [ ] Middleware и gRPC auth-проверки защищают приватные методы от неавторизованного доступа.
 - [ ] Auth-сценарии покрыты тестами.

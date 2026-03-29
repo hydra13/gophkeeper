@@ -7,7 +7,7 @@
 Синхронизация между устройствами и работа с бинарными данными входят в исходную идею проекта, но заметно сложнее обычного CRUD. Поэтому их нужно держать отдельной задачей с явно описанными DTO для курсоров, pending-операций, upload session и resume-сценариев.
 
 ## Последовательность шагов
-1. Создать пакеты `sync_pull_v1_post`, `sync_push_v1_post`, `uploads_v1_post`, `uploads_by_id_chunks_v1_post`, `uploads_by_id_v1_get`, `health_v1_get`.
+1. Создать пакеты `api/sync_pull_v1_post`, `api/sync_push_v1_post`, `api/uploads_v1_post`, `api/uploads_by_id_chunks_v1_post`, `api/uploads_by_id_v1_get`, `api/health_v1_get`.
 2. В каждом пакете подготовить `handler.go`, `handler_test.go` и `mocks/`.
 3. Описать DTO для sync cursors, pending changes, conflict response, upload session, chunk state и download response.
 4. Зафиксировать правила resume после обрыва для upload и download.

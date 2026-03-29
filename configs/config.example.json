@@ -2,12 +2,11 @@
   "server": {
     "address": ":8080",
     "grpc_address": ":9090",
-    "enable_https": false,
-    "tls_cert_file": "",
-    "tls_key_file": ""
+    "tls_cert_file": "certs/server.crt",
+    "tls_key_file": "certs/server.key"
   },
   "database": {
-    "dsn": "postgres://user:password@localhost:5432/gophkeeper?sslmode=disable"
+    "dsn": "postgres://user:password@localhost:5432/gophkeeper?sslmode=require"
   },
   "auth": {
     "jwt_secret": "your-secret-key-change-in-production",

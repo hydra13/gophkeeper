@@ -1,52 +1,66 @@
 package repositories
 
-import "gophkeeper/internal/models"
+import "github.com/hydra13/gophkeeper/internal/models"
 
-// Repository интерфейс для хранилища данных
+// Repository — объединённый интерфейс хранилища данных.
 type Repository interface {
 	UserRepository
-	DataRepository
+	RecordRepository
 	SyncRepository
+	SessionRepository
+	UploadRepository
+	KeyVersionRepository
 }
 
+// UserRepository — операции с пользователями.
 type UserRepository interface {
 	CreateUser(user *models.User) error
-	GetUserByLogin(login string) (*models.User, error)
+	GetUserByEmail(email string) (*models.User, error)
 	GetUserByID(id int64) (*models.User, error)
 }
 
-type DataRepository interface {
-	// LoginPassword operations
-	CreateLoginPassword(data *models.LoginPassword) error
-	GetLoginPassword(id int64) (*models.LoginPassword, error)
-	ListLoginPasswords(userID int64) ([]models.LoginPassword, error)
-	UpdateLoginPassword(data *models.LoginPassword) error
-	DeleteLoginPassword(id int64) error
-
-	// TextData operations
-	CreateTextData(data *models.TextData) error
-	GetTextData(id int64) (*models.TextData, error)
-	ListTextData(userID int64) ([]models.TextData, error)
-	UpdateTextData(data *models.TextData) error
-	DeleteTextData(id int64) error
-
-	// BinaryData operations
-	CreateBinaryData(data *models.BinaryData) error
-	GetBinaryData(id int64) (*models.BinaryData, error)
-	ListBinaryData(userID int64) ([]models.BinaryData, error)
-	UpdateBinaryData(data *models.BinaryData) error
-	DeleteBinaryData(id int64) error
-
-	// BankCard operations
-	CreateBankCard(data *models.BankCard) error
-	GetBankCard(id int64) (*models.BankCard, error)
-	ListBankCards(userID int64) ([]models.BankCard, error)
-	UpdateBankCard(data *models.BankCard) error
-	DeleteBankCard(id int64) error
+// RecordRepository — операции с записями секретов.
+type RecordRepository interface {
+	CreateRecord(record *models.Record) error
+	GetRecord(id int64) (*models.Record, error)
+	ListRecords(userID int64) ([]models.Record, error)
+	UpdateRecord(record *models.Record) error
+	DeleteRecord(id int64) error
 }
 
+// SyncRepository — операции с ревизиями и конфликтами синхронизации.
 type SyncRepository interface {
-	GetSyncRecords(userID int64, since string) ([]models.SyncRecord, error)
-	CreateSyncRecord(record *models.SyncRecord) error
-	UpdateSyncRecord(record *models.SyncRecord) error
+	GetRevisions(userID int64, sinceRevision int64) ([]models.RecordRevision, error)
+	CreateRevision(rev *models.RecordRevision) error
+	GetConflicts(userID int64) ([]models.SyncConflict, error)
+	CreateConflict(conflict *models.SyncConflict) error
+	ResolveConflict(conflictID int64, resolution string) error
+}
+
+// SessionRepository — операции с device-aware сессиями.
+type SessionRepository interface {
+	CreateSession(session *models.Session) error
+	GetSession(id int64) (*models.Session, error)
+	GetSessionByRefreshToken(token string) (*models.Session, error)
+	RevokeSession(id int64) error
+	RevokeSessionsByUser(userID int64) error
+	UpdateLastSeenAt(id int64) error
+}
+
+// UploadRepository — операции с upload-сессиями и чанками.
+type UploadRepository interface {
+	CreateUploadSession(session *models.UploadSession) error
+	GetUploadSession(id int64) (*models.UploadSession, error)
+	UpdateUploadSession(session *models.UploadSession) error
+	SaveChunk(chunk *models.Chunk) error
+	GetChunks(uploadID int64) ([]models.Chunk, error)
+}
+
+// KeyVersionRepository — операции с версиями ключей шифрования.
+type KeyVersionRepository interface {
+	CreateKeyVersion(kv *models.KeyVersion) error
+	GetKeyVersion(version int64) (*models.KeyVersion, error)
+	GetActiveKeyVersion() (*models.KeyVersion, error)
+	ListKeyVersions() ([]models.KeyVersion, error)
+	UpdateKeyVersion(kv *models.KeyVersion) error
 }

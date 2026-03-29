@@ -1,13 +1,13 @@
 package models
 
-import "time"
+// BinaryPayload — произвольные бинарные данные.
+// Само содержимое передаётся через chunk upload/download с использованием UploadSession и DownloadSession.
+type BinaryPayload struct {
+	// Data — бинарное содержимое; может быть nil, если данные загружаются через upload session.
+	Data []byte
+}
 
-type BinaryData struct {
-	ID        int64
-	UserID    int64
-	Data      []byte
-	Name      string
-	Metadata  string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+// RecordType возвращает тип записи binary.
+func (p BinaryPayload) RecordType() RecordType {
+	return RecordTypeBinary
 }

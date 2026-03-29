@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package uploads;
+
+option go_package = "gophkeeper/api/proto/uploads";
+
+service UploadsService {
+  rpc CreateUploadSession(CreateUploadSessionRequest) returns (CreateUploadSessionResponse);
+  rpc UploadChunk(stream UploadChunkRequest) returns (UploadChunkResponse);
+  rpc DownloadChunk(DownloadChunkRequest) returns (stream DownloadChunkResponse);
+  rpc GetUploadStatus(GetUploadStatusRequest) returns (GetUploadStatusResponse);
+}
+
+// TODO: добавить сообщения

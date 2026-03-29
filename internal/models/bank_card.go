@@ -1,16 +1,14 @@
 package models
 
-import "time"
+// CardPayload — данные банковской карты.
+type CardPayload struct {
+	Number     string
+	HolderName string
+	ExpiryDate string
+	CVV        string
+}
 
-type BankCard struct {
-	ID           int64
-	UserID       int64
-	Number       string
-	HolderName   string
-	ExpiryDate   string
-	CVV          string
-	Name         string
-	Metadata     string
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+// RecordType возвращает тип записи card.
+func (p CardPayload) RecordType() RecordType {
+	return RecordTypeCard
 }

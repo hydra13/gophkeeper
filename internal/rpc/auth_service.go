@@ -1,4 +1,4 @@
-package grpc
+package rpc
 
 // AuthService gRPC имплементация
 // TODO: реализовать auth service

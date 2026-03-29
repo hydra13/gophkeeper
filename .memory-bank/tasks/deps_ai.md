@@ -5,6 +5,7 @@ tasks:
   - id: task_1
     title: "Каркас репозитория и MVP-границы"
     file: ".memory-bank/tasks/task_1.md"
+    status: "completed"
     phase: 1
     parallel_group: 1
     mvp: true
@@ -15,6 +16,7 @@ tasks:
   - id: task_2
     title: "Инженерная обвязка и базовые команды проекта"
     file: ".memory-bank/tasks/task_2.md"
+    status: "completed"
     phase: 1
     parallel_group: 2
     mvp: true
@@ -25,6 +27,7 @@ tasks:
   - id: task_3
     title: "Доменная модель, инварианты синхронизации и загрузок"
     file: ".memory-bank/tasks/task_3.md"
+    status: "completed"
     phase: 2
     parallel_group: 3
     mvp: true

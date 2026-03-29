@@ -12,7 +12,6 @@ type Config struct {
 type ServerConfig struct {
 	Address     string
 	GRPCAddress string
-	EnableHTTPS bool
 	TLSCertFile string
 	TLSKeyFile  string
 }
