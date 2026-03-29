@@ -170,12 +170,13 @@ tasks:
   - id: task_16
     title: "CLI-клиент в cmd/client/cli"
     file: ".memory-bank/tasks/task_16.md"
+    status: "completed"
     phase: 9
     parallel_group: 11
     mvp: true
     depends_on: [task_15]
     blocks: [task_17, task_18]
-    notes: "Основной клиент MVP. Должен собираться только через shared client core."
+    notes: "Повторная валидация 2026-03-29 пройдена: замечания закрыты, все 6 критериев приёмки выполнены, CLI smoke/e2e-покрытие подтверждено тестами entrypoint'ов и бинарными проверками version/ошибок запуска."
 
   - id: task_17
     title: "Тестирование и CI"
