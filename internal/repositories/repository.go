@@ -40,6 +40,7 @@ type RecordRepository interface {
 type SyncRepository interface {
 	GetRevisions(userID int64, sinceRevision int64) ([]models.RecordRevision, error)
 	CreateRevision(rev *models.RecordRevision) error
+	GetMaxRevision(userID int64) (int64, error)
 	GetConflicts(userID int64) ([]models.SyncConflict, error)
 	CreateConflict(conflict *models.SyncConflict) error
 	ResolveConflict(conflictID int64, resolution string) error

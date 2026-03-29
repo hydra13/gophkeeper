@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
 
@@ -491,10 +492,22 @@ func (r *Repository) CreateRevision(rev *models.RecordRevision) error {
 	return nil
 }
 
+// GetMaxRevision возвращает максимальную ревизию пользователя (0 если ревизий нет).
+func (r *Repository) GetMaxRevision(userID int64) (int64, error) {
+	var rev int64
+	row := r.db.QueryRowContext(context.Background(), `
+		SELECT COALESCE(MAX(revision), 0) FROM record_revisions WHERE user_id = $1
+	`, userID)
+	if err := row.Scan(&rev); err != nil {
+		return 0, err
+	}
+	return rev, nil
+}
+
 // GetConflicts возвращает нерешённые конфликты пользователя.
 func (r *Repository) GetConflicts(userID int64) ([]models.SyncConflict, error) {
 	rows, err := r.db.QueryContext(context.Background(), `
-		SELECT id, user_id, record_id, local_revision, server_revision, resolved, resolution
+		SELECT id, user_id, record_id, local_revision, server_revision, resolved, resolution, local_record, server_record
 		FROM sync_conflicts
 		WHERE user_id = $1 AND resolved = FALSE
 		ORDER BY id ASC
@@ -508,6 +521,7 @@ func (r *Repository) GetConflicts(userID int64) ([]models.SyncConflict, error) {
 	for rows.Next() {
 		var conflict models.SyncConflict
 		var resolution sql.NullString
+		var localJSON, serverJSON []byte
 		if err := rows.Scan(
 			&conflict.ID,
 			&conflict.UserID,
@@ -516,11 +530,25 @@ func (r *Repository) GetConflicts(userID int64) ([]models.SyncConflict, error) {
 			&conflict.ServerRevision,
 			&conflict.Resolved,
 			&resolution,
+			&localJSON,
+			&serverJSON,
 		); err != nil {
 			return nil, err
 		}
 		if resolution.Valid {
 			conflict.Resolution = resolution.String
+		}
+		if len(localJSON) > 0 {
+			conflict.LocalRecord, err = unmarshalConflictRecord(localJSON)
+			if err != nil {
+				return nil, fmt.Errorf("unmarshal local record for conflict %d: %w", conflict.ID, err)
+			}
+		}
+		if len(serverJSON) > 0 {
+			conflict.ServerRecord, err = unmarshalConflictRecord(serverJSON)
+			if err != nil {
+				return nil, fmt.Errorf("unmarshal server record for conflict %d: %w", conflict.ID, err)
+			}
 		}
 		conflicts = append(conflicts, conflict)
 	}
@@ -535,11 +563,19 @@ func (r *Repository) CreateConflict(conflict *models.SyncConflict) error {
 	if conflict == nil {
 		return errors.New("conflict is nil")
 	}
-	_, err := r.db.ExecContext(context.Background(), `
+	localJSON, err := marshalConflictRecord(conflict.LocalRecord)
+	if err != nil {
+		return fmt.Errorf("marshal local record: %w", err)
+	}
+	serverJSON, err := marshalConflictRecord(conflict.ServerRecord)
+	if err != nil {
+		return fmt.Errorf("marshal server record: %w", err)
+	}
+	_, err = r.db.ExecContext(context.Background(), `
 		INSERT INTO sync_conflicts (
-			user_id, record_id, local_revision, server_revision, resolved, resolution, created_at, updated_at
+			user_id, record_id, local_revision, server_revision, resolved, resolution, local_record, server_record, created_at, updated_at
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
 	`,
 		conflict.UserID,
 		conflict.RecordID,
@@ -547,6 +583,8 @@ func (r *Repository) CreateConflict(conflict *models.SyncConflict) error {
 		conflict.ServerRevision,
 		conflict.Resolved,
 		nullIfEmpty(conflict.Resolution),
+		localJSON,
+		serverJSON,
 	)
 	return err
 }
@@ -1271,4 +1309,74 @@ func nullIfEmpty(value string) sql.NullString {
 		return sql.NullString{}
 	}
 	return sql.NullString{String: value, Valid: true}
+}
+
+// conflictRecordJSON — вспомогательная структура для JSON-сериализации Record в контексте конфликта.
+// Payload сериализуется как конкретный тип, а не как интерфейс.
+type conflictRecordJSON struct {
+	ID             int64              `json:"id"`
+	UserID         int64              `json:"user_id"`
+	Type           string             `json:"type"`
+	Name           string             `json:"name"`
+	Metadata       string             `json:"metadata"`
+	Payload        json.RawMessage    `json:"payload"`
+	Revision       int64              `json:"revision"`
+	DeletedAt      *time.Time         `json:"deleted_at,omitempty"`
+	DeviceID       string             `json:"device_id"`
+	KeyVersion     int64              `json:"key_version"`
+	PayloadVersion int64              `json:"payload_version"`
+	CreatedAt      time.Time          `json:"created_at"`
+	UpdatedAt      time.Time          `json:"updated_at"`
+}
+
+func marshalConflictRecord(record *models.Record) ([]byte, error) {
+	if record == nil {
+		return nil, nil
+	}
+	payloadJSON, err := json.Marshal(record.Payload)
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(conflictRecordJSON{
+		ID:             record.ID,
+		UserID:         record.UserID,
+		Type:           string(record.Type),
+		Name:           record.Name,
+		Metadata:       record.Metadata,
+		Payload:        payloadJSON,
+		Revision:       record.Revision,
+		DeletedAt:      record.DeletedAt,
+		DeviceID:       record.DeviceID,
+		KeyVersion:     record.KeyVersion,
+		PayloadVersion: record.PayloadVersion,
+		CreatedAt:      record.CreatedAt,
+		UpdatedAt:      record.UpdatedAt,
+	})
+}
+
+func unmarshalConflictRecord(data []byte) (*models.Record, error) {
+	var cr conflictRecordJSON
+	if err := json.Unmarshal(data, &cr); err != nil {
+		return nil, err
+	}
+	record := &models.Record{
+		ID:             cr.ID,
+		UserID:         cr.UserID,
+		Type:           models.RecordType(cr.Type),
+		Name:           cr.Name,
+		Metadata:       cr.Metadata,
+		Revision:       cr.Revision,
+		DeletedAt:      cr.DeletedAt,
+		DeviceID:       cr.DeviceID,
+		KeyVersion:     cr.KeyVersion,
+		PayloadVersion: cr.PayloadVersion,
+		CreatedAt:      cr.CreatedAt,
+		UpdatedAt:      cr.UpdatedAt,
+	}
+	payload, err := decodePayload(models.RecordType(cr.Type), cr.Payload)
+	if err != nil {
+		return nil, err
+	}
+	record.Payload = payload
+	return record, nil
 }

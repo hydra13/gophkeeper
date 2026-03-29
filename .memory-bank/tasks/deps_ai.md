@@ -148,12 +148,13 @@ tasks:
   - id: task_14
     title: "Sync use-case и разрешение конфликтов"
     file: ".memory-bank/tasks/task_14.md"
+    status: "completed"
     phase: 7
     parallel_group: 9
     mvp: true
     depends_on: [task_4, task_7, task_8, task_9, task_11, task_12, task_13]
     blocks: [task_15, task_16, task_17]
-    notes: "Sync строится только после готовых auth, records и uploads сценариев."
+    notes: "Повторная валидация 2026-03-29 пройдена: все 6 критериев приёмки выполнены. Исправлены проверка BaseRevision в pushDelete, сохранение снимков конфликтов в БД, восстановление soft-deleted записи через update и интеграционные сценарии stale delete/delete-vs-update/delete-restore."
 
   - id: task_15
     title: "Shared client core и локальный кеш"

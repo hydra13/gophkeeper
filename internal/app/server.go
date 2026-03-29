@@ -23,6 +23,7 @@ import (
 	"github.com/hydra13/gophkeeper/internal/api/records_by_id_v1_put"
 	"github.com/hydra13/gophkeeper/internal/api/records_v1_get"
 	"github.com/hydra13/gophkeeper/internal/api/records_v1_post"
+	recordscommon "github.com/hydra13/gophkeeper/internal/api/records_common"
 	"github.com/hydra13/gophkeeper/internal/api/sync_pull_v1_post"
 	"github.com/hydra13/gophkeeper/internal/api/sync_push_v1_post"
 	"github.com/hydra13/gophkeeper/internal/api/uploads_by_id_chunks_v1_get"
@@ -63,6 +64,8 @@ type AppDeps struct {
 	SyncService interface {
 		Push(userID int64, deviceID string, changes []sync_push_v1_post.PendingChange) ([]models.RecordRevision, []models.SyncConflict, error)
 		Pull(userID int64, deviceID string, sinceRevision int64, limit int64) ([]models.RecordRevision, []models.Record, []models.SyncConflict, error)
+		GetConflicts(userID int64) ([]models.SyncConflict, error)
+		ResolveConflict(userID int64, conflictID int64, resolution string) (*models.Record, error)
 	}
 	UploadService interface {
 		CreateSession(userID, recordID, totalChunks, chunkSize, totalSize, keyVersion int64) (int64, error)
@@ -311,7 +314,7 @@ func buildGRPCServer(cfg *config.Config, log zerolog.Logger, limiter *middleware
 
 	authRPCService := rpc.NewAuthService(deps.AuthService, log)
 	dataService := rpc.NewDataService(deps.RecordService, log)
-	syncService := rpc.NewSyncService()
+	syncService := rpc.NewSyncService(&syncUseCaseAdapter{svc: deps.SyncService}, log)
 	uploadsService := rpc.NewUploadsService(deps.UploadService, log)
 	healthService := rpc.NewHealthService()
 
@@ -430,6 +433,14 @@ func (s *stubSyncService) Pull(userID int64, deviceID string, sinceRevision int6
 	return nil, nil, nil, errors.New("sync service not implemented")
 }
 
+func (s *stubSyncService) GetConflicts(userID int64) ([]models.SyncConflict, error) {
+	return nil, errors.New("sync service not implemented")
+}
+
+func (s *stubSyncService) ResolveConflict(userID int64, conflictID int64, resolution string) (*models.Record, error) {
+	return nil, errors.New("sync service not implemented")
+}
+
 type stubUploadsService struct{}
 
 func (s *stubUploadsService) CreateSession(userID, recordID, totalChunks, chunkSize, totalSize, keyVersion int64) (int64, error) {
@@ -466,4 +477,77 @@ func (s *stubUploadsService) ConfirmChunk(downloadID, chunkIndex int64) (confirm
 
 func (s *stubUploadsService) GetDownloadStatus(downloadID int64) (*models.DownloadSession, error) {
 	return nil, errors.New("uploads service not implemented")
+}
+
+// syncUseCaseAdapter адаптирует SyncService из AppDeps к интерфейсу rpc.SyncUseCase.
+type syncUseCaseAdapter struct {
+	svc interface {
+		Push(userID int64, deviceID string, changes []sync_push_v1_post.PendingChange) ([]models.RecordRevision, []models.SyncConflict, error)
+		Pull(userID int64, deviceID string, sinceRevision int64, limit int64) ([]models.RecordRevision, []models.Record, []models.SyncConflict, error)
+		GetConflicts(userID int64) ([]models.SyncConflict, error)
+		ResolveConflict(userID int64, conflictID int64, resolution string) (*models.Record, error)
+	}
+}
+
+func (a *syncUseCaseAdapter) Push(userID int64, deviceID string, changes []rpc.PendingChange) ([]models.RecordRevision, []models.SyncConflict, error) {
+	dtoChanges := make([]sync_push_v1_post.PendingChange, 0, len(changes))
+	for _, c := range changes {
+		dtoChanges = append(dtoChanges, sync_push_v1_post.PendingChange{
+			Record:       recordToDTO(c.Record),
+			Deleted:      c.Deleted,
+			BaseRevision: c.BaseRevision,
+		})
+	}
+	return a.svc.Push(userID, deviceID, dtoChanges)
+}
+
+func (a *syncUseCaseAdapter) Pull(userID int64, deviceID string, sinceRevision int64, limit int64) ([]models.RecordRevision, []models.Record, []models.SyncConflict, error) {
+	return a.svc.Pull(userID, deviceID, sinceRevision, limit)
+}
+
+func (a *syncUseCaseAdapter) GetConflicts(userID int64) ([]models.SyncConflict, error) {
+	return a.svc.GetConflicts(userID)
+}
+
+func (a *syncUseCaseAdapter) ResolveConflict(userID int64, conflictID int64, resolution string) (*models.Record, error) {
+	return a.svc.ResolveConflict(userID, conflictID, resolution)
+}
+
+func recordToDTO(r *models.Record) recordscommon.RecordDTO {
+	if r == nil {
+		return recordscommon.RecordDTO{}
+	}
+	dto := recordscommon.RecordDTO{
+		ID:             r.ID,
+		UserID:         r.UserID,
+		Type:           string(r.Type),
+		Name:           r.Name,
+		Metadata:       r.Metadata,
+		Revision:       r.Revision,
+		DeviceID:       r.DeviceID,
+		KeyVersion:     r.KeyVersion,
+		PayloadVersion: r.PayloadVersion,
+		CreatedAt:      r.CreatedAt.Format("2006-01-02T15:04:05Z"),
+		UpdatedAt:      r.UpdatedAt.Format("2006-01-02T15:04:05Z"),
+	}
+	if r.DeletedAt != nil {
+		deletedAt := r.DeletedAt.Format("2006-01-02T15:04:05Z")
+		dto.DeletedAt = &deletedAt
+	}
+
+	switch p := r.Payload.(type) {
+	case models.LoginPayload:
+		dto.Payload = recordscommon.LoginPayloadDTO{Login: p.Login, Password: p.Password}
+	case models.TextPayload:
+		dto.Payload = recordscommon.TextPayloadDTO{Content: p.Content}
+	case models.BinaryPayload:
+		dto.Payload = recordscommon.BinaryPayloadDTO{}
+	case models.CardPayload:
+		dto.Payload = recordscommon.CardPayloadDTO{
+			Number: p.Number, HolderName: p.HolderName,
+			ExpiryDate: p.ExpiryDate, CVV: p.CVV,
+		}
+	}
+
+	return dto
 }
