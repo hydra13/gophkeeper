@@ -82,6 +82,7 @@ tasks:
   - id: task_8
     title: "Конфигурация, bootstrap сервера и TLS-only запуск"
     file: ".memory-bank/tasks/task_8.md"
+    status: "completed"
     phase: 4
     parallel_group: 5
     mvp: true
@@ -92,6 +93,7 @@ tasks:
   - id: task_9
     title: "PostgreSQL, файловое хранилище и миграции"
     file: ".memory-bank/tasks/task_9.md"
+    status: "completed"
     phase: 4
     parallel_group: 5
     mvp: true

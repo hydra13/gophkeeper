@@ -1,4 +1,16 @@
 package middlewares
 
-// TLS middleware для проверки transport-конфига
-// TODO: реализовать middleware
+import "net/http"
+
+// TLS middleware для проверки transport-конфига.
+func TLS() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.TLS == nil {
+				http.Error(w, "TLS required", http.StatusBadRequest)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}

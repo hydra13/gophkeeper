@@ -189,14 +189,10 @@ gophkeeper/
 │       └── info.go                        # Версия и дата сборки
 │
 ├── migrations/
-│   ├── 20260321000001_init_schema.up.sql
-│   ├── 20260321000001_init_schema.down.sql
-│   ├── 20260321000002_sessions.up.sql
-│   ├── 20260321000002_sessions.down.sql
-│   ├── 20260321000003_uploads.up.sql
-│   ├── 20260321000003_uploads.down.sql
-│   ├── 20260321000004_key_versions.up.sql
-│   └── 20260321000004_key_versions.down.sql
+│   ├── 20260321000001_init_schema.sql      # goose: Up + Down в одном файле
+│   ├── 20260321000002_sessions.sql
+│   ├── 20260321000003_uploads.sql
+│   └── 20260321000004_key_versions.sql
 │
 ├── tests/
 │   ├── integration/

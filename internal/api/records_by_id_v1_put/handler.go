@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"github.com/hydra13/gophkeeper/internal/api/records_common"
+	"github.com/hydra13/gophkeeper/internal/middlewares"
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
@@ -70,11 +71,9 @@ func NewHandler(service RecordService) *Handler {
 	return &Handler{service: service}
 }
 
-type userIDKey struct{}
-
 // Handle обрабатывает запрос на обновление записи.
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
-	userID, ok := r.Context().Value(userIDKey{}).(int64)
+	userID, ok := middlewares.UserIDFromContext(r.Context())
 	if !ok || userID <= 0 {
 		recordscommon.WriteError(w, http.StatusUnauthorized, "unauthorized")
 		return

@@ -2,11 +2,17 @@
 
 ```mermaid
 graph TD
+    classDef completed fill:lightgreen
+    classDef crit fill:orange
     subgraph P1["Phase 1 — Каркас"]
         T1["<b>task_1</b><br/>Каркас репозитория"]
         T2["<b>task_2</b><br/>Инженерная обвязка"]
         T3["<b>task_3</b><br/>Доменная модель"]
     end
+    class P1 completed
+    class T1 completed
+    class T2 completed
+    class T3 completed
 
     subgraph P3["Phase 3 — Контракты и transport"]
         T4["<b>task_4</b><br/>gRPC контракты"]
@@ -14,38 +20,53 @@ graph TD
         T6["<b>task_6</b><br/>HTTP records endpoints"]
         T7["<b>task_7</b><br/>HTTP sync/uploads/health"]
     end
+    class P3 completed
+    class T4 completed
+    class T5 completed
+    class T6 completed
+    class T7 completed
 
     subgraph P4["Phase 4 — Инфраструктура"]
         T8["<b>task_8</b><br/>Bootstrap сервера, TLS"]
         T9["<b>task_9</b><br/>PostgreSQL, миграции"]
     end
+    class T8 completed
+    class T9 crit
 
     subgraph P5["Phase 5 — Безопасность"]
         T10["<b>task_10</b><br/>Криптография, key mgmt"]
     end
+    class T10 crit
 
     subgraph P6["Phase 6 — Use-cases"]
         T11["<b>task_11</b><br/>Auth use-case"]
         T12["<b>task_12</b><br/>Records use-case"]
         T13["<b>task_13</b><br/>Uploads use-case"]
     end
+    class T11 crit
+    class T12 crit
 
     subgraph P7["Phase 7 — Синхронизация"]
         T14["<b>task_14</b><br/>Sync use-case"]
     end
+    class T14 crit
 
     subgraph P8["Phase 8 — Client core"]
         T15["<b>task_15</b><br/>Shared client core"]
     end
+    class T15 crit
 
     subgraph P9["Phase 9 — CLI"]
         T16["<b>task_16</b><br/>CLI-клиент"]
     end
+    class T16 crit
 
     subgraph P10["Phase 10 — Финализация"]
         T17["<b>task_17</b><br/>Тестирование и CI"]
         T18["<b>task_18</b><br/>Документация, MVP"]
     end
+    class T17 crit
+    class T18 crit
 
     %% Phase 1
     T1 --> T2
@@ -142,10 +163,10 @@ task_1 → task_3 → task_9 → task_10 → task_11 → task_12 → task_14 →
 
 | Группа | Задачи |
 |--------|--------|
-| 1 | task_1 |
-| 2 | task_2, task_3 |
-| 3 | task_4, task_5, task_6, task_7 |
-| 4 | task_8, task_9 |
+| 1 | <span style="background-color: lightgreen;">task_1</span> |
+| 2 | <span style="background-color: lightgreen;">task_2</span>, <span style="background-color: lightgreen;">task_3</span> |
+| 3 | <span style="background-color: lightgreen;">task_4</span>, <span style="background-color: lightgreen;">task_5</span>, <span style="background-color: lightgreen;">task_6</span>, <span style="background-color: lightgreen;">task_7</span> |
+| 4 | <span style="background-color: lightgreen;">task_8</span>, task_9 |
 | 5 | task_10 |
 | 6 | task_11 |
 | 7 | task_12, task_13 |

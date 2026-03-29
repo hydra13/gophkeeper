@@ -6,14 +6,14 @@
     "tls_key_file": "configs/certs/dev.key"
   },
   "database": {
-    "dsn": "postgres://user:password@localhost:5432/gophkeeper?sslmode=require"
+    "dsn": "postgres://user:password@localhost:5432/gophkeeper?sslmode=disable"
   },
   "auth": {
-    "jwt_secret": "your-secret-key-change-in-production",
+    "jwt_secret": "dev-jwt-secret",
     "token_duration": 86400000000000
   },
   "crypto": {
-    "master_key": "32-byte-master-key-change-in-production"
+    "master_key": "dev-master-key-32-bytes-long-0000"
   },
   "blob": {
     "provider": "local",

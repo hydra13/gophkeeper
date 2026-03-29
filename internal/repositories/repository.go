@@ -12,6 +12,14 @@ type Repository interface {
 	KeyVersionRepository
 }
 
+// BlobStorage — интерфейс хранения бинарных данных (payload/chunks).
+type BlobStorage interface {
+	Save(path string, data []byte) error
+	Read(path string) ([]byte, error)
+	Delete(path string) error
+	Exists(path string) (bool, error)
+}
+
 // UserRepository — операции с пользователями.
 type UserRepository interface {
 	CreateUser(user *models.User) error

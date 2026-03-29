@@ -2,13 +2,13 @@ package recordsv1post
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/hydra13/gophkeeper/internal/middlewares"
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
@@ -186,7 +186,7 @@ func TestHandler_Handle(t *testing.T) {
 
 			req := httptest.NewRequest(http.MethodPost, "/api/v1/records", bytes.NewReader(bodyBytes))
 			if tt.userID > 0 {
-				ctx := context.WithValue(req.Context(), userIDKey{}, tt.userID)
+				ctx := middlewares.ContextWithUserID(req.Context(), tt.userID)
 				req = req.WithContext(ctx)
 			}
 

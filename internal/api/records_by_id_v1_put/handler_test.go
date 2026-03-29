@@ -2,7 +2,6 @@ package recordsbyidv1put
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -10,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hydra13/gophkeeper/internal/middlewares"
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
@@ -32,14 +32,14 @@ func newDeletedRecord() *models.Record {
 
 func TestHandler_Handle(t *testing.T) {
 	tests := []struct {
-		name        string
-		recordID    string
-		userID      int64
-		body        interface{}
-		existing    *models.Record
-		getErr      error
-		updateErr   error
-		wantCode    int
+		name      string
+		recordID  string
+		userID    int64
+		body      interface{}
+		existing  *models.Record
+		getErr    error
+		updateErr error
+		wantCode  int
 	}{
 		{
 			name:     "success",
@@ -70,12 +70,12 @@ func TestHandler_Handle(t *testing.T) {
 			wantCode: http.StatusBadRequest,
 		},
 		{
-			name:      "record not found",
-			recordID:  "999",
-			userID:    1,
-			body:      UpdateRecordRequest{},
-			getErr:    models.ErrRecordNotFound,
-			wantCode:  http.StatusNotFound,
+			name:     "record not found",
+			recordID: "999",
+			userID:   1,
+			body:     UpdateRecordRequest{},
+			getErr:   models.ErrRecordNotFound,
+			wantCode: http.StatusNotFound,
 		},
 		{
 			name:     "access denied - wrong user",
@@ -181,7 +181,7 @@ func TestHandler_Handle(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPut, "/api/v1/records/{id}", bytes.NewReader(bodyBytes))
 			req.SetPathValue("id", tt.recordID)
 			if tt.userID > 0 {
-				ctx := context.WithValue(req.Context(), userIDKey{}, tt.userID)
+				ctx := middlewares.ContextWithUserID(req.Context(), tt.userID)
 				req = req.WithContext(ctx)
 			}
 

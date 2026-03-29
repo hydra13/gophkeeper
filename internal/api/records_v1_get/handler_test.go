@@ -1,7 +1,6 @@
 package recordsv1get
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -9,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hydra13/gophkeeper/internal/middlewares"
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
@@ -61,9 +61,9 @@ func TestHandler_Handle(t *testing.T) {
 			wantLen:  1,
 		},
 		{
-			name:      "unauthorized - no user",
-			userID:    0,
-			wantCode:  http.StatusUnauthorized,
+			name:     "unauthorized - no user",
+			userID:   0,
+			wantCode: http.StatusUnauthorized,
 		},
 		{
 			name:       "service error",
@@ -85,7 +85,7 @@ func TestHandler_Handle(t *testing.T) {
 
 			req := httptest.NewRequest(http.MethodGet, "/api/v1/records", nil)
 			if tt.userID > 0 {
-				ctx := context.WithValue(req.Context(), userIDKey{}, tt.userID)
+				ctx := middlewares.ContextWithUserID(req.Context(), tt.userID)
 				req = req.WithContext(ctx)
 			}
 
