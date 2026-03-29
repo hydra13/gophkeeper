@@ -1,7 +1,7 @@
 package mocks
 
 import (
-	"github.com/hydra13/gophkeeper/api/records_by_id_v1_delete"
+	"github.com/hydra13/gophkeeper/internal/api/records_by_id_v1_delete"
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 

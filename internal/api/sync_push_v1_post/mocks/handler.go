@@ -1,7 +1,7 @@
 package mocks
 
 import (
-	"github.com/hydra13/gophkeeper/api/sync_push_v1_post"
+	"github.com/hydra13/gophkeeper/internal/api/sync_push_v1_post"
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 

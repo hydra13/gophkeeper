@@ -1,6 +1,6 @@
 package mocks
 
-import "github.com/hydra13/gophkeeper/api/uploads_by_id_v1_get"
+import "github.com/hydra13/gophkeeper/internal/api/uploads_by_id_v1_get"
 
 // UploadStatusGetterMock — мок UploadStatusGetter для тестов.
 type UploadStatusGetterMock struct {

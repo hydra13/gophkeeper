@@ -21,68 +21,6 @@ gophkeeper/
 │           ├── sync.proto                 # Синхронизация
 │           └── uploads.proto              # Chunk upload/download
 │
-├── api/                                   # HTTP endpoint-first структура
-│   ├── auth_register_v1_post/
-│   │   ├── handler.go
-│   │   ├── handler_test.go
-│   │   └── mocks/
-│   ├── auth_login_v1_post/
-│   │   ├── handler.go
-│   │   ├── handler_test.go
-│   │   └── mocks/
-│   ├── auth_refresh_v1_post/
-│   │   ├── handler.go
-│   │   ├── handler_test.go
-│   │   └── mocks/
-│   ├── auth_logout_v1_post/
-│   │   ├── handler.go
-│   │   ├── handler_test.go
-│   │   └── mocks/
-│   ├── records_v1_get/
-│   │   ├── handler.go
-│   │   ├── handler_test.go
-│   │   └── mocks/
-│   ├── records_v1_post/
-│   │   ├── handler.go
-│   │   ├── handler_test.go
-│   │   └── mocks/
-│   ├── records_by_id_v1_get/
-│   │   ├── handler.go
-│   │   ├── handler_test.go
-│   │   └── mocks/
-│   ├── records_by_id_v1_put/
-│   │   ├── handler.go
-│   │   ├── handler_test.go
-│   │   └── mocks/
-│   ├── records_by_id_v1_delete/
-│   │   ├── handler.go
-│   │   ├── handler_test.go
-│   │   └── mocks/
-│   ├── sync_pull_v1_post/
-│   │   ├── handler.go
-│   │   ├── handler_test.go
-│   │   └── mocks/
-│   ├── sync_push_v1_post/
-│   │   ├── handler.go
-│   │   ├── handler_test.go
-│   │   └── mocks/
-│   ├── uploads_v1_post/
-│   │   ├── handler.go
-│   │   ├── handler_test.go
-│   │   └── mocks/
-│   ├── uploads_by_id_chunks_v1_post/
-│   │   ├── handler.go
-│   │   ├── handler_test.go
-│   │   └── mocks/
-│   ├── uploads_by_id_v1_get/
-│   │   ├── handler.go
-│   │   ├── handler_test.go
-│   │   └── mocks/
-│   └── health_v1_get/
-│       ├── handler.go
-│       ├── handler_test.go
-│       └── mocks/
-│
 ├── cmd/
 │   ├── server/
 │   │   └── main.go                        # Запуск HTTP + gRPC сервера
@@ -102,6 +40,68 @@ gophkeeper/
 │       └── dev-key.pem
 │
 ├── internal/
+│   ├── api/                                   # HTTP endpoint-first структура
+│   │   ├── auth_register_v1_post/
+│   │   │   ├── handler.go
+│   │   │   ├── handler_test.go
+│   │   │   └── mocks/
+│   │   ├── auth_login_v1_post/
+│   │   │   ├── handler.go
+│   │   │   ├── handler_test.go
+│   │   │   └── mocks/
+│   │   ├── auth_refresh_v1_post/
+│   │   │   ├── handler.go
+│   │   │   ├── handler_test.go
+│   │   │   └── mocks/
+│   │   ├── auth_logout_v1_post/
+│   │   │   ├── handler.go
+│   │   │   ├── handler_test.go
+│   │   │   └── mocks/
+│   │   ├── records_v1_get/
+│   │   │   ├── handler.go
+│   │   │   ├── handler_test.go
+│   │   │   └── mocks/
+│   │   ├── records_v1_post/
+│   │   │   ├── handler.go
+│   │   │   ├── handler_test.go
+│   │   │   └── mocks/
+│   │   ├── records_by_id_v1_get/
+│   │   │   ├── handler.go
+│   │   │   ├── handler_test.go
+│   │   │   └── mocks/
+│   │   ├── records_by_id_v1_put/
+│   │   │   ├── handler.go
+│   │   │   ├── handler_test.go
+│   │   │   └── mocks/
+│   │   ├── records_by_id_v1_delete/
+│   │   │   ├── handler.go
+│   │   │   ├── handler_test.go
+│   │   │   └── mocks/
+│   │   ├── sync_pull_v1_post/
+│   │   │   ├── handler.go
+│   │   │   ├── handler_test.go
+│   │   │   └── mocks/
+│   │   ├── sync_push_v1_post/
+│   │   │   ├── handler.go
+│   │   │   ├── handler_test.go
+│   │   │   └── mocks/
+│   │   ├── uploads_v1_post/
+│   │   │   ├── handler.go
+│   │   │   ├── handler_test.go
+│   │   │   └── mocks/
+│   │   ├── uploads_by_id_chunks_v1_post/
+│   │   │   ├── handler.go
+│   │   │   ├── handler_test.go
+│   │   │   └── mocks/
+│   │   ├── uploads_by_id_v1_get/
+│   │   │   ├── handler.go
+│   │   │   ├── handler_test.go
+│   │   │   └── mocks/
+│   │   └── health_v1_get/
+│   │       ├── handler.go
+│   │       ├── handler_test.go
+│   │       └── mocks/
+│   │
 │   ├── app/
 │   │   ├── server.go                      # Bootstrap transport слоёв
 │   │   ├── cli.go                         # Bootstrap CLI приложения
@@ -230,10 +230,10 @@ gophkeeper/
 
 ### 2. HTTP и gRPC равноправны
 Нельзя сводить HTTP к gateway-обёртке, потому что по утверждённому плану это отдельный полноценный API.
-Из-за этого нужны отдельные endpoint-пакеты в `api/`, отдельный `internal/rpc/` и отдельные integration tests для обоих transport слоёв.
+Из-за этого нужны отдельные endpoint-пакеты в `internal/api/`, отдельный `internal/rpc/` и отдельные integration tests для обоих transport слоёв.
 
 ### 3. HTTP-слой проектируется endpoint-first
-Каждая HTTP-ручка живёт в отдельном пакете по шаблону `api/<path через нижнее подчеркивание>_<версия в формате vN>_<http-метод>`.
+Каждая HTTP-ручка живёт в отдельном пакете по шаблону `internal/api/<path через нижнее подчеркивание>_<версия в формате vN>_<http-метод>`.
 Внутри пакета должны лежать как минимум `handler.go`, `handler_test.go` и каталог `mocks/` под зависимости конкретной ручки.
 
 ### 4. Chunk upload закладывается сразу
@@ -293,7 +293,7 @@ README должен отражать текущий scope:
 
 ### Добавить обязательно
 1. `rpc/proto/v1/` для gRPC контрактов.
-2. Endpoint-first пакеты в `api/` для HTTP-ручек.
+2. Endpoint-first пакеты в `internal/api/` для HTTP-ручек.
 3. `internal/services/uploads/` и `internal/models/upload.go`.
 4. `internal/services/crypto/key_manager.go`.
 5. `internal/jobs/reencrypt/`.

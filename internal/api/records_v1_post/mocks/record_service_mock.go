@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/hydra13/gophkeeper/api/records_v1_post"
+	"github.com/hydra13/gophkeeper/internal/api/records_v1_post"
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
