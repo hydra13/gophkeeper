@@ -30,3 +30,14 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# Generated files (protobuf)
+*_grpc.pb.go
+*.pb.go
+
+# Project specific
+bin/
+configs/config.local.json
+*.db
+*.sqlite
+*.log

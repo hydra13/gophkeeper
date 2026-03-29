@@ -1,0 +1,187 @@
+# Machine Map
+
+```yaml
+tasks:
+  - id: task_1
+    title: "Каркас репозитория и MVP-границы"
+    file: ".memory-bank/tasks/task_1.md"
+    status: "completed"
+    phase: 1
+    parallel_group: 1
+    mvp: true
+    depends_on: []
+    blocks: [task_2, task_3]
+    notes: "Стартовая structural-задача. Фиксирует layout и post-MVP заглушки."
+
+  - id: task_2
+    title: "Инженерная обвязка и базовые команды проекта"
+    file: ".memory-bank/tasks/task_2.md"
+    status: "completed"
+    phase: 1
+    parallel_group: 2
+    mvp: true
+    depends_on: [task_1]
+    blocks: [task_17, task_18]
+    notes: "Создает стабильную базу для генерации, линтинга, тестов и сборки."
+
+  - id: task_3
+    title: "Доменная модель, инварианты синхронизации и загрузок"
+    file: ".memory-bank/tasks/task_3.md"
+    status: "completed"
+    phase: 2
+    parallel_group: 3
+    mvp: true
+    depends_on: [task_1]
+    blocks: [task_4, task_5, task_6, task_7, task_9, task_10, task_11, task_12, task_13, task_14, task_18]
+    notes: "Опора для API, persistence, crypto и client core."
+
+  - id: task_4
+    title: "gRPC контракты в rpc/proto/v1"
+    file: ".memory-bank/tasks/task_4.md"
+    phase: 3
+    parallel_group: 4
+    mvp: true
+    depends_on: [task_2, task_3]
+    blocks: [task_8, task_11, task_12, task_13, task_14, task_17]
+    notes: "Фиксирует versioned контракты и генерацию protobuf."
+
+  - id: task_5
+    title: "HTTP auth endpoints в api/"
+    file: ".memory-bank/tasks/task_5.md"
+    phase: 3
+    parallel_group: 4
+    mvp: true
+    depends_on: [task_2, task_3]
+    blocks: [task_8, task_11]
+    notes: "Изолированная подготовка HTTP auth transport слоя."
+
+  - id: task_6
+    title: "HTTP records endpoints в api/"
+    file: ".memory-bank/tasks/task_6.md"
+    phase: 3
+    parallel_group: 4
+    mvp: true
+    depends_on: [task_2, task_3]
+    blocks: [task_8, task_12]
+    notes: "CRUD transport-контракты и тестовый каркас."
+
+  - id: task_7
+    title: "HTTP sync, uploads и health endpoints в api/"
+    file: ".memory-bank/tasks/task_7.md"
+    phase: 3
+    parallel_group: 4
+    mvp: true
+    depends_on: [task_2, task_3]
+    blocks: [task_8, task_13, task_14]
+    notes: "Sync и uploads выделены отдельно из-за повышенной сложности."
+
+  - id: task_8
+    title: "Конфигурация, bootstrap сервера и TLS-only запуск"
+    file: ".memory-bank/tasks/task_8.md"
+    phase: 4
+    parallel_group: 5
+    mvp: true
+    depends_on: [task_4, task_5, task_6, task_7]
+    blocks: [task_11, task_12, task_13, task_14, task_17]
+    notes: "Инфраструктурный bootstrap после стабилизации transport-каркаса. Строится через интерфейсы и не требует полной готовности business/use-case слоев."
+
+  - id: task_9
+    title: "PostgreSQL, файловое хранилище и миграции"
+    file: ".memory-bank/tasks/task_9.md"
+    phase: 4
+    parallel_group: 5
+    mvp: true
+    depends_on: [task_3]
+    blocks: [task_10, task_11, task_12, task_13, task_14, task_17]
+    notes: "Persistence-фундамент для auth, records, sync, uploads и key management."
+
+  - id: task_10
+    title: "Криптография, key management и re-encryption"
+    file: ".memory-bank/tasks/task_10.md"
+    phase: 5
+    parallel_group: 6
+    mvp: true
+    depends_on: [task_3, task_9]
+    blocks: [task_11, task_12, task_13, task_14, task_17, task_18]
+    notes: "Core-безопасность MVP должна быть реализована до прикладных сценариев."
+
+  - id: task_11
+    title: "Auth use-case, tokens и device-aware sessions"
+    file: ".memory-bank/tasks/task_11.md"
+    phase: 6
+    parallel_group: 7
+    mvp: true
+    depends_on: [task_4, task_5, task_8, task_9, task_10]
+    blocks: [task_14, task_15, task_16, task_17]
+    notes: "Общий auth use-case поверх готовых transport-контрактов, bootstrap, persistence и crypto."
+
+  - id: task_12
+    title: "Use-case слой записей и gRPC/HTTP интеграция"
+    file: ".memory-bank/tasks/task_12.md"
+    phase: 6
+    parallel_group: 8
+    mvp: true
+    depends_on: [task_4, task_6, task_8, task_9, task_10, task_11]
+    blocks: [task_14, task_15, task_17]
+    notes: "CRUD по секретам без логики синхронизации и chunk lifecycle; для binary здесь остаются только metadata и attachment reference."
+
+  - id: task_13
+    title: "Use-case слой uploads и бинарных вложений"
+    file: ".memory-bank/tasks/task_13.md"
+    phase: 6
+    parallel_group: 8
+    mvp: true
+    depends_on: [task_4, task_7, task_8, task_9, task_10, task_11]
+    blocks: [task_14, task_15, task_17]
+    notes: "Chunk upload/download и resume вынесены отдельно, чтобы уменьшить размер задачи."
+
+  - id: task_14
+    title: "Sync use-case и разрешение конфликтов"
+    file: ".memory-bank/tasks/task_14.md"
+    phase: 7
+    parallel_group: 9
+    mvp: true
+    depends_on: [task_4, task_7, task_8, task_9, task_11, task_12, task_13]
+    blocks: [task_15, task_16, task_17]
+    notes: "Sync строится только после готовых auth, records и uploads сценариев."
+
+  - id: task_15
+    title: "Shared client core и локальный кеш"
+    file: ".memory-bank/tasks/task_15.md"
+    phase: 8
+    parallel_group: 10
+    mvp: true
+    depends_on: [task_4, task_11, task_12, task_13, task_14]
+    blocks: [task_16, task_17]
+    notes: "Опора для CLI. В переиспользование для web заранее не закладываться."
+
+  - id: task_16
+    title: "CLI-клиент в cmd/client/cli"
+    file: ".memory-bank/tasks/task_16.md"
+    phase: 9
+    parallel_group: 11
+    mvp: true
+    depends_on: [task_15]
+    blocks: [task_17, task_18]
+    notes: "Основной клиент MVP. Должен собираться только через shared client core."
+
+  - id: task_17
+    title: "Тестирование и CI"
+    file: ".memory-bank/tasks/task_17.md"
+    phase: 10
+    parallel_group: 12
+    mvp: true
+    depends_on: [task_2, task_4, task_8, task_9, task_10, task_11, task_12, task_13, task_14, task_15, task_16]
+    blocks: [task_18]
+    notes: "Закрывает test matrix, coverage и автоматизацию проверок."
+
+  - id: task_18
+    title: "Документация и выпуск MVP"
+    file: ".memory-bank/tasks/task_18.md"
+    phase: 10
+    parallel_group: 13
+    mvp: true
+    depends_on: [task_2, task_3, task_10, task_16, task_17]
+    blocks: []
+    notes: "Финализирует scope MVP, эксплуатационные документы и release readiness."
+```

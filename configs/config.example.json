@@ -1,0 +1,18 @@
+{
+  "server": {
+    "address": ":8080",
+    "grpc_address": ":9090",
+    "tls_cert_file": "certs/server.crt",
+    "tls_key_file": "certs/server.key"
+  },
+  "database": {
+    "dsn": "postgres://user:password@localhost:5432/gophkeeper?sslmode=require"
+  },
+  "auth": {
+    "jwt_secret": "your-secret-key-change-in-production",
+    "token_duration": "24h"
+  },
+  "crypto": {
+    "master_key": "32-byte-master-key-change-in-production"
+  }
+}
