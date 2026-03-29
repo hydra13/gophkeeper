@@ -159,12 +159,13 @@ tasks:
   - id: task_15
     title: "Shared client core и локальный кеш"
     file: ".memory-bank/tasks/task_15.md"
+    status: "completed"
     phase: 8
     parallel_group: 10
     mvp: true
     depends_on: [task_4, task_11, task_12, task_13, task_14]
     blocks: [task_16, task_17]
-    notes: "Опора для CLI. В переиспользование для web заранее не закладываться."
+    notes: "Повторная валидация 2026-03-29 пройдена: CLI подключен через clientcore, resume upload/download восстановлен и покрыт тестами, package-level границы apiclient/clientcore/cache задокументированы."
 
   - id: task_16
     title: "CLI-клиент в cmd/client/cli"
