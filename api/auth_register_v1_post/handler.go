@@ -1,0 +1,104 @@
+//go:generate minimock -i .UserService -o mocks -s _mock.go -g
+package auth_register_v1_post
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"net/http"
+
+	"github.com/rs/zerolog"
+
+	"github.com/hydra13/gophkeeper/internal/models"
+)
+
+// UserService определяет зависимости, необходимые для регистрации пользователя.
+type UserService interface {
+	Register(ctx context.Context, email, password string) (int64, error)
+}
+
+// RegisterRequest — DTO запроса на регистрацию.
+type RegisterRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+// RegisterResponse — DTO успешного ответа регистрации.
+type RegisterResponse struct {
+	UserID int64 `json:"user_id"`
+}
+
+// Handler обрабатывает HTTP-запросы на регистрацию пользователя.
+type Handler struct {
+	userService UserService
+	log         zerolog.Logger
+}
+
+// NewHandler создаёт новый Handler для регистрации.
+func NewHandler(userService UserService, log zerolog.Logger) *Handler {
+	return &Handler{
+		userService: userService,
+		log:         log,
+	}
+}
+
+// Handle обрабатывает POST /api/v1/auth/register.
+func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
+	var req RegisterRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.log.Debug().Err(err).Msg("register: failed to decode request body")
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if err := validateRegister(req); err != nil {
+		h.log.Debug().Err(err).Msg("register: validation failed")
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	userID, err := h.userService.Register(r.Context(), req.Email, req.Password)
+	if err != nil {
+		mapError(w, h.log, err, "register")
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, RegisterResponse{UserID: userID})
+}
+
+func validateRegister(req RegisterRequest) error {
+	if req.Email == "" {
+		return errors.New("email is required")
+	}
+	if req.Password == "" {
+		return errors.New("password is required")
+	}
+	if len(req.Password) < 8 {
+		return errors.New("password must be at least 8 characters")
+	}
+	return nil
+}
+
+func writeJSON(w http.ResponseWriter, status int, v interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(v)
+}
+
+func writeError(w http.ResponseWriter, status int, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(map[string]string{"error": message})
+}
+
+func mapError(w http.ResponseWriter, log zerolog.Logger, err error, op string) {
+	switch {
+	case errors.Is(err, models.ErrEmailAlreadyExists):
+		writeError(w, http.StatusConflict, err.Error())
+	case errors.Is(err, models.ErrInvalidCredentials):
+		writeError(w, http.StatusUnauthorized, err.Error())
+	default:
+		log.Error().Err(err).Str("op", op).Msg("internal error")
+		writeError(w, http.StatusInternalServerError, "internal error")
+	}
+}
