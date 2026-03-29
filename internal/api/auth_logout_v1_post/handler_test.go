@@ -11,7 +11,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/hydra13/gophkeeper/api/auth_logout_v1_post/mocks"
+	"github.com/hydra13/gophkeeper/internal/api/auth_logout_v1_post/mocks"
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 

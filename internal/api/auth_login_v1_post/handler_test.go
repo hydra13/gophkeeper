@@ -1,4 +1,4 @@
-package auth_register_v1_post
+package auth_login_v1_post
 
 import (
 	"bytes"
@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/hydra13/gophkeeper/api/auth_register_v1_post/mocks"
+	"github.com/hydra13/gophkeeper/internal/api/auth_login_v1_post/mocks"
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
@@ -29,14 +29,14 @@ func TestHandler_Handle(t *testing.T) {
 	}{
 		{
 			name: "Success",
-			body: RegisterRequest{Email: "user@example.com", Password: "password123"},
+			body: LoginRequest{Email: "user@example.com", Password: "password123"},
 			setupMock: func(mc *minimock.Controller) UserService {
 				return mocks.NewUserServiceMock(mc).
-					RegisterMock.
+					LoginMock.
 					Expect(minimock.AnyContext, "user@example.com", "password123").
-					Return(int64(1), nil)
+					Return("access-token", "refresh-token", nil)
 			},
-			wantStatus: http.StatusCreated,
+			wantStatus: http.StatusOK,
 		},
 		{
 			name:       "Invalid body",
@@ -49,7 +49,7 @@ func TestHandler_Handle(t *testing.T) {
 		},
 		{
 			name: "Empty email",
-			body: RegisterRequest{Email: "", Password: "password123"},
+			body: LoginRequest{Email: "", Password: "password123"},
 			setupMock: func(mc *minimock.Controller) UserService {
 				return mocks.NewUserServiceMock(mc)
 			},
@@ -58,7 +58,7 @@ func TestHandler_Handle(t *testing.T) {
 		},
 		{
 			name: "Empty password",
-			body: RegisterRequest{Email: "user@example.com", Password: ""},
+			body: LoginRequest{Email: "user@example.com", Password: ""},
 			setupMock: func(mc *minimock.Controller) UserService {
 				return mocks.NewUserServiceMock(mc)
 			},
@@ -66,34 +66,37 @@ func TestHandler_Handle(t *testing.T) {
 			wantErr:    true,
 		},
 		{
-			name: "Short password",
-			body: RegisterRequest{Email: "user@example.com", Password: "1234567"},
-			setupMock: func(mc *minimock.Controller) UserService {
-				return mocks.NewUserServiceMock(mc)
-			},
-			wantStatus: http.StatusBadRequest,
-			wantErr:    true,
-		},
-		{
-			name: "Email already exists",
-			body: RegisterRequest{Email: "existing@example.com", Password: "password123"},
+			name: "Invalid credentials",
+			body: LoginRequest{Email: "user@example.com", Password: "wrong"},
 			setupMock: func(mc *minimock.Controller) UserService {
 				return mocks.NewUserServiceMock(mc).
-					RegisterMock.
-					Expect(minimock.AnyContext, "existing@example.com", "password123").
-					Return(int64(0), models.ErrEmailAlreadyExists)
+					LoginMock.
+					Expect(minimock.AnyContext, "user@example.com", "wrong").
+					Return("", "", models.ErrInvalidCredentials)
 			},
-			wantStatus: http.StatusConflict,
+			wantStatus: http.StatusUnauthorized,
+			wantErr:    true,
+		},
+		{
+			name: "User not found",
+			body: LoginRequest{Email: "unknown@example.com", Password: "password123"},
+			setupMock: func(mc *minimock.Controller) UserService {
+				return mocks.NewUserServiceMock(mc).
+					LoginMock.
+					Expect(minimock.AnyContext, "unknown@example.com", "password123").
+					Return("", "", models.ErrUserNotFound)
+			},
+			wantStatus: http.StatusUnauthorized,
 			wantErr:    true,
 		},
 		{
 			name: "Internal error",
-			body: RegisterRequest{Email: "user@example.com", Password: "password123"},
+			body: LoginRequest{Email: "user@example.com", Password: "password123"},
 			setupMock: func(mc *minimock.Controller) UserService {
 				return mocks.NewUserServiceMock(mc).
-					RegisterMock.
+					LoginMock.
 					Expect(minimock.AnyContext, "user@example.com", "password123").
-					Return(int64(0), context.DeadlineExceeded)
+					Return("", "", context.DeadlineExceeded)
 			},
 			wantStatus: http.StatusInternalServerError,
 			wantErr:    true,
@@ -116,7 +119,7 @@ func TestHandler_Handle(t *testing.T) {
 				bodyBytes, _ = json.Marshal(tt.body)
 			}
 
-			req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", bytes.NewReader(bodyBytes))
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", bytes.NewReader(bodyBytes))
 			req.Header.Set("Content-Type", "application/json")
 
 			rec := httptest.NewRecorder()
@@ -128,10 +131,11 @@ func TestHandler_Handle(t *testing.T) {
 			assert.Equal(t, tt.wantStatus, resp.StatusCode)
 
 			if !tt.wantErr {
-				var response RegisterResponse
+				var response LoginResponse
 				err := json.NewDecoder(resp.Body).Decode(&response)
 				require.NoError(t, err)
-				assert.Equal(t, int64(1), response.UserID)
+				assert.Equal(t, "access-token", response.AccessToken)
+				assert.Equal(t, "refresh-token", response.RefreshToken)
 			}
 		})
 	}

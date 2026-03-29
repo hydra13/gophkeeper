@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/hydra13/gophkeeper/api/auth_refresh_v1_post/mocks"
+	"github.com/hydra13/gophkeeper/internal/api/auth_refresh_v1_post/mocks"
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
