@@ -104,6 +104,7 @@ tasks:
   - id: task_10
     title: "Криптография, key management и re-encryption"
     file: ".memory-bank/tasks/task_10.md"
+    status: "completed"
     phase: 5
     parallel_group: 6
     mvp: true
@@ -114,6 +115,7 @@ tasks:
   - id: task_11
     title: "Auth use-case, tokens и device-aware sessions"
     file: ".memory-bank/tasks/task_11.md"
+    status: "completed"
     phase: 6
     parallel_group: 7
     mvp: true
@@ -124,12 +126,13 @@ tasks:
   - id: task_12
     title: "Use-case слой записей и gRPC/HTTP интеграция"
     file: ".memory-bank/tasks/task_12.md"
+    status: "completed"
     phase: 6
     parallel_group: 8
     mvp: true
     depends_on: [task_4, task_6, task_8, task_9, task_10, task_11]
     blocks: [task_14, task_15, task_17]
-    notes: "CRUD по секретам без логики синхронизации и chunk lifecycle; для binary здесь остаются только metadata и attachment reference."
+    notes: "Повторная валидация пройдена: records use-case подключен к HTTP и gRPC, mapping ошибок и soft delete работают корректно, binary transport-контракт приведен к модели metadata + attachment reference через payload_version без raw `binary.data` в CRUD."
 
   - id: task_13
     title: "Use-case слой uploads и бинарных вложений"

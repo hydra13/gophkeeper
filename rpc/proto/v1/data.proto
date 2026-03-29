@@ -69,11 +69,10 @@ message TextPayload {
   string content = 1;
 }
 
-// BinaryPayload — произвольные бинарные данные.
+// BinaryPayload — маркер типа binary записи.
 // Содержимое передаётся через chunk upload/download (UploadsService).
-message BinaryPayload {
-  bytes data = 1;
-}
+// CRUD records оперирует только payload_version как ссылкой на вложение.
+message BinaryPayload {}
 
 // CardPayload — данные банковской карты.
 message CardPayload {

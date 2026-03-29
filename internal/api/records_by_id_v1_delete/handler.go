@@ -3,7 +3,6 @@ package recordsbyidv1delete
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 	"strconv"
 
@@ -65,8 +64,7 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 
 	record, err := h.service.GetRecord(id)
 	if err != nil {
-		if errors.Is(err, models.ErrRecordNotFound) {
-			recordscommon.WriteError(w, http.StatusNotFound, "record not found")
+		if recordscommon.MapRecordError(w, err) {
 			return
 		}
 		recordscommon.WriteError(w, http.StatusInternalServerError, "internal error")
@@ -84,8 +82,7 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.service.DeleteRecord(id, req.DeviceID); err != nil {
-		if errors.Is(err, models.ErrRevisionConflict) {
-			recordscommon.WriteConflict(w, "revision conflict", nil, nil)
+		if recordscommon.MapRecordError(w, err) {
 			return
 		}
 		recordscommon.WriteError(w, http.StatusInternalServerError, "internal error")

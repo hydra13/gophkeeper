@@ -32,7 +32,6 @@ func TestUploadsCreateHandler_Success(t *testing.T) {
 		TotalChunks: 4,
 		ChunkSize:   1024,
 		TotalSize:   4096,
-		KeyVersion:  1,
 	})
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/uploads", bytes.NewReader(body))
@@ -88,7 +87,7 @@ func TestUploadsCreateHandler_InvalidUserID(t *testing.T) {
 	mock := &mockUploadCreator{}
 	h := NewHandler(mock)
 
-	body, _ := json.Marshal(Request{UserID: 0, RecordID: 1, TotalChunks: 2, ChunkSize: 1024, TotalSize: 2048, KeyVersion: 1})
+	body, _ := json.Marshal(Request{UserID: 0, RecordID: 1, TotalChunks: 2, ChunkSize: 1024, TotalSize: 2048})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/uploads", bytes.NewReader(body))
 	w := httptest.NewRecorder()
 
@@ -103,7 +102,7 @@ func TestUploadsCreateHandler_InvalidRecordID(t *testing.T) {
 	mock := &mockUploadCreator{}
 	h := NewHandler(mock)
 
-	body, _ := json.Marshal(Request{UserID: 1, RecordID: 0, TotalChunks: 2, ChunkSize: 1024, TotalSize: 2048, KeyVersion: 1})
+	body, _ := json.Marshal(Request{UserID: 1, RecordID: 0, TotalChunks: 2, ChunkSize: 1024, TotalSize: 2048})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/uploads", bytes.NewReader(body))
 	w := httptest.NewRecorder()
 
@@ -118,7 +117,7 @@ func TestUploadsCreateHandler_InvalidTotalChunks(t *testing.T) {
 	mock := &mockUploadCreator{}
 	h := NewHandler(mock)
 
-	body, _ := json.Marshal(Request{UserID: 1, RecordID: 1, TotalChunks: 0, ChunkSize: 1024, TotalSize: 2048, KeyVersion: 1})
+	body, _ := json.Marshal(Request{UserID: 1, RecordID: 1, TotalChunks: 0, ChunkSize: 1024, TotalSize: 2048})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/uploads", bytes.NewReader(body))
 	w := httptest.NewRecorder()
 
@@ -133,7 +132,7 @@ func TestUploadsCreateHandler_InvalidChunkSize(t *testing.T) {
 	mock := &mockUploadCreator{}
 	h := NewHandler(mock)
 
-	body, _ := json.Marshal(Request{UserID: 1, RecordID: 1, TotalChunks: 2, ChunkSize: 0, TotalSize: 2048, KeyVersion: 1})
+	body, _ := json.Marshal(Request{UserID: 1, RecordID: 1, TotalChunks: 2, ChunkSize: 0, TotalSize: 2048})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/uploads", bytes.NewReader(body))
 	w := httptest.NewRecorder()
 
@@ -148,7 +147,7 @@ func TestUploadsCreateHandler_InvalidTotalSize(t *testing.T) {
 	mock := &mockUploadCreator{}
 	h := NewHandler(mock)
 
-	body, _ := json.Marshal(Request{UserID: 1, RecordID: 1, TotalChunks: 2, ChunkSize: 1024, TotalSize: 0, KeyVersion: 1})
+	body, _ := json.Marshal(Request{UserID: 1, RecordID: 1, TotalChunks: 2, ChunkSize: 1024, TotalSize: 0})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/uploads", bytes.NewReader(body))
 	w := httptest.NewRecorder()
 
@@ -156,21 +155,6 @@ func TestUploadsCreateHandler_InvalidTotalSize(t *testing.T) {
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected status 400 for invalid total_size, got %d", w.Code)
-	}
-}
-
-func TestUploadsCreateHandler_InvalidKeyVersion(t *testing.T) {
-	mock := &mockUploadCreator{}
-	h := NewHandler(mock)
-
-	body, _ := json.Marshal(Request{UserID: 1, RecordID: 1, TotalChunks: 2, ChunkSize: 1024, TotalSize: 2048, KeyVersion: 0})
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/uploads", bytes.NewReader(body))
-	w := httptest.NewRecorder()
-
-	h.ServeHTTP(w, req)
-
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("expected status 400 for invalid key_version, got %d", w.Code)
 	}
 }
 
@@ -183,7 +167,7 @@ func TestUploadsCreateHandler_ServiceError(t *testing.T) {
 
 	h := NewHandler(mock)
 
-	body, _ := json.Marshal(Request{UserID: 1, RecordID: 1, TotalChunks: 2, ChunkSize: 1024, TotalSize: 2048, KeyVersion: 1})
+	body, _ := json.Marshal(Request{UserID: 1, RecordID: 1, TotalChunks: 2, ChunkSize: 1024, TotalSize: 2048})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/uploads", bytes.NewReader(body))
 	w := httptest.NewRecorder()
 

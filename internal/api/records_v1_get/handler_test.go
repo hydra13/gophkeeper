@@ -114,6 +114,6 @@ type recordServiceMock struct {
 	err     error
 }
 
-func (m *recordServiceMock) ListRecords(userID int64) ([]models.Record, error) {
+func (m *recordServiceMock) ListRecords(userID int64, recordType models.RecordType, includeDeleted bool) ([]models.Record, error) {
 	return m.records, m.err
 }

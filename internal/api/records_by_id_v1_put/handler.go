@@ -37,10 +37,9 @@ type TextPayload struct {
 	Content string `json:"content"`
 }
 
-// BinaryPayload — DTO для бинарных данных.
-type BinaryPayload struct {
-	Data []byte `json:"data"`
-}
+// BinaryPayload — DTO для бинарных данных (metadata-only).
+// Содержимое управляется через uploads-слой (task_13).
+type BinaryPayload struct{}
 
 // CardPayload — DTO для данных банковской карты.
 type CardPayload struct {
@@ -94,8 +93,7 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 
 	existing, err := h.service.GetRecord(id)
 	if err != nil {
-		if errors.Is(err, models.ErrRecordNotFound) {
-			recordscommon.WriteError(w, http.StatusNotFound, "record not found")
+		if recordscommon.MapRecordError(w, err) {
 			return
 		}
 		recordscommon.WriteError(w, http.StatusInternalServerError, "internal error")
@@ -137,8 +135,7 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.service.UpdateRecord(existing); err != nil {
-		if errors.Is(err, models.ErrRevisionConflict) {
-			recordscommon.WriteConflict(w, "revision conflict", &req.Revision, nil)
+		if recordscommon.MapRecordError(w, err) {
 			return
 		}
 		recordscommon.WriteError(w, http.StatusInternalServerError, "internal error")
@@ -168,10 +165,9 @@ func buildPayload(rt models.RecordType, req *UpdateRecordRequest) (models.Record
 		}
 		return models.TextPayload{Content: req.Text.Content}, nil
 	case models.RecordTypeBinary:
-		if req.Binary == nil {
-			return nil, errors.New("binary payload is required")
-		}
-		return models.BinaryPayload{Data: req.Binary.Data}, nil
+		// Binary payload content управляется через uploads-слой (task_13).
+		// CRUD оперирует только metadata и payload_version как ссылкой на вложение.
+		return models.BinaryPayload{}, nil
 	case models.RecordTypeCard:
 		if req.Card == nil {
 			return nil, errors.New("card payload is required")

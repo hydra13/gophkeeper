@@ -42,19 +42,20 @@ const (
 	defaultRateWindow      = time.Second
 )
 
-// AppDeps описывает зависимости приложения, которые можно подменять до появления полной реализации.
+// AppDeps описывает зависимости приложения.
 type AppDeps struct {
-	UserService interface {
+	// AuthService реализует все auth-операции: register, login, refresh, logout, validate token.
+	AuthService interface {
 		Register(ctx context.Context, email, password string) (int64, error)
 		Login(ctx context.Context, email, password, deviceID, deviceName, clientType string) (string, string, error)
-	}
-	TokenService interface {
 		Refresh(ctx context.Context, refreshToken string) (string, string, error)
 		Logout(ctx context.Context, accessToken string) error
+		ValidateToken(token string) (int64, error)
+		ValidateSession(token string) (int64, error)
 	}
 	RecordService interface {
 		CreateRecord(record *models.Record) error
-		ListRecords(userID int64) ([]models.Record, error)
+		ListRecords(userID int64, recordType models.RecordType, includeDeleted bool) ([]models.Record, error)
 		GetRecord(id int64) (*models.Record, error)
 		UpdateRecord(record *models.Record) error
 		DeleteRecord(id int64, deviceID string) error
@@ -69,37 +70,30 @@ type AppDeps struct {
 		UploadChunk(uploadID, chunkIndex int64, data []byte) (received, total int64, completed bool, missing []int64, err error)
 		DownloadChunk(uploadID, chunkIndex int64) (*uploads_by_id_chunks_v1_get.ChunkDownloadResponse, error)
 	}
-	TokenValidator middlewares.TokenValidator
 }
 
 func (d AppDeps) validate() error {
 	switch {
-	case d.UserService == nil:
-		return errors.New("user service dependency is required")
-	case d.TokenService == nil:
-		return errors.New("token service dependency is required")
+	case d.AuthService == nil:
+		return errors.New("auth service dependency is required")
 	case d.RecordService == nil:
 		return errors.New("record service dependency is required")
 	case d.SyncService == nil:
 		return errors.New("sync service dependency is required")
 	case d.UploadService == nil:
 		return errors.New("upload service dependency is required")
-	case d.TokenValidator == nil:
-		return errors.New("token validator dependency is required")
 	default:
 		return nil
 	}
 }
 
-// NewStubDeps возвращает набор заглушек для MVP запуска без бизнес-реализаций.
+// NewStubDeps возвращает набор заглушек для запуска без бизнес-реализаций.
 func NewStubDeps() AppDeps {
 	return AppDeps{
-		UserService:    &stubUserService{},
-		TokenService:   &stubTokenService{},
-		RecordService:  &stubRecordService{},
-		SyncService:    &stubSyncService{},
-		UploadService:  &stubUploadsService{},
-		TokenValidator: &stubTokenValidator{},
+		AuthService:   &stubAuthService{},
+		RecordService: &stubRecordService{},
+		SyncService:   &stubSyncService{},
+		UploadService: &stubUploadsService{},
 	}
 }
 
@@ -203,18 +197,17 @@ type backgroundJob interface {
 }
 
 func buildHTTPServer(cfg *config.Config, log zerolog.Logger, limiter *middlewares.RateLimiter, deps AppDeps) (*http.Server, error) {
-	userService := deps.UserService
-	tokenService := deps.TokenService
+	authService := deps.AuthService
 	recordService := deps.RecordService
 	syncService := deps.SyncService
 	uploadService := deps.UploadService
 
 	healthHandler := health_v1_get.NewHandler(&healthChecker{})
 
-	authRegisterHandler := auth_register_v1_post.NewHandler(userService, log)
-	authLoginHandler := auth_login_v1_post.NewHandler(userService, log)
-	authRefreshHandler := auth_refresh_v1_post.NewHandler(tokenService, log)
-	authLogoutHandler := auth_logout_v1_post.NewHandler(tokenService, log)
+	authRegisterHandler := auth_register_v1_post.NewHandler(authService, log)
+	authLoginHandler := auth_login_v1_post.NewHandler(authService, log)
+	authRefreshHandler := auth_refresh_v1_post.NewHandler(authService, log)
+	authLogoutHandler := auth_logout_v1_post.NewHandler(authService, log)
 
 	recordsPostHandler := recordsv1post.NewHandler(recordService)
 	recordsGetHandler := recordsv1get.NewHandler(recordService)
@@ -256,7 +249,7 @@ func buildHTTPServer(cfg *config.Config, log zerolog.Logger, limiter *middleware
 	protectedMux.Handle("/api/v1/uploads/{id}/chunks", uploadChunkHandler)
 	protectedMux.Handle("/api/v1/uploads/{id}/chunks/{index}", downloadChunkHandler)
 
-	protectedHandler := middlewares.Auth(deps.TokenValidator, log)(protectedMux)
+	protectedHandler := middlewares.Auth(authService, log)(protectedMux)
 	root := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if isPublicPath(r.URL.Path) {
 			publicMux.ServeHTTP(w, r)
@@ -300,24 +293,24 @@ func buildGRPCServer(cfg *config.Config, log zerolog.Logger, limiter *middleware
 		grpc.ChainUnaryInterceptor(
 			middlewares.RequireTLS(),
 			middlewares.UnaryRateLimit(limiter),
-			middlewares.UnaryAuth(deps.TokenValidator, allowMethods),
+			middlewares.UnaryAuth(deps.AuthService, allowMethods),
 			middlewares.UnaryLogger(log),
 		),
 		grpc.ChainStreamInterceptor(
 			middlewares.RequireTLSStream(),
 			middlewares.StreamRateLimit(limiter),
-			middlewares.StreamAuth(deps.TokenValidator, allowMethods),
+			middlewares.StreamAuth(deps.AuthService, allowMethods),
 			middlewares.StreamLogger(log),
 		),
 	)
 
-	authService := rpc.NewAuthService()
-	dataService := rpc.NewDataService()
+	authRPCService := rpc.NewAuthService(deps.AuthService, log)
+	dataService := rpc.NewDataService(deps.RecordService, log)
 	syncService := rpc.NewSyncService()
 	uploadsService := rpc.NewUploadsService()
 	healthService := rpc.NewHealthService()
 
-	rpc.NewServer(authService, dataService, syncService, uploadsService, healthService).Register(grpcServer)
+	rpc.NewServer(authRPCService, dataService, syncService, uploadsService, healthService).Register(grpcServer)
 
 	listener, err := net.Listen("tcp", cfg.Server.GRPCAddress)
 	if err != nil {
@@ -368,33 +361,36 @@ func (h *healthChecker) Health() error {
 	return nil
 }
 
-type stubTokenValidator struct{}
+type stubAuthService struct{}
 
-func (s *stubTokenValidator) ValidateToken(token string) (int64, error) {
+func (s *stubAuthService) Register(ctx context.Context, email, password string) (int64, error) {
+	return 0, errors.New("auth service not implemented")
+}
+
+func (s *stubAuthService) Login(ctx context.Context, email, password, deviceID, deviceName, clientType string) (string, string, error) {
+	return "", "", errors.New("auth service not implemented")
+}
+
+func (s *stubAuthService) Refresh(ctx context.Context, refreshToken string) (string, string, error) {
+	return "", "", errors.New("auth service not implemented")
+}
+
+func (s *stubAuthService) Logout(ctx context.Context, accessToken string) error {
+	return errors.New("auth service not implemented")
+}
+
+func (s *stubAuthService) ValidateToken(token string) (int64, error) {
 	if token == "" {
 		return 0, errors.New("empty token")
 	}
 	return 1, nil
 }
 
-type stubUserService struct{}
-
-func (s *stubUserService) Register(ctx context.Context, email, password string) (int64, error) {
-	return 0, errors.New("user service not implemented")
-}
-
-func (s *stubUserService) Login(ctx context.Context, email, password, deviceID, deviceName, clientType string) (string, string, error) {
-	return "", "", errors.New("user service not implemented")
-}
-
-type stubTokenService struct{}
-
-func (s *stubTokenService) Refresh(ctx context.Context, refreshToken string) (string, string, error) {
-	return "", "", errors.New("token service not implemented")
-}
-
-func (s *stubTokenService) Logout(ctx context.Context, accessToken string) error {
-	return errors.New("token service not implemented")
+func (s *stubAuthService) ValidateSession(token string) (int64, error) {
+	if token == "" {
+		return 0, errors.New("empty token")
+	}
+	return 1, nil
 }
 
 type stubRecordService struct{}
@@ -403,7 +399,7 @@ func (s *stubRecordService) CreateRecord(record *models.Record) error {
 	return errors.New("record service not implemented")
 }
 
-func (s *stubRecordService) ListRecords(userID int64) ([]models.Record, error) {
+func (s *stubRecordService) ListRecords(userID int64, recordType models.RecordType, includeDeleted bool) ([]models.Record, error) {
 	return nil, errors.New("record service not implemented")
 }
 

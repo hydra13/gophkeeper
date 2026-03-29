@@ -1,7 +1,10 @@
 package database
 
 import (
+	"bytes"
+	"crypto/rand"
 	"database/sql"
+	"encoding/base64"
 	"os"
 	"testing"
 	"time"
@@ -12,6 +15,8 @@ import (
 	"github.com/hydra13/gophkeeper/internal/migrations"
 	"github.com/hydra13/gophkeeper/internal/models"
 	"github.com/hydra13/gophkeeper/internal/repositories/file"
+	cryptosvc "github.com/hydra13/gophkeeper/internal/services/crypto"
+	"github.com/hydra13/gophkeeper/internal/services/keys"
 )
 
 func TestMigrationsApply(t *testing.T) {
@@ -25,7 +30,7 @@ func TestMigrationsApply(t *testing.T) {
 
 func TestUserUniqueEmail(t *testing.T) {
 	db := setupDB(t)
-	repo := newRepository(t, db)
+	repo, _ := newRepository(t, db)
 
 	user := &models.User{
 		Email:        "user@example.com",
@@ -42,10 +47,10 @@ func TestUserUniqueEmail(t *testing.T) {
 
 func TestRecordSoftDelete(t *testing.T) {
 	db := setupDB(t)
-	repo := newRepository(t, db)
+	repo, keyManager := newRepository(t, db)
 
 	user := createUser(t, repo)
-	keyVersion := createKeyVersion(t, repo, 1, models.KeyStatusActive)
+	keyVersion := createKeyVersion(t, repo, keyManager, models.KeyStatusActive)
 
 	record := &models.Record{
 		UserID:     user.ID,
@@ -65,17 +70,17 @@ func TestRecordSoftDelete(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, stored.DeletedAt)
 
-	records, err := repo.ListRecords(user.ID)
+	records, err := repo.ListRecords(user.ID, "", false)
 	require.NoError(t, err)
 	require.Empty(t, records)
 }
 
 func TestUploadResumeState(t *testing.T) {
 	db := setupDB(t)
-	repo := newRepository(t, db)
+	repo, keyManager := newRepository(t, db)
 
 	user := createUser(t, repo)
-	keyVersion := createKeyVersion(t, repo, 1, models.KeyStatusActive)
+	keyVersion := createKeyVersion(t, repo, keyManager, models.KeyStatusActive)
 
 	record := &models.Record{
 		UserID:         user.ID,
@@ -91,14 +96,14 @@ func TestUploadResumeState(t *testing.T) {
 	require.NoError(t, repo.CreateRecord(record))
 
 	upload := &models.UploadSession{
-		RecordID:     record.ID,
-		UserID:       user.ID,
-		Status:       models.UploadStatusPending,
-		TotalChunks:  3,
-		ChunkSize:    5,
-		TotalSize:    15,
+		RecordID:       record.ID,
+		UserID:         user.ID,
+		Status:         models.UploadStatusPending,
+		TotalChunks:    3,
+		ChunkSize:      5,
+		TotalSize:      15,
 		ReceivedChunks: 0,
-		KeyVersion:   keyVersion.Version,
+		KeyVersion:     keyVersion.Version,
 	}
 	require.NoError(t, repo.CreateUploadSession(upload))
 
@@ -121,10 +126,10 @@ func TestUploadResumeState(t *testing.T) {
 
 func TestRevisionUniqueConstraint(t *testing.T) {
 	db := setupDB(t)
-	repo := newRepository(t, db)
+	repo, keyManager := newRepository(t, db)
 
 	user := createUser(t, repo)
-	keyVersion := createKeyVersion(t, repo, 1, models.KeyStatusActive)
+	keyVersion := createKeyVersion(t, repo, keyManager, models.KeyStatusActive)
 
 	record := &models.Record{
 		UserID:     user.ID,
@@ -153,6 +158,62 @@ func TestRevisionUniqueConstraint(t *testing.T) {
 		DeviceID: "device-2",
 	}
 	require.ErrorIs(t, repo.CreateRevision(duplicate), models.ErrRevisionConflict)
+}
+
+func TestRecordEncryptionAtRest(t *testing.T) {
+	db := setupDB(t)
+	repo, keyManager := newRepository(t, db)
+
+	user := createUser(t, repo)
+	keyVersion := createKeyVersion(t, repo, keyManager, models.KeyStatusActive)
+
+	record := &models.Record{
+		UserID:     user.ID,
+		Type:       models.RecordTypeText,
+		Name:       "secret",
+		Metadata:   "meta",
+		Payload:    models.TextPayload{Content: "data"},
+		Revision:   1,
+		DeviceID:   "device-1",
+		KeyVersion: keyVersion.Version,
+	}
+	require.NoError(t, repo.CreateRecord(record))
+
+	row := db.QueryRow(`SELECT payload FROM records WHERE id = $1`, record.ID)
+	var raw []byte
+	require.NoError(t, row.Scan(&raw))
+	require.True(t, len(raw) > 0)
+	require.False(t, bytes.Contains(raw, []byte("data")), "payload should be encrypted at rest")
+
+	stored, err := repo.GetRecord(record.ID)
+	require.NoError(t, err)
+	payload := stored.Payload.(models.TextPayload)
+	require.Equal(t, "data", payload.Content)
+}
+
+func TestLegacyPayloadReadable(t *testing.T) {
+	db := setupDB(t)
+	repo, keyManager := newRepository(t, db)
+
+	user := createUser(t, repo)
+	keyVersion := createKeyVersion(t, repo, keyManager, models.KeyStatusActive)
+
+	row := db.QueryRow(`
+		INSERT INTO records (
+			user_id, type, name, metadata, payload, revision, deleted_at,
+			device_id, key_version, payload_version, created_at, updated_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, NULL, $7, $8, $9, NOW(), NOW())
+		RETURNING id
+	`, user.ID, string(models.RecordTypeText), "legacy", "meta", []byte(`{"content":"legacy"}`), int64(1), "device-1", keyVersion.Version, int64(0))
+
+	var recordID int64
+	require.NoError(t, row.Scan(&recordID))
+
+	stored, err := repo.GetRecord(recordID)
+	require.NoError(t, err)
+	payload := stored.Payload.(models.TextPayload)
+	require.Equal(t, "legacy", payload.Content)
 }
 
 func setupDB(t *testing.T) *sql.DB {
@@ -193,13 +254,18 @@ func truncateTables(db *sql.DB) error {
 	return err
 }
 
-func newRepository(t *testing.T, db *sql.DB) *Repository {
+func newRepository(t *testing.T, db *sql.DB) (*Repository, *keys.Manager) {
 	t.Helper()
 	blobRepo, err := file.New(t.TempDir())
 	require.NoError(t, err)
 	repo, err := New(db, blobRepo)
 	require.NoError(t, err)
-	return repo
+	masterKey := testMasterKey(t)
+	keyManager, err := keys.NewManager(repo, masterKey)
+	require.NoError(t, err)
+	cryptoService := cryptosvc.New(keyManager)
+	repo.SetCrypto(cryptoService)
+	return repo, keyManager
 }
 
 func createUser(t *testing.T, repo *Repository) *models.User {
@@ -212,12 +278,28 @@ func createUser(t *testing.T, repo *Repository) *models.User {
 	return user
 }
 
-func createKeyVersion(t *testing.T, repo *Repository, version int64, status models.KeyStatus) *models.KeyVersion {
+func createKeyVersion(t *testing.T, repo *Repository, keyManager *keys.Manager, status models.KeyStatus) *models.KeyVersion {
 	t.Helper()
-	kv := &models.KeyVersion{
-		Version: version,
-		Status:  status,
+	kv, err := keyManager.CreateActive()
+	require.NoError(t, err)
+	switch status {
+	case models.KeyStatusActive:
+		return kv
+	case models.KeyStatusDeprecated:
+		require.NoError(t, keyManager.Deprecate(kv.Version))
+	case models.KeyStatusRetired:
+		require.NoError(t, keyManager.Deprecate(kv.Version))
+		require.NoError(t, keyManager.Retire(kv.Version))
 	}
-	require.NoError(t, repo.CreateKeyVersion(kv))
-	return kv
+	updated, err := repo.GetKeyVersion(kv.Version)
+	require.NoError(t, err)
+	return updated
+}
+
+func testMasterKey(t *testing.T) string {
+	t.Helper()
+	key := make([]byte, 32)
+	_, err := rand.Read(key)
+	require.NoError(t, err)
+	return base64.StdEncoding.EncodeToString(key)
 }

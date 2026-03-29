@@ -23,6 +23,10 @@ type KeyVersion struct {
 	ID int64
 	// Version — порядковый номер версии ключа.
 	Version int64
+	// EncryptedKey — data key, зашифрованный master-key.
+	EncryptedKey []byte
+	// KeyNonce — nonce для расшифровки data key.
+	KeyNonce []byte
 	// Status — текущий статус ключа (active, deprecated, retired).
 	Status KeyStatus
 	// CreatedAt — время создания версии ключа.

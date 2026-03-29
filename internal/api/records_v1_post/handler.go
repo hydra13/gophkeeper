@@ -46,10 +46,9 @@ type TextPayload struct {
 	Content string `json:"content"`
 }
 
-// BinaryPayload — DTO для бинарных данных.
-type BinaryPayload struct {
-	Data []byte `json:"data"`
-}
+// BinaryPayload — DTO для бинарных данных (metadata-only).
+// Содержимое управляется через uploads-слой (task_13).
+type BinaryPayload struct{}
 
 // CardPayload — DTO для данных банковской карты.
 type CardPayload struct {
@@ -101,14 +100,8 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	}
 	record.UserID = userID
 
-	if err := record.Validate(); err != nil {
-		recordscommon.WriteError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
 	if err := h.service.CreateRecord(record); err != nil {
-		if errors.Is(err, models.ErrRevisionConflict) {
-			recordscommon.WriteConflict(w, "revision conflict", nil, nil)
+		if recordscommon.MapRecordError(w, err) {
 			return
 		}
 		recordscommon.WriteError(w, http.StatusInternalServerError, "internal error")
@@ -137,9 +130,6 @@ func requestToRecord(req *CreateRecordRequest) (*models.Record, error) {
 	if req.DeviceID == "" {
 		return nil, models.ErrEmptyDeviceID
 	}
-	if req.KeyVersion <= 0 {
-		return nil, models.ErrInvalidKeyVersion
-	}
 
 	var payload models.RecordPayload
 	switch rt {
@@ -154,10 +144,12 @@ func requestToRecord(req *CreateRecordRequest) (*models.Record, error) {
 		}
 		payload = models.TextPayload{Content: req.Text.Content}
 	case models.RecordTypeBinary:
-		if req.Binary == nil {
-			return nil, errors.New("binary payload is required")
+		if req.PayloadVersion <= 0 {
+			return nil, models.ErrInvalidPayloadVersion
 		}
-		payload = models.BinaryPayload{Data: req.Binary.Data}
+		// Binary payload content управляется через uploads-слой (task_13).
+		// CRUD оперирует только metadata и payload_version как ссылкой на вложение.
+		payload = models.BinaryPayload{}
 	case models.RecordTypeCard:
 		if req.Card == nil {
 			return nil, errors.New("card payload is required")
@@ -175,7 +167,7 @@ func requestToRecord(req *CreateRecordRequest) (*models.Record, error) {
 		Name:           req.Name,
 		Metadata:       req.Metadata,
 		DeviceID:       req.DeviceID,
-		KeyVersion:     req.KeyVersion,
+		KeyVersion:     0,
 		PayloadVersion: req.PayloadVersion,
 		Payload:        payload,
 	}, nil

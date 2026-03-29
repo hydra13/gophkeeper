@@ -8,9 +8,9 @@ import (
 	"github.com/rs/zerolog"
 )
 
-// TokenValidator проверяет access-токен.
+// TokenValidator проверяет access-токен и серверную сессию.
 type TokenValidator interface {
-	ValidateToken(token string) (int64, error)
+	ValidateSession(token string) (int64, error)
 }
 
 type userIDContextKey struct{}
@@ -44,9 +44,9 @@ func Auth(validator TokenValidator, log zerolog.Logger) func(http.Handler) http.
 				http.Error(w, "empty token", http.StatusUnauthorized)
 				return
 			}
-			userID, err := validator.ValidateToken(token)
+			userID, err := validator.ValidateSession(token)
 			if err != nil {
-				log.Debug().Err(err).Msg("auth token validation failed")
+				log.Debug().Err(err).Msg("auth session validation failed")
 				http.Error(w, "invalid token", http.StatusUnauthorized)
 				return
 			}

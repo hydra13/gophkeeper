@@ -31,7 +31,7 @@ type UserRepository interface {
 type RecordRepository interface {
 	CreateRecord(record *models.Record) error
 	GetRecord(id int64) (*models.Record, error)
-	ListRecords(userID int64) ([]models.Record, error)
+	ListRecords(userID int64, recordType models.RecordType, includeDeleted bool) ([]models.Record, error)
 	UpdateRecord(record *models.Record) error
 	DeleteRecord(id int64) error
 }

@@ -72,9 +72,11 @@ func UnaryAuth(validator TokenValidator, allowMethods map[string]struct{}) grpc.
 		if token == "" {
 			return nil, status.Error(codes.Unauthenticated, "authorization required")
 		}
-		if _, err := validator.ValidateToken(token); err != nil {
+		userID, err := validator.ValidateSession(token)
+		if err != nil {
 			return nil, status.Error(codes.Unauthenticated, "invalid token")
 		}
+		ctx = ContextWithUserID(ctx, userID)
 		return handler(ctx, req)
 	}
 }
@@ -89,11 +91,23 @@ func StreamAuth(validator TokenValidator, allowMethods map[string]struct{}) grpc
 		if token == "" {
 			return status.Error(codes.Unauthenticated, "authorization required")
 		}
-		if _, err := validator.ValidateToken(token); err != nil {
+		userID, err := validator.ValidateSession(token)
+		if err != nil {
 			return status.Error(codes.Unauthenticated, "invalid token")
 		}
-		return handler(srv, stream)
+		ctx := ContextWithUserID(stream.Context(), userID)
+		wrapped := &wrappedStream{ServerStream: stream, ctx: ctx}
+		return handler(srv, wrapped)
 	}
+}
+
+type wrappedStream struct {
+	grpc.ServerStream
+	ctx context.Context
+}
+
+func (w *wrappedStream) Context() context.Context {
+	return w.ctx
 }
 
 // RequireTLS interceptor для проверки TLS соединения.

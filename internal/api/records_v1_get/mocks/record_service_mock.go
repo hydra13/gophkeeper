@@ -17,7 +17,7 @@ func NewRecordServiceMock(records []models.Record, err error) *RecordServiceMock
 }
 
 // ListRecords implements recordsv1get.RecordService.
-func (m *RecordServiceMock) ListRecords(userID int64) ([]models.Record, error) {
+func (m *RecordServiceMock) ListRecords(userID int64, recordType models.RecordType, includeDeleted bool) ([]models.Record, error) {
 	return m.records, m.err
 }
 

@@ -18,9 +18,8 @@ type TextPayloadDTO struct {
 }
 
 // BinaryPayloadDTO — DTO для бинарных данных.
-type BinaryPayloadDTO struct {
-	Data []byte `json:"data"`
-}
+// Содержимое управляется через uploads-слой (task_13).
+type BinaryPayloadDTO struct{}
 
 // CardPayloadDTO — DTO для данных банковской карты.
 type CardPayloadDTO struct {
@@ -73,7 +72,7 @@ func RecordToDTO(r models.Record) RecordDTO {
 	case models.TextPayload:
 		dto.Payload = TextPayloadDTO{Content: p.Content}
 	case models.BinaryPayload:
-		dto.Payload = BinaryPayloadDTO{Data: p.Data}
+		dto.Payload = BinaryPayloadDTO{}
 	case models.CardPayload:
 		dto.Payload = CardPayloadDTO{
 			Number: p.Number, HolderName: p.HolderName,

@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/hydra13/gophkeeper/internal/models"
 	"github.com/hydra13/gophkeeper/internal/repositories"
+	cryptosvc "github.com/hydra13/gophkeeper/internal/services/crypto"
 )
 
 const (
@@ -20,8 +22,9 @@ const (
 
 // Repository реализация PostgreSQL хранилища.
 type Repository struct {
-	db   *sql.DB
-	blob repositories.BlobStorage
+	db     *sql.DB
+	blob   repositories.BlobStorage
+	crypto cryptosvc.CryptoService
 }
 
 // New создаёт PostgreSQL репозиторий.
@@ -33,6 +36,18 @@ func New(db *sql.DB, blob repositories.BlobStorage) (*Repository, error) {
 		return nil, errors.New("blob storage is required")
 	}
 	return &Repository{db: db, blob: blob}, nil
+}
+
+// SetCrypto задаёт сервис шифрования для repository.
+func (r *Repository) SetCrypto(service cryptosvc.CryptoService) {
+	r.crypto = service
+}
+
+func (r *Repository) ensureCrypto() (cryptosvc.CryptoService, error) {
+	if r.crypto == nil {
+		return nil, errors.New("crypto service is required")
+	}
+	return r.crypto, nil
 }
 
 // CreateUser сохраняет нового пользователя.
@@ -79,9 +94,25 @@ func (r *Repository) CreateRecord(record *models.Record) error {
 	if record == nil {
 		return errors.New("record is nil")
 	}
+	crypto, err := r.ensureCrypto()
+	if err != nil {
+		return err
+	}
 	payload, payloadData, err := splitRecordPayload(record)
 	if err != nil {
 		return err
+	}
+	if len(payload) > 0 {
+		payload, err = encryptJSONPayload(crypto, payload, record.KeyVersion)
+		if err != nil {
+			return err
+		}
+	}
+	if len(payloadData) > 0 {
+		payloadData, err = crypto.Encrypt(payloadData, record.KeyVersion)
+		if err != nil {
+			return err
+		}
 	}
 
 	tx, err := r.db.BeginTx(context.Background(), nil)
@@ -153,18 +184,36 @@ func (r *Repository) GetRecord(id int64) (*models.Record, error) {
 		FROM records
 		WHERE id = $1
 	`, id)
-	return scanRecord(row)
+	return r.scanRecord(row)
 }
 
-// ListRecords возвращает список активных записей пользователя.
-func (r *Repository) ListRecords(userID int64) ([]models.Record, error) {
-	rows, err := r.db.QueryContext(context.Background(), `
+// ListRecords возвращает список записей пользователя с опциональной фильтрацией.
+// Если recordType не пустой — фильтрует по типу.
+// Если includeDeleted — включает soft-deleted записи.
+func (r *Repository) ListRecords(userID int64, recordType models.RecordType, includeDeleted bool) ([]models.Record, error) {
+	if _, err := r.ensureCrypto(); err != nil {
+		return nil, err
+	}
+
+	query := `
 		SELECT id, user_id, type, name, metadata, payload, revision, deleted_at,
 		       device_id, key_version, payload_version, created_at, updated_at
 		FROM records
-		WHERE user_id = $1 AND deleted_at IS NULL
-		ORDER BY updated_at DESC
-	`, userID)
+		WHERE user_id = $1`
+	args := []interface{}{userID}
+	argIdx := 2
+
+	if !includeDeleted {
+		query += fmt.Sprintf(" AND deleted_at IS NULL")
+	}
+	if recordType != "" {
+		query += fmt.Sprintf(" AND type = $%d", argIdx)
+		args = append(args, string(recordType))
+		argIdx++
+	}
+	query += " ORDER BY updated_at DESC"
+
+	rows, err := r.db.QueryContext(context.Background(), query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -172,7 +221,42 @@ func (r *Repository) ListRecords(userID int64) ([]models.Record, error) {
 
 	var records []models.Record
 	for rows.Next() {
-		record, scanErr := scanRecord(rows)
+		record, scanErr := r.scanRecord(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		records = append(records, *record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return records, nil
+}
+
+// ListRecordsForReencrypt возвращает записи, зашифрованные неактуальным ключом.
+func (r *Repository) ListRecordsForReencrypt(activeVersion int64, limit int) ([]models.Record, error) {
+	if _, err := r.ensureCrypto(); err != nil {
+		return nil, err
+	}
+	if limit <= 0 {
+		limit = 100
+	}
+	rows, err := r.db.QueryContext(context.Background(), `
+		SELECT id, user_id, type, name, metadata, payload, revision, deleted_at,
+		       device_id, key_version, payload_version, created_at, updated_at
+		FROM records
+		WHERE key_version <> $1 AND deleted_at IS NULL
+		ORDER BY id ASC
+		LIMIT $2
+	`, activeVersion, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var records []models.Record
+	for rows.Next() {
+		record, scanErr := r.scanRecord(rows)
 		if scanErr != nil {
 			return nil, scanErr
 		}
@@ -189,9 +273,25 @@ func (r *Repository) UpdateRecord(record *models.Record) error {
 	if record == nil {
 		return errors.New("record is nil")
 	}
+	crypto, err := r.ensureCrypto()
+	if err != nil {
+		return err
+	}
 	payload, payloadData, err := splitRecordPayload(record)
 	if err != nil {
 		return err
+	}
+	if len(payload) > 0 {
+		payload, err = encryptJSONPayload(crypto, payload, record.KeyVersion)
+		if err != nil {
+			return err
+		}
+	}
+	if len(payloadData) > 0 {
+		payloadData, err = crypto.Encrypt(payloadData, record.KeyVersion)
+		if err != nil {
+			return err
+		}
 	}
 
 	tx, err := r.db.BeginTx(context.Background(), nil)
@@ -263,6 +363,53 @@ func (r *Repository) UpdateRecord(record *models.Record) error {
 
 	if err = tx.Commit(); err != nil {
 		return err
+	}
+	return nil
+}
+
+// ListPayloads возвращает сохранённые payloads записи.
+func (r *Repository) ListPayloads(recordID int64) ([]models.StoredPayload, error) {
+	rows, err := r.db.QueryContext(context.Background(), `
+		SELECT record_id, version, storage_path, size
+		FROM payloads
+		WHERE record_id = $1
+		ORDER BY version ASC
+	`, recordID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var payloads []models.StoredPayload
+	for rows.Next() {
+		var payload models.StoredPayload
+		if err := rows.Scan(&payload.RecordID, &payload.Version, &payload.StoragePath, &payload.Size); err != nil {
+			return nil, err
+		}
+		payloads = append(payloads, payload)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return payloads, nil
+}
+
+// UpdatePayloadSize обновляет размер сохранённого payload.
+func (r *Repository) UpdatePayloadSize(recordID int64, version int64, size int64) error {
+	result, err := r.db.ExecContext(context.Background(), `
+		UPDATE payloads
+		SET size = $3
+		WHERE record_id = $1 AND version = $2
+	`, recordID, version, size)
+	if err != nil {
+		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return errors.New("payload not found")
 	}
 	return nil
 }
@@ -614,6 +761,10 @@ func (r *Repository) SaveChunk(chunk *models.Chunk) error {
 	if chunk == nil {
 		return errors.New("chunk is nil")
 	}
+	crypto, err := r.ensureCrypto()
+	if err != nil {
+		return err
+	}
 	tx, err := r.db.BeginTx(context.Background(), nil)
 	if err != nil {
 		return err
@@ -627,13 +778,14 @@ func (r *Repository) SaveChunk(chunk *models.Chunk) error {
 	var status models.UploadStatus
 	var totalChunks int64
 	var receivedChunks int64
+	var keyVersion int64
 	row := tx.QueryRowContext(context.Background(), `
-		SELECT status, total_chunks, received_chunks
+		SELECT status, total_chunks, received_chunks, key_version
 		FROM upload_sessions
 		WHERE id = $1
 		FOR UPDATE
 	`, chunk.UploadID)
-	if scanErr := row.Scan(&status, &totalChunks, &receivedChunks); scanErr != nil {
+	if scanErr := row.Scan(&status, &totalChunks, &receivedChunks, &keyVersion); scanErr != nil {
 		if errors.Is(scanErr, sql.ErrNoRows) {
 			return models.ErrUploadNotFound
 		}
@@ -663,16 +815,19 @@ func (r *Repository) SaveChunk(chunk *models.Chunk) error {
 	if exists {
 		return models.ErrDuplicateChunk
 	}
-
+	chunkData, err := crypto.Encrypt(chunk.Data, keyVersion)
+	if err != nil {
+		return err
+	}
 	storagePath := fmt.Sprintf(chunkPathTemplate, chunk.UploadID, chunk.ChunkIndex)
-	if err := r.blob.Save(storagePath, chunk.Data); err != nil {
+	if err := r.blob.Save(storagePath, chunkData); err != nil {
 		return err
 	}
 
 	_, err = tx.ExecContext(context.Background(), `
 		INSERT INTO upload_chunks (upload_id, chunk_index, size, storage_path, created_at)
 		VALUES ($1, $2, $3, $4, NOW())
-	`, chunk.UploadID, chunk.ChunkIndex, int64(len(chunk.Data)), storagePath)
+	`, chunk.UploadID, chunk.ChunkIndex, int64(len(chunkData)), storagePath)
 	if err != nil {
 		_ = r.blob.Delete(storagePath)
 		return err
@@ -703,6 +858,22 @@ func (r *Repository) SaveChunk(chunk *models.Chunk) error {
 
 // GetChunks возвращает все чанки для upload-сессии.
 func (r *Repository) GetChunks(uploadID int64) ([]models.Chunk, error) {
+	crypto, err := r.ensureCrypto()
+	if err != nil {
+		return nil, err
+	}
+	var keyVersion int64
+	keyRow := r.db.QueryRowContext(context.Background(), `
+		SELECT key_version
+		FROM upload_sessions
+		WHERE id = $1
+	`, uploadID)
+	if err := keyRow.Scan(&keyVersion); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, models.ErrUploadNotFound
+		}
+		return nil, err
+	}
 	rows, err := r.db.QueryContext(context.Background(), `
 		SELECT chunk_index, storage_path
 		FROM upload_chunks
@@ -722,6 +893,10 @@ func (r *Repository) GetChunks(uploadID int64) ([]models.Chunk, error) {
 			return nil, err
 		}
 		data, err := r.blob.Read(storagePath)
+		if err != nil {
+			return nil, err
+		}
+		data, err = decryptMaybeLegacy(crypto, data, keyVersion)
 		if err != nil {
 			return nil, err
 		}
@@ -753,17 +928,17 @@ func (r *Repository) CreateKeyVersion(kv *models.KeyVersion) error {
 		return errors.New("key version is nil")
 	}
 	row := r.db.QueryRowContext(context.Background(), `
-		INSERT INTO key_versions (version, status, created_at, deprecated_at, retired_at)
-		VALUES ($1, $2, NOW(), $3, $4)
+		INSERT INTO key_versions (version, status, encrypted_key, key_nonce, created_at, deprecated_at, retired_at)
+		VALUES ($1, $2, $3, $4, NOW(), $5, $6)
 		RETURNING id, created_at
-	`, kv.Version, kv.Status, kv.DeprecatedAt, kv.RetiredAt)
+	`, kv.Version, kv.Status, kv.EncryptedKey, kv.KeyNonce, kv.DeprecatedAt, kv.RetiredAt)
 	return row.Scan(&kv.ID, &kv.CreatedAt)
 }
 
 // GetKeyVersion возвращает конкретную версию ключа.
 func (r *Repository) GetKeyVersion(version int64) (*models.KeyVersion, error) {
 	row := r.db.QueryRowContext(context.Background(), `
-		SELECT id, version, status, created_at, deprecated_at, retired_at
+		SELECT id, version, status, encrypted_key, key_nonce, created_at, deprecated_at, retired_at
 		FROM key_versions
 		WHERE version = $1
 	`, version)
@@ -773,7 +948,7 @@ func (r *Repository) GetKeyVersion(version int64) (*models.KeyVersion, error) {
 // GetActiveKeyVersion возвращает активную версию ключа.
 func (r *Repository) GetActiveKeyVersion() (*models.KeyVersion, error) {
 	row := r.db.QueryRowContext(context.Background(), `
-		SELECT id, version, status, created_at, deprecated_at, retired_at
+		SELECT id, version, status, encrypted_key, key_nonce, created_at, deprecated_at, retired_at
 		FROM key_versions
 		WHERE status = 'active'
 		ORDER BY version DESC
@@ -785,7 +960,7 @@ func (r *Repository) GetActiveKeyVersion() (*models.KeyVersion, error) {
 // ListKeyVersions возвращает список версий ключей.
 func (r *Repository) ListKeyVersions() ([]models.KeyVersion, error) {
 	rows, err := r.db.QueryContext(context.Background(), `
-		SELECT id, version, status, created_at, deprecated_at, retired_at
+		SELECT id, version, status, encrypted_key, key_nonce, created_at, deprecated_at, retired_at
 		FROM key_versions
 		ORDER BY version ASC
 	`)
@@ -842,7 +1017,7 @@ func scanUser(row interface{ Scan(dest ...any) error }) (*models.User, error) {
 	return &user, nil
 }
 
-func scanRecord(row interface{ Scan(dest ...any) error }) (*models.Record, error) {
+func (r *Repository) scanRecord(row interface{ Scan(dest ...any) error }) (*models.Record, error) {
 	var record models.Record
 	var recordType string
 	var payloadRaw []byte
@@ -867,11 +1042,19 @@ func scanRecord(row interface{ Scan(dest ...any) error }) (*models.Record, error
 		}
 		return nil, err
 	}
+	crypto, err := r.ensureCrypto()
+	if err != nil {
+		return nil, err
+	}
 	record.Type = models.RecordType(recordType)
 	if deletedAt.Valid {
 		record.DeletedAt = &deletedAt.Time
 	}
-	payload, err := decodePayload(record.Type, payloadRaw)
+	decodedPayload, err := decodeStoredPayload(crypto, payloadRaw, record.KeyVersion)
+	if err != nil {
+		return nil, err
+	}
+	payload, err := decodePayload(record.Type, decodedPayload)
 	if err != nil {
 		return nil, err
 	}
@@ -909,7 +1092,16 @@ func scanKeyVersion(row interface{ Scan(dest ...any) error }) (*models.KeyVersio
 	var kv models.KeyVersion
 	var deprecatedAt sql.NullTime
 	var retiredAt sql.NullTime
-	if err := row.Scan(&kv.ID, &kv.Version, &kv.Status, &kv.CreatedAt, &deprecatedAt, &retiredAt); err != nil {
+	if err := row.Scan(
+		&kv.ID,
+		&kv.Version,
+		&kv.Status,
+		&kv.EncryptedKey,
+		&kv.KeyNonce,
+		&kv.CreatedAt,
+		&deprecatedAt,
+		&retiredAt,
+	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, models.ErrUnknownKeyVersion
 		}
@@ -928,30 +1120,55 @@ func splitRecordPayload(record *models.Record) ([]byte, []byte, error) {
 	if record.Payload == nil {
 		return nil, nil, nil
 	}
-	switch payload := record.Payload.(type) {
-	case models.BinaryPayload:
-		if len(payload.Data) == 0 {
-			return nil, nil, nil
-		}
-		if record.PayloadVersion <= 0 {
-			return nil, nil, models.ErrInvalidPayloadVersion
-		}
-		return nil, payload.Data, nil
-	case *models.BinaryPayload:
-		if payload == nil || len(payload.Data) == 0 {
-			return nil, nil, nil
-		}
-		if record.PayloadVersion <= 0 {
-			return nil, nil, models.ErrInvalidPayloadVersion
-		}
-		return nil, payload.Data, nil
+	switch record.Payload.(type) {
+	case models.BinaryPayload, *models.BinaryPayload:
+		// Binary payload lifecycle is managed by uploads layer (task_13).
+		// Records CRUD stores only payload_version as a reference to the attachment.
+		return nil, nil, nil
 	default:
-		data, err := json.Marshal(payload)
+		data, err := json.Marshal(record.Payload)
 		if err != nil {
 			return nil, nil, err
 		}
 		return data, nil, nil
 	}
+}
+
+func encryptJSONPayload(crypto cryptosvc.CryptoService, payload []byte, keyVersion int64) ([]byte, error) {
+	if len(payload) == 0 {
+		return payload, nil
+	}
+	enc, err := crypto.Encrypt(payload, keyVersion)
+	if err != nil {
+		return nil, err
+	}
+	encoded := base64.StdEncoding.EncodeToString(enc)
+	return json.Marshal(encoded)
+}
+
+func decodeStoredPayload(crypto cryptosvc.CryptoService, raw []byte, keyVersion int64) ([]byte, error) {
+	if len(raw) == 0 {
+		return nil, nil
+	}
+	var encoded string
+	if err := json.Unmarshal(raw, &encoded); err != nil {
+		return raw, nil
+	}
+	decoded, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return nil, err
+	}
+	return crypto.Decrypt(decoded, keyVersion)
+}
+
+func decryptMaybeLegacy(crypto cryptosvc.CryptoService, data []byte, keyVersion int64) ([]byte, error) {
+	if len(data) == 0 {
+		return data, nil
+	}
+	if !cryptosvc.HasEncryptedPrefix(data) {
+		return data, nil
+	}
+	return crypto.Decrypt(data, keyVersion)
 }
 
 func decodePayload(recordType models.RecordType, raw []byte) (models.RecordPayload, error) {

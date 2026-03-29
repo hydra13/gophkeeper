@@ -1,5 +1,8 @@
 # Task 11. Auth use-case, tokens и device-aware sessions
 
+## Статус
+Выполнена.
+
 ## Цель
 Реализовать общий auth use-case слой, хранение device-aware сессий и подключение auth-логики к HTTP и gRPC transport-слоям.
 
@@ -15,9 +18,9 @@
 6. Написать unit/integration-тесты на happy-path, истечение сессии, отзыв устройства и ошибки авторизации.
 
 ## Критерии приемки
-- [ ] Пользователь может зарегистрироваться и аутентифицироваться через оба transport-слоя.
-- [ ] Access/refresh flow работает согласованно для HTTP и gRPC.
-- [ ] Для каждой активной сессии сохраняются `device_id`, имя устройства, тип клиента и `last_seen_at`.
-- [ ] HTTP auth endpoint-пакеты в `api/` и gRPC auth service в `internal/rpc` используют один и тот же use-case слой.
-- [ ] Middleware и gRPC auth-проверки защищают приватные методы от неавторизованного доступа.
-- [ ] Auth-сценарии покрыты тестами.
+- [x] Пользователь может зарегистрироваться и аутентифицироваться через оба transport-слоя.
+- [x] Access/refresh flow работает согласованно для HTTP и gRPC.
+- [x] Для каждой активной сессии сохраняются `device_id`, имя устройства, тип клиента и `last_seen_at`.
+- [x] HTTP auth endpoint-пакеты в `api/` и gRPC auth service в `internal/rpc` используют один и тот же use-case слой.
+- [x] Middleware и gRPC auth-проверки защищают приватные методы от неавторизованного доступа.
+- [x] Auth-сценарии покрыты тестами.

@@ -30,21 +30,23 @@ graph TD
         T8["<b>task_8</b><br/>Bootstrap сервера, TLS"]
         T9["<b>task_9</b><br/>PostgreSQL, миграции"]
     end
+    class P4 completed
     class T8 completed
-    class T9 crit
+    class T9 completed
 
     subgraph P5["Phase 5 — Безопасность"]
         T10["<b>task_10</b><br/>Криптография, key mgmt"]
     end
-    class T10 crit
+    class P5 completed
+    class T10 completed
 
     subgraph P6["Phase 6 — Use-cases"]
         T11["<b>task_11</b><br/>Auth use-case"]
         T12["<b>task_12</b><br/>Records use-case"]
         T13["<b>task_13</b><br/>Uploads use-case"]
     end
-    class T11 crit
-    class T12 crit
+    class T11 completed
+    class T12 completed
 
     subgraph P7["Phase 7 — Синхронизация"]
         T14["<b>task_14</b><br/>Sync use-case"]
@@ -166,10 +168,10 @@ task_1 → task_3 → task_9 → task_10 → task_11 → task_12 → task_14 →
 | 1 | <span style="background-color: lightgreen;">task_1</span> |
 | 2 | <span style="background-color: lightgreen;">task_2</span>, <span style="background-color: lightgreen;">task_3</span> |
 | 3 | <span style="background-color: lightgreen;">task_4</span>, <span style="background-color: lightgreen;">task_5</span>, <span style="background-color: lightgreen;">task_6</span>, <span style="background-color: lightgreen;">task_7</span> |
-| 4 | <span style="background-color: lightgreen;">task_8</span>, task_9 |
-| 5 | task_10 |
-| 6 | task_11 |
-| 7 | task_12, task_13 |
+| 4 | <span style="background-color: lightgreen;">task_8</span>, <span style="background-color: lightgreen;">task_9</span> |
+| 5 | <span style="background-color: lightgreen;">task_10</span> |
+| 6 | <span style="background-color: lightgreen;">task_11</span> |
+| 7 | <span style="background-color: lightgreen;">task_12</span>, task_13 |
 | 8 | task_14 |
 | 9 | task_15 |
 | 10 | task_16 |

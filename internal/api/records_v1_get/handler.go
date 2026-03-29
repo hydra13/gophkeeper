@@ -4,6 +4,7 @@ package recordsv1get
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 
 	"github.com/hydra13/gophkeeper/internal/api/records_common"
 	"github.com/hydra13/gophkeeper/internal/middlewares"
@@ -17,7 +18,7 @@ type ListRecordsResponse struct {
 
 // RecordService — интерфейс бизнес-логики для работы с записями.
 type RecordService interface {
-	ListRecords(userID int64) ([]models.Record, error)
+	ListRecords(userID int64, recordType models.RecordType, includeDeleted bool) ([]models.Record, error)
 }
 
 // Handler — HTTP-обработчик для GET /api/v1/records.
@@ -31,6 +32,7 @@ func NewHandler(service RecordService) *Handler {
 }
 
 // Handle обрабатывает запрос на получение списка записей.
+// Поддерживает query-параметры: type (фильтр по типу), include_deleted (включать удалённые).
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middlewares.UserIDFromContext(r.Context())
 	if !ok || userID <= 0 {
@@ -38,8 +40,19 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	records, err := h.service.ListRecords(userID)
+	recordType := models.RecordType(r.URL.Query().Get("type"))
+	if recordType != "" && !models.ValidRecordTypes[recordType] {
+		recordscommon.WriteError(w, http.StatusBadRequest, "invalid record type filter")
+		return
+	}
+
+	includeDeleted, _ := strconv.ParseBool(r.URL.Query().Get("include_deleted"))
+
+	records, err := h.service.ListRecords(userID, recordType, includeDeleted)
 	if err != nil {
+		if recordscommon.MapRecordError(w, err) {
+			return
+		}
 		recordscommon.WriteError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
