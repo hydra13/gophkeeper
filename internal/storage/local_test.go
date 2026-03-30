@@ -96,3 +96,55 @@ func TestExists_FalseForNonExistentFile(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, exists)
 }
+
+func TestLocalBlob_InvalidPathRejected(t *testing.T) {
+	blob, err := NewLocalBlob(t.TempDir())
+	require.NoError(t, err)
+
+	err = blob.Save("../../../etc/passwd", []byte("data"))
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "invalid blob path")
+
+	_, err = blob.Read("/etc/passwd")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "invalid blob path")
+
+	_, err = blob.Exists("")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "blob path is required")
+
+	err = blob.Delete("../secret")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "invalid blob path")
+}
+
+func TestNormalizeBlobPath(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		input   string
+		want    string
+		wantErr string
+	}{
+		{name: "simple", input: "foo/bar.txt", want: "foo/bar.txt"},
+		{name: "normalizes dots", input: "foo/./bar.txt", want: "foo/bar.txt"},
+		{name: "empty rejected", input: "", wantErr: "blob path is required"},
+		{name: "dot rejected", input: ".", wantErr: "blob path is required"},
+		{name: "absolute rejected", input: "/etc/passwd", wantErr: "invalid blob path"},
+		{name: "traversal rejected", input: "../etc/passwd", wantErr: "invalid blob path"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := normalizeBlobPath(tt.input)
+			if tt.wantErr != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}

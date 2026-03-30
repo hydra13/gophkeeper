@@ -35,7 +35,8 @@ func TestLoadFromFile_ValidJSON(t *testing.T) {
 			"master_key": "key",
 		},
 		"blob": map[string]interface{}{
-			"provider": "s3",
+			"provider": "local",
+			"path":     filepath.Join(dir, "blob"),
 		},
 		"upload": map[string]interface{}{
 			"max_file_size":  1024,
@@ -275,7 +276,8 @@ func writeValidConfig(t *testing.T, dir string) string {
 			"master_key": "key",
 		},
 		"blob": map[string]interface{}{
-			"provider": "s3",
+			"provider": "local",
+			"path":     filepath.Join(dir, "blob"),
 		},
 		"upload": map[string]interface{}{
 			"max_file_size":  1024,
@@ -311,7 +313,7 @@ func TestLoad_ValidConfigFromFile(t *testing.T) {
 	require.Equal(t, "secret", cfg.Auth.JWTSecret)
 	require.Equal(t, time.Hour, cfg.Auth.TokenDuration)
 	require.Equal(t, "key", cfg.Crypto.MasterKey)
-	require.Equal(t, "s3", cfg.Blob.Provider)
+	require.Equal(t, "local", cfg.Blob.Provider)
 	require.Equal(t, int64(1024), cfg.Upload.MaxFileSize)
 	require.Equal(t, int64(512), cfg.Upload.MaxChunkSize)
 	require.Equal(t, int64(2048), cfg.Upload.MaxTotalSize)
@@ -455,7 +457,8 @@ func TestLoad_TLSFilesNotFound(t *testing.T) {
 			"master_key": "key",
 		},
 		"blob": map[string]interface{}{
-			"provider": "s3",
+			"provider": "local",
+			"path":     filepath.Join(dir, "blob"),
 		},
 		"upload": map[string]interface{}{
 			"max_file_size":  1024,

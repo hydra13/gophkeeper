@@ -16,8 +16,12 @@
     "master_key": "32-byte-master-key-change-in-production"
   },
   "blob": {
-    "provider": "local",
-    "path": "data/blob"
+    "provider": "s3",
+    "endpoint": "https://s3.example.com",
+    "bucket": "gophkeeper",
+    "access_key": "your-access-key",
+    "secret_key": "your-secret-key",
+    "region": "us-east-1"
   },
   "upload": {
     "max_file_size": 10485760,

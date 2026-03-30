@@ -41,6 +41,8 @@ var openDB = func(dsn string) (*sql.DB, error) {
 	return db, nil
 }
 
+var newBlobStorage = storage.NewBlobStorage
+
 func main() {
 	log := zerolog.New(os.Stdout).With().Timestamp().Logger()
 
@@ -82,9 +84,9 @@ func wireDeps(cfg *config.Config, log zerolog.Logger) (app.AppDeps, func(), erro
 		return app.AppDeps{}, cleanup, fmt.Errorf("failed to apply database migrations: %w", err)
 	}
 
-	blob, err := storage.NewLocalBlob(cfg.Blob.Path)
+	blob, err := newBlobStorage(cfg.Blob)
 	if err != nil {
-		return app.AppDeps{}, cleanup, err
+		return app.AppDeps{}, cleanup, fmt.Errorf("failed to initialize blob storage: %w", err)
 	}
 
 	repo, err := dbrepo.New(db, blob)

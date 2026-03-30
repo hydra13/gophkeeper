@@ -58,88 +58,88 @@ func TestValidate_MissingRequiredFields(t *testing.T) {
 		wantErr string
 	}{
 		{
-			name:   "missing server.address",
-			mutate: func(cfg *Config) { cfg.Server.Address = "" },
+			name:    "missing server.address",
+			mutate:  func(cfg *Config) { cfg.Server.Address = "" },
 			wantErr: "server.address is required",
 		},
 		{
-			name:   "missing server.grpc_address",
-			mutate: func(cfg *Config) { cfg.Server.GRPCAddress = "" },
+			name:    "missing server.grpc_address",
+			mutate:  func(cfg *Config) { cfg.Server.GRPCAddress = "" },
 			wantErr: "server.grpc_address is required",
 		},
 		{
-			name:   "missing server.tls_cert_file",
-			mutate: func(cfg *Config) { cfg.Server.TLSCertFile = "" },
+			name:    "missing server.tls_cert_file",
+			mutate:  func(cfg *Config) { cfg.Server.TLSCertFile = "" },
 			wantErr: "server.tls_cert_file is required",
 		},
 		{
-			name:   "missing server.tls_key_file",
-			mutate: func(cfg *Config) { cfg.Server.TLSKeyFile = "" },
+			name:    "missing server.tls_key_file",
+			mutate:  func(cfg *Config) { cfg.Server.TLSKeyFile = "" },
 			wantErr: "server.tls_key_file is required",
 		},
 		{
-			name:   "missing database.dsn",
-			mutate: func(cfg *Config) { cfg.Database.DSN = "" },
+			name:    "missing database.dsn",
+			mutate:  func(cfg *Config) { cfg.Database.DSN = "" },
 			wantErr: "database.dsn is required",
 		},
 		{
-			name:   "missing auth.jwt_secret",
-			mutate: func(cfg *Config) { cfg.Auth.JWTSecret = "" },
+			name:    "missing auth.jwt_secret",
+			mutate:  func(cfg *Config) { cfg.Auth.JWTSecret = "" },
 			wantErr: "auth.jwt_secret is required",
 		},
 		{
-			name:   "zero auth.token_duration",
-			mutate: func(cfg *Config) { cfg.Auth.TokenDuration = 0 },
+			name:    "zero auth.token_duration",
+			mutate:  func(cfg *Config) { cfg.Auth.TokenDuration = 0 },
 			wantErr: "auth.token_duration must be positive",
 		},
 		{
-			name:   "negative auth.token_duration",
-			mutate: func(cfg *Config) { cfg.Auth.TokenDuration = -1 },
+			name:    "negative auth.token_duration",
+			mutate:  func(cfg *Config) { cfg.Auth.TokenDuration = -1 },
 			wantErr: "auth.token_duration must be positive",
 		},
 		{
-			name:   "missing crypto.master_key",
-			mutate: func(cfg *Config) { cfg.Crypto.MasterKey = "" },
+			name:    "missing crypto.master_key",
+			mutate:  func(cfg *Config) { cfg.Crypto.MasterKey = "" },
 			wantErr: "crypto.master_key is required",
 		},
 		{
-			name:   "missing blob.provider",
-			mutate: func(cfg *Config) { cfg.Blob.Provider = "" },
+			name:    "missing blob.provider",
+			mutate:  func(cfg *Config) { cfg.Blob.Provider = "" },
 			wantErr: "blob.provider is required",
 		},
 		{
-			name:   "missing blob.path for local provider",
-			mutate: func(cfg *Config) { cfg.Blob.Path = "" },
+			name:    "missing blob.path for local provider",
+			mutate:  func(cfg *Config) { cfg.Blob.Path = "" },
 			wantErr: "blob.path is required for local provider",
 		},
 		{
-			name:   "zero upload.max_file_size",
-			mutate: func(cfg *Config) { cfg.Upload.MaxFileSize = 0 },
+			name:    "zero upload.max_file_size",
+			mutate:  func(cfg *Config) { cfg.Upload.MaxFileSize = 0 },
 			wantErr: "upload.max_file_size must be positive",
 		},
 		{
-			name:   "negative upload.max_file_size",
-			mutate: func(cfg *Config) { cfg.Upload.MaxFileSize = -1 },
+			name:    "negative upload.max_file_size",
+			mutate:  func(cfg *Config) { cfg.Upload.MaxFileSize = -1 },
 			wantErr: "upload.max_file_size must be positive",
 		},
 		{
-			name:   "zero upload.max_chunk_size",
-			mutate: func(cfg *Config) { cfg.Upload.MaxChunkSize = 0 },
+			name:    "zero upload.max_chunk_size",
+			mutate:  func(cfg *Config) { cfg.Upload.MaxChunkSize = 0 },
 			wantErr: "upload.max_chunk_size must be positive",
 		},
 		{
-			name:   "negative upload.max_chunk_size",
-			mutate: func(cfg *Config) { cfg.Upload.MaxChunkSize = -1 },
+			name:    "negative upload.max_chunk_size",
+			mutate:  func(cfg *Config) { cfg.Upload.MaxChunkSize = -1 },
 			wantErr: "upload.max_chunk_size must be positive",
 		},
 		{
-			name:   "zero upload.max_total_size",
-			mutate: func(cfg *Config) { cfg.Upload.MaxTotalSize = 0 },
+			name:    "zero upload.max_total_size",
+			mutate:  func(cfg *Config) { cfg.Upload.MaxTotalSize = 0 },
 			wantErr: "upload.max_total_size must be positive",
 		},
 		{
-			name:   "negative upload.max_total_size",
-			mutate: func(cfg *Config) { cfg.Upload.MaxTotalSize = -1 },
+			name:    "negative upload.max_total_size",
+			mutate:  func(cfg *Config) { cfg.Upload.MaxTotalSize = -1 },
 			wantErr: "upload.max_total_size must be positive",
 		},
 	}
@@ -175,7 +175,103 @@ func TestValidate_BlobPathNotRequiredForNonLocalProvider(t *testing.T) {
 	cfg := validConfig(t)
 	cfg.Blob.Provider = "s3"
 	cfg.Blob.Path = ""
+	cfg.Blob.Endpoint = "http://localhost:9000"
+	cfg.Blob.Bucket = "gophkeeper-dev"
+	cfg.Blob.AccessKey = "minioadmin"
+	cfg.Blob.SecretKey = "minioadmin"
+	cfg.Blob.Region = "us-east-1"
 	require.NoError(t, Validate(cfg))
+}
+
+func TestValidate_S3RequiresFields(t *testing.T) {
+	tests := []struct {
+		name    string
+		mutate  func(cfg *Config)
+		wantErr string
+	}{
+		{
+			name: "missing endpoint",
+			mutate: func(cfg *Config) {
+				cfg.Blob.Provider = "s3"
+				cfg.Blob.Path = ""
+				cfg.Blob.Endpoint = ""
+				cfg.Blob.Bucket = "bucket"
+				cfg.Blob.AccessKey = "ak"
+				cfg.Blob.SecretKey = "sk"
+				cfg.Blob.Region = "us-east-1"
+			},
+			wantErr: "blob.endpoint is required for s3 provider",
+		},
+		{
+			name: "missing bucket",
+			mutate: func(cfg *Config) {
+				cfg.Blob.Provider = "s3"
+				cfg.Blob.Path = ""
+				cfg.Blob.Endpoint = "http://localhost:9000"
+				cfg.Blob.Bucket = ""
+				cfg.Blob.AccessKey = "ak"
+				cfg.Blob.SecretKey = "sk"
+				cfg.Blob.Region = "us-east-1"
+			},
+			wantErr: "blob.bucket is required for s3 provider",
+		},
+		{
+			name: "missing access key",
+			mutate: func(cfg *Config) {
+				cfg.Blob.Provider = "s3"
+				cfg.Blob.Path = ""
+				cfg.Blob.Endpoint = "http://localhost:9000"
+				cfg.Blob.Bucket = "bucket"
+				cfg.Blob.AccessKey = ""
+				cfg.Blob.SecretKey = "sk"
+				cfg.Blob.Region = "us-east-1"
+			},
+			wantErr: "blob.access_key is required for s3 provider",
+		},
+		{
+			name: "missing secret key",
+			mutate: func(cfg *Config) {
+				cfg.Blob.Provider = "s3"
+				cfg.Blob.Path = ""
+				cfg.Blob.Endpoint = "http://localhost:9000"
+				cfg.Blob.Bucket = "bucket"
+				cfg.Blob.AccessKey = "ak"
+				cfg.Blob.SecretKey = ""
+				cfg.Blob.Region = "us-east-1"
+			},
+			wantErr: "blob.secret_key is required for s3 provider",
+		},
+		{
+			name: "missing region",
+			mutate: func(cfg *Config) {
+				cfg.Blob.Provider = "s3"
+				cfg.Blob.Path = ""
+				cfg.Blob.Endpoint = "http://localhost:9000"
+				cfg.Blob.Bucket = "bucket"
+				cfg.Blob.AccessKey = "ak"
+				cfg.Blob.SecretKey = "sk"
+				cfg.Blob.Region = ""
+			},
+			wantErr: "blob.region is required for s3 provider",
+		},
+		{
+			name: "unsupported provider",
+			mutate: func(cfg *Config) {
+				cfg.Blob.Provider = "gcs"
+			},
+			wantErr: "unsupported blob.provider: gcs",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := validConfig(t)
+			tt.mutate(cfg)
+			err := Validate(cfg)
+			require.Error(t, err)
+			require.Contains(t, err.Error(), tt.wantErr)
+		})
+	}
 }
 
 func TestValidate_MultipleErrorsReported(t *testing.T) {

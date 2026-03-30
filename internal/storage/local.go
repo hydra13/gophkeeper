@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-
-	"github.com/hydra13/gophkeeper/internal/repositories"
 )
 
 // LocalBlob хранит бинарные данные в локальной файловой системе.
@@ -24,11 +22,11 @@ func NewLocalBlob(baseDir string) (*LocalBlob, error) {
 	return &LocalBlob{baseDir: baseDir}, nil
 }
 
-// Verify interface compliance.
-var _ repositories.BlobStorage = (*LocalBlob)(nil)
-
 func (l *LocalBlob) Save(path string, data []byte) error {
-	fullPath := filepath.Join(l.baseDir, path)
+	fullPath, err := l.resolvePath(path)
+	if err != nil {
+		return err
+	}
 	if err := os.MkdirAll(filepath.Dir(fullPath), 0o755); err != nil {
 		return err
 	}
@@ -36,11 +34,19 @@ func (l *LocalBlob) Save(path string, data []byte) error {
 }
 
 func (l *LocalBlob) Read(path string) ([]byte, error) {
-	return os.ReadFile(filepath.Join(l.baseDir, path))
+	fullPath, err := l.resolvePath(path)
+	if err != nil {
+		return nil, err
+	}
+	return os.ReadFile(fullPath)
 }
 
 func (l *LocalBlob) Delete(path string) error {
-	err := os.Remove(filepath.Join(l.baseDir, path))
+	fullPath, err := l.resolvePath(path)
+	if err != nil {
+		return err
+	}
+	err = os.Remove(fullPath)
 	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
@@ -48,7 +54,11 @@ func (l *LocalBlob) Delete(path string) error {
 }
 
 func (l *LocalBlob) Exists(path string) (bool, error) {
-	_, err := os.Stat(filepath.Join(l.baseDir, path))
+	fullPath, err := l.resolvePath(path)
+	if err != nil {
+		return false, err
+	}
+	_, err = os.Stat(fullPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return false, nil
@@ -56,4 +66,12 @@ func (l *LocalBlob) Exists(path string) (bool, error) {
 		return false, err
 	}
 	return true, nil
+}
+
+func (l *LocalBlob) resolvePath(path string) (string, error) {
+	key, err := normalizeBlobPath(path)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(l.baseDir, key), nil
 }

@@ -47,8 +47,30 @@ func Validate(cfg *Config) error {
 	if cfg.Blob.Provider == "" {
 		errs = append(errs, errors.New("blob.provider is required"))
 	}
+	switch cfg.Blob.Provider {
+	case "", "local", "s3":
+	default:
+		errs = append(errs, fmt.Errorf("unsupported blob.provider: %s", cfg.Blob.Provider))
+	}
 	if cfg.Blob.Provider == "local" && cfg.Blob.Path == "" {
 		errs = append(errs, errors.New("blob.path is required for local provider"))
+	}
+	if cfg.Blob.Provider == "s3" {
+		if cfg.Blob.Endpoint == "" {
+			errs = append(errs, errors.New("blob.endpoint is required for s3 provider"))
+		}
+		if cfg.Blob.Bucket == "" {
+			errs = append(errs, errors.New("blob.bucket is required for s3 provider"))
+		}
+		if cfg.Blob.AccessKey == "" {
+			errs = append(errs, errors.New("blob.access_key is required for s3 provider"))
+		}
+		if cfg.Blob.SecretKey == "" {
+			errs = append(errs, errors.New("blob.secret_key is required for s3 provider"))
+		}
+		if cfg.Blob.Region == "" {
+			errs = append(errs, errors.New("blob.region is required for s3 provider"))
+		}
 	}
 	if cfg.Upload.MaxFileSize <= 0 {
 		errs = append(errs, errors.New("upload.max_file_size must be positive"))

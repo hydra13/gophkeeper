@@ -1,4 +1,4 @@
-.PHONY: fmt lint test cover cover-check proto proto-check build build-server build-client clean
+.PHONY: fmt lint test cover cover-check proto proto-check build build-server build-client clean dev-up dev-down dev-reset test-storage-integration
 
 fmt:
 	goimports -w .
@@ -44,3 +44,22 @@ build: build-server build-client
 
 clean:
 	rm -rf bin/ coverage.out coverage_filtered.out
+
+dev-up:
+	docker compose up -d postgres minio
+	docker compose run --rm minio-init
+
+dev-down:
+	docker compose down
+
+dev-reset:
+	docker compose down -v
+	rm -rf ./.db ./.minio
+
+test-storage-integration:
+	GK_TEST_MINIO_ENDPOINT=http://localhost:9000 \
+	GK_TEST_MINIO_BUCKET=gophkeeper-dev \
+	GK_TEST_MINIO_ACCESS_KEY=minioadmin \
+	GK_TEST_MINIO_SECRET_KEY=minioadmin \
+	GK_TEST_MINIO_REGION=us-east-1 \
+	go test ./internal/storage -run TestS3Blob_MinIOIntegration -count=1

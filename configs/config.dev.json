@@ -16,8 +16,12 @@
     "master_key": "dev-master-key-32-bytes-long-0000"
   },
   "blob": {
-    "provider": "local",
-    "path": "data/blob"
+    "provider": "s3",
+    "endpoint": "http://localhost:9000",
+    "bucket": "gophkeeper-dev",
+    "access_key": "minioadmin",
+    "secret_key": "minioadmin",
+    "region": "us-east-1"
   },
   "upload": {
     "max_file_size": 10485760,

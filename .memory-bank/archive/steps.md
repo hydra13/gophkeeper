@@ -90,7 +90,9 @@ graph TD
         T22["<b>task_22</b><br/>Покрытие 70%"]
         T23["<b>task_23</b><br/>Release readiness re-check"]
     end
+    class P12 completed
     class T22 completed
+    class T23 completed
 
     %% Phase 1
     T1 --> T2
@@ -223,5 +225,5 @@ task_1 → task_3 → task_9 → task_10 → task_11 → task_12 → task_14 →
 | 10 | <span style="background-color: lightgreen;">task_16</span> |
 | 11 | <span style="background-color: lightgreen;">task_17</span>, <span style="background-color: lightgreen;">task_18</span> |
 | 12 | <span style="background-color: lightgreen;">task_19</span>, <span style="background-color: lightgreen;">task_20</span>, <span style="background-color: lightgreen;">task_21</span> |
-| 13 | task_22 |
-| 14 | task_23 |
+| 13 | <span style="background-color: lightgreen;">task_22</span> |
+| 14 | <span style="background-color: lightgreen;">task_23</span> |
