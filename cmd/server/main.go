@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -22,6 +24,22 @@ import (
 	uploadsvc "github.com/hydra13/gophkeeper/internal/services/uploads"
 	"github.com/hydra13/gophkeeper/internal/storage"
 )
+
+// applyMigrations allows tests to override migrations.Apply.
+var applyMigrations = migrations.Apply
+
+// openDB allows tests to override sql.Open+Ping.
+var openDB = func(dsn string) (*sql.DB, error) {
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		return nil, err
+	}
+	if err := db.Ping(); err != nil {
+		db.Close()
+		return nil, err
+	}
+	return db, nil
+}
 
 func main() {
 	log := zerolog.New(os.Stdout).With().Timestamp().Logger()
@@ -51,24 +69,17 @@ func wireDeps(cfg *config.Config, log zerolog.Logger) (app.AppDeps, func(), erro
 	var cleanup func()
 
 	if cfg.Database.DSN == "" {
-		log.Warn().Msg("no database DSN configured, using stub dependencies")
-		return app.NewStubDeps(), cleanup, nil
+		return app.AppDeps{}, cleanup, errors.New("database DSN is required: set GK_DATABASE_DSN or configure database.dsn")
 	}
 
-	db, err := sql.Open("pgx", cfg.Database.DSN)
+	db, err := openDB(cfg.Database.DSN)
 	if err != nil {
-		return app.AppDeps{}, cleanup, err
+		return app.AppDeps{}, cleanup, fmt.Errorf("failed to connect to database: %w", err)
 	}
 	cleanup = func() { db.Close() }
 
-	if err := db.Ping(); err != nil {
-		log.Warn().Err(err).Msg("database not available, using stub dependencies")
-		return app.NewStubDeps(), cleanup, nil
-	}
-
-	if err := migrations.Apply(db); err != nil {
-		log.Warn().Err(err).Msg("migrations failed, using stub dependencies")
-		return app.NewStubDeps(), cleanup, nil
+	if err := applyMigrations(db); err != nil {
+		return app.AppDeps{}, cleanup, fmt.Errorf("failed to apply database migrations: %w", err)
 	}
 
 	blob, err := storage.NewLocalBlob(cfg.Blob.Path)

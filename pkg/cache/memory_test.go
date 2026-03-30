@@ -150,6 +150,13 @@ func TestFileStore_TransferState(t *testing.T) {
 	ts.Delete(1)
 	_, ok = ts.Get(1)
 	assert.False(t, ok)
+
+	// Clear
+	ts.Save(Transfer{ID: 2, Status: TransferStatusActive})
+	ts.Save(Transfer{ID: 3, Status: TransferStatusActive})
+	ts.Clear()
+	active = ts.ListActive()
+	assert.Len(t, active, 0)
 }
 
 func TestFileStore_AuthStore(t *testing.T) {

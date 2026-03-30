@@ -65,8 +65,11 @@ func printUsage() {
 	fmt.Fprintln(os.Stderr, "  get      <id> [output-path]        Get record by ID (binary: save to output-path)")
 	fmt.Fprintln(os.Stderr, "  add      <type> <name> [data]      Add new record")
 	fmt.Fprintln(os.Stderr, "                                    binary: data=file-path")
+	fmt.Fprintln(os.Stderr, "                                    --metadata <text>  set metadata")
 	fmt.Fprintln(os.Stderr, "  update   <id> <name> [data]        Update existing record")
 	fmt.Fprintln(os.Stderr, "                                    binary: data=file-path")
+	fmt.Fprintln(os.Stderr, "                                    --metadata <text>  set metadata")
+	fmt.Fprintln(os.Stderr, "                                    --metadata \"\"      clear metadata")
 	fmt.Fprintln(os.Stderr, "  delete   <id>                      Delete record")
 	fmt.Fprintln(os.Stderr, "  sync                               Sync with server")
 	fmt.Fprintln(os.Stderr, "  version                            Show version")
@@ -74,15 +77,36 @@ func printUsage() {
 
 // ---------- helpers ----------
 
+// extractMetadata extracts a --metadata value from args.
+// It returns: the metadata value (empty string if not found), whether the flag was present,
+// and the remaining args with the flag and its value removed.
+func extractMetadata(args []string) (metadata string, found bool, rest []string) {
+	for i := 0; i < len(args); i++ {
+		if args[i] == "--metadata" {
+			if i+1 < len(args) {
+				return args[i+1], true, append(args[:i:i], args[i+2:]...)
+			}
+			return "", true, args[:i:i]
+		}
+	}
+	return "", false, args
+}
+
 // newCoreFunc allows tests to inject a mock core factory.
 var newCoreFunc = defaultNewCore
 
 func defaultNewCore() (*clientcore.ClientCore, func(), error) {
 	ctx := context.Background()
 	addr := defaultServerAddr()
+	certFile := defaultTLSCertFile()
+
+	if certFile == "" {
+		return nil, nil, fmt.Errorf("TLS certificate is required: set GK_TLS_CERT_FILE or run from project root (configs/certs/dev.crt)")
+	}
 
 	client, err := grpcc.NewClient(ctx, grpcc.Config{
-		Address: addr,
+		Address:     addr,
+		TLSCertFile: certFile,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("connect to server: %w", err)
@@ -136,7 +160,17 @@ func defaultServerAddr() string {
 	if v := os.Getenv("GK_GRPC_ADDRESS"); v != "" {
 		return v
 	}
-	return "localhost:4400"
+	return "localhost:9090"
+}
+
+func defaultTLSCertFile() string {
+	if v := os.Getenv("GK_TLS_CERT_FILE"); v != "" {
+		return v
+	}
+	if _, err := os.Stat("configs/certs/dev.crt"); err == nil {
+		return "configs/certs/dev.crt"
+	}
+	return ""
 }
 
 func hostname() string {
@@ -195,9 +229,7 @@ func printRecord(rec *models.Record) {
 	fmt.Printf("Type:     %s\n", rec.Type)
 	fmt.Printf("Name:     %s\n", rec.Name)
 	fmt.Printf("Revision: %d\n", rec.Revision)
-	if rec.Metadata != "" {
-		fmt.Printf("Metadata: %s\n", rec.Metadata)
-	}
+	fmt.Printf("Metadata: %s\n", rec.Metadata)
 
 	switch p := rec.Payload.(type) {
 	case models.LoginPayload:
@@ -227,7 +259,19 @@ func printRecordShort(r models.Record) {
 	if r.IsDeleted() {
 		deleted = " [deleted]"
 	}
-	fmt.Printf("%d\t%s\t%s\trev=%d%s\n", r.ID, r.Type, r.Name, r.Revision, deleted)
+	meta := ""
+	if r.Metadata != "" {
+		// Show first line of metadata for short view
+		firstLine := r.Metadata
+		if idx := strings.Index(r.Metadata, "\n"); idx >= 0 {
+			firstLine = r.Metadata[:idx]
+		}
+		if len(firstLine) > 40 {
+			firstLine = firstLine[:40] + "..."
+		}
+		meta = fmt.Sprintf("\t%s", firstLine)
+	}
+	fmt.Printf("%d\t%s\t%s\trev=%d%s%s\n", r.ID, r.Type, r.Name, r.Revision, deleted, meta)
 }
 
 // promptPayload interactively asks for payload fields based on recordType.
@@ -387,7 +431,7 @@ func runList(args []string) {
 		return
 	}
 
-	fmt.Printf("%-8s %-10s %-30s %-10s\n", "ID", "TYPE", "NAME", "REVISION")
+	fmt.Printf("%-8s %-10s %-30s %-10s\t%s\n", "ID", "TYPE", "NAME", "REVISION", "METADATA")
 	for _, r := range records {
 		printRecordShort(r)
 	}
@@ -448,8 +492,10 @@ func runGet(args []string) {
 }
 
 func runAdd(args []string) {
+	metadata, _, args := extractMetadata(args)
+
 	if len(args) < 2 {
-		fmt.Fprintln(os.Stderr, "Usage: gophkeeper-cli add <type> <name> [data]")
+		fmt.Fprintln(os.Stderr, "Usage: gophkeeper-cli add <type> <name> [data] [--metadata <text>]")
 		fmt.Fprintln(os.Stderr, "  type: login|text|binary|card")
 		fmt.Fprintln(os.Stderr, "  binary: data=file-path")
 		fmt.Fprintln(os.Stderr, "  other types: omit data to enter interactively")
@@ -483,9 +529,10 @@ func runAdd(args []string) {
 	}
 
 	rec := &models.Record{
-		Type:    recordType,
-		Name:    name,
-		Payload: payload,
+		Type:     recordType,
+		Name:     name,
+		Payload:  payload,
+		Metadata: metadata,
 	}
 
 	core, cleanup, err := newCore()
@@ -513,9 +560,12 @@ func runAdd(args []string) {
 }
 
 func runUpdate(args []string) {
+	metadata, metadataFound, args := extractMetadata(args)
+
 	if len(args) < 2 {
-		fmt.Fprintln(os.Stderr, "Usage: gophkeeper-cli update <id> <name> [data]")
+		fmt.Fprintln(os.Stderr, "Usage: gophkeeper-cli update <id> <name> [data] [--metadata <text>]")
 		fmt.Fprintln(os.Stderr, "  binary: data=file-path")
+		fmt.Fprintln(os.Stderr, "  --metadata \"\" to clear metadata")
 		os.Exit(1)
 	}
 
@@ -540,24 +590,36 @@ func runUpdate(args []string) {
 
 	existing.Name = args[1]
 
+	if metadataFound {
+		existing.Metadata = metadata
+	}
+
 	var fileData []byte
 
-	if existing.Type == models.RecordTypeBinary {
-		data := ""
-		if len(args) > 2 {
-			data = args[2]
+	// If --metadata is the only change (no data arg provided), skip payload update
+	if len(args) > 2 {
+		// Explicit data argument provided — update payload
+		if existing.Type == models.RecordTypeBinary {
+			fileData, err = os.ReadFile(args[2])
+			if err != nil {
+				fatal(fmt.Errorf("read file %s: %w", args[2], err))
+			}
 		} else {
-			data = readLine("File path: ")
+			existing.Payload = buildPayload(existing.Type, args[2])
 		}
-		fileData, err = os.ReadFile(data)
-		if err != nil {
-			fatal(fmt.Errorf("read file %s: %w", data, err))
+	} else if !metadataFound {
+		// No data and no metadata — prompt for payload as before
+		if existing.Type == models.RecordTypeBinary {
+			filePath := readLine("File path: ")
+			fileData, err = os.ReadFile(filePath)
+			if err != nil {
+				fatal(fmt.Errorf("read file %s: %w", filePath, err))
+			}
+		} else {
+			existing.Payload = promptPayload(existing.Type)
 		}
-	} else if len(args) > 2 {
-		existing.Payload = buildPayload(existing.Type, args[2])
-	} else {
-		existing.Payload = promptPayload(existing.Type)
 	}
+	// else: metadata-only update, existing payload is preserved
 
 	result, err := core.SaveRecord(ctx, existing)
 	if err != nil {

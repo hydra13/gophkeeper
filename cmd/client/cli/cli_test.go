@@ -773,3 +773,689 @@ func TestBuildPayloadBinary(t *testing.T) {
 		t.Fatalf("expected '%s', got '%s'", string(content), string(bp.Data))
 	}
 }
+
+// --- extractMetadata tests ---
+
+func TestExtractMetadata(t *testing.T) {
+	tests := []struct {
+		name      string
+		args      []string
+		wantMeta  string
+		wantFound bool
+		wantRest  []string
+	}{
+		{
+			name:      "no metadata flag",
+			args:      []string{"text", "my note", "hello"},
+			wantMeta:  "",
+			wantFound: false,
+			wantRest:  []string{"text", "my note", "hello"},
+		},
+		{
+			name:      "metadata at end",
+			args:      []string{"text", "my note", "--metadata", "some info"},
+			wantMeta:  "some info",
+			wantFound: true,
+			wantRest:  []string{"text", "my note"},
+		},
+		{
+			name:      "metadata in middle",
+			args:      []string{"text", "--metadata", "info", "my note", "hello"},
+			wantMeta:  "info",
+			wantFound: true,
+			wantRest:  []string{"text", "my note", "hello"},
+		},
+		{
+			name:      "empty metadata value",
+			args:      []string{"text", "my note", "--metadata", ""},
+			wantMeta:  "",
+			wantFound: true,
+			wantRest:  []string{"text", "my note"},
+		},
+		{
+			name:      "metadata flag at end without value",
+			args:      []string{"text", "my note", "--metadata"},
+			wantMeta:  "",
+			wantFound: true,
+			wantRest:  []string{"text", "my note"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			meta, found, rest := extractMetadata(tt.args)
+			if meta != tt.wantMeta {
+				t.Fatalf("metadata: got %q, want %q", meta, tt.wantMeta)
+			}
+			if found != tt.wantFound {
+				t.Fatalf("found: got %v, want %v", found, tt.wantFound)
+			}
+			if len(rest) != len(tt.wantRest) {
+				t.Fatalf("rest length: got %v, want %v", rest, tt.wantRest)
+			}
+			for i := range rest {
+				if rest[i] != tt.wantRest[i] {
+					t.Fatalf("rest[%d]: got %q, want %q", i, rest[i], tt.wantRest[i])
+				}
+			}
+		})
+	}
+}
+
+// --- Metadata integration tests ---
+
+func TestCLIRunAddTextWithMetadata(t *testing.T) {
+	env := setupTestEnv(t)
+	ctx := context.Background()
+	_ = env.core.Login(ctx, "user@example.com", "test-password")
+
+	var savedRecord *models.Record
+	env.transport.CreateRecordFunc = func(ctx context.Context, rec *models.Record) (*models.Record, error) {
+		savedRecord = rec
+		return &models.Record{
+			ID:       100,
+			Type:     rec.Type,
+			Name:     rec.Name,
+			Metadata: rec.Metadata,
+			Payload:  rec.Payload,
+			Revision: 1,
+		}, nil
+	}
+
+	env.captureOutput(func() {
+		defer func() { recover() }()
+		runAdd([]string{"text", "my note", "hello world", "--metadata", "important note"})
+	})
+
+	if env.lastFatal() != nil {
+		t.Fatalf("unexpected fatal: %v", env.lastFatal())
+	}
+	if savedRecord.Metadata != "important note" {
+		t.Fatalf("expected metadata 'important note', got %q", savedRecord.Metadata)
+	}
+}
+
+func TestCLIRunAddTextWithoutMetadata(t *testing.T) {
+	env := setupTestEnv(t)
+	ctx := context.Background()
+	_ = env.core.Login(ctx, "user@example.com", "test-password")
+
+	var savedRecord *models.Record
+	env.transport.CreateRecordFunc = func(ctx context.Context, rec *models.Record) (*models.Record, error) {
+		savedRecord = rec
+		return &models.Record{
+			ID:       101,
+			Type:     rec.Type,
+			Name:     rec.Name,
+			Payload:  rec.Payload,
+			Revision: 1,
+		}, nil
+	}
+
+	env.captureOutput(func() {
+		defer func() { recover() }()
+		runAdd([]string{"text", "my note", "hello world"})
+	})
+
+	if env.lastFatal() != nil {
+		t.Fatalf("unexpected fatal: %v", env.lastFatal())
+	}
+	if savedRecord.Metadata != "" {
+		t.Fatalf("expected empty metadata, got %q", savedRecord.Metadata)
+	}
+}
+
+func TestCLIRunUpdateMetadata(t *testing.T) {
+	env := setupTestEnv(t)
+	ctx := context.Background()
+	_ = env.core.Login(ctx, "user@example.com", "test-password")
+
+	env.transport.GetRecordFunc = func(ctx context.Context, id int64) (*models.Record, error) {
+		return &models.Record{
+			ID:       id,
+			Type:     models.RecordTypeText,
+			Name:     "old-name",
+			Metadata: "old meta",
+			Payload:  models.TextPayload{Content: "content"},
+			Revision: 1,
+		}, nil
+	}
+
+	var savedRecord *models.Record
+	env.transport.UpdateRecordFunc = func(ctx context.Context, rec *models.Record) (*models.Record, error) {
+		savedRecord = rec
+		return &models.Record{
+			ID:       rec.ID,
+			Type:     rec.Type,
+			Name:     rec.Name,
+			Metadata: rec.Metadata,
+			Payload:  rec.Payload,
+			Revision: rec.Revision + 1,
+		}, nil
+	}
+
+	env.captureOutput(func() {
+		defer func() { recover() }()
+		runUpdate([]string{"5", "new-name", "new content", "--metadata", "new meta"})
+	})
+
+	if env.lastFatal() != nil {
+		t.Fatalf("unexpected fatal: %v", env.lastFatal())
+	}
+	if savedRecord.Metadata != "new meta" {
+		t.Fatalf("expected metadata 'new meta', got %q", savedRecord.Metadata)
+	}
+}
+
+func TestCLIRunUpdateClearMetadata(t *testing.T) {
+	env := setupTestEnv(t)
+	ctx := context.Background()
+	_ = env.core.Login(ctx, "user@example.com", "test-password")
+
+	env.transport.GetRecordFunc = func(ctx context.Context, id int64) (*models.Record, error) {
+		return &models.Record{
+			ID:       id,
+			Type:     models.RecordTypeText,
+			Name:     "old-name",
+			Metadata: "old meta",
+			Payload:  models.TextPayload{Content: "content"},
+			Revision: 1,
+		}, nil
+	}
+
+	var savedRecord *models.Record
+	env.transport.UpdateRecordFunc = func(ctx context.Context, rec *models.Record) (*models.Record, error) {
+		savedRecord = rec
+		return &models.Record{
+			ID:       rec.ID,
+			Type:     rec.Type,
+			Name:     rec.Name,
+			Metadata: rec.Metadata,
+			Payload:  rec.Payload,
+			Revision: rec.Revision + 1,
+		}, nil
+	}
+
+	env.captureOutput(func() {
+		defer func() { recover() }()
+		runUpdate([]string{"5", "new-name", "new content", "--metadata", ""})
+	})
+
+	if env.lastFatal() != nil {
+		t.Fatalf("unexpected fatal: %v", env.lastFatal())
+	}
+	if savedRecord.Metadata != "" {
+		t.Fatalf("expected empty metadata after clear, got %q", savedRecord.Metadata)
+	}
+}
+
+func TestCLIRunUpdatePreservesMetadataWithoutFlag(t *testing.T) {
+	env := setupTestEnv(t)
+	ctx := context.Background()
+	_ = env.core.Login(ctx, "user@example.com", "test-password")
+
+	env.transport.GetRecordFunc = func(ctx context.Context, id int64) (*models.Record, error) {
+		return &models.Record{
+			ID:       id,
+			Type:     models.RecordTypeText,
+			Name:     "old-name",
+			Metadata: "preserved meta",
+			Payload:  models.TextPayload{Content: "content"},
+			Revision: 1,
+		}, nil
+	}
+
+	var savedRecord *models.Record
+	env.transport.UpdateRecordFunc = func(ctx context.Context, rec *models.Record) (*models.Record, error) {
+		savedRecord = rec
+		return &models.Record{
+			ID:       rec.ID,
+			Type:     rec.Type,
+			Name:     rec.Name,
+			Metadata: rec.Metadata,
+			Payload:  rec.Payload,
+			Revision: rec.Revision + 1,
+		}, nil
+	}
+
+	env.captureOutput(func() {
+		defer func() { recover() }()
+		runUpdate([]string{"5", "new-name", "new content"})
+	})
+
+	if env.lastFatal() != nil {
+		t.Fatalf("unexpected fatal: %v", env.lastFatal())
+	}
+	if savedRecord.Metadata != "preserved meta" {
+		t.Fatalf("expected preserved metadata, got %q", savedRecord.Metadata)
+	}
+}
+
+func TestCLIRunGetWithMetadata(t *testing.T) {
+	env := setupTestEnv(t)
+	ctx := context.Background()
+	_ = env.core.Login(ctx, "user@example.com", "test-password")
+
+	env.transport.GetRecordFunc = func(ctx context.Context, id int64) (*models.Record, error) {
+		return &models.Record{
+			ID:       id,
+			Type:     models.RecordTypeLogin,
+			Name:     "test site",
+			Metadata: "my metadata value",
+			Payload:  models.LoginPayload{Login: "user", Password: "pass"},
+			Revision: 1,
+		}, nil
+	}
+
+	env.captureOutput(func() {
+		defer func() { recover() }()
+		runGet([]string{"42"})
+	})
+
+	if env.lastFatal() != nil {
+		t.Fatalf("unexpected fatal: %v", env.lastFatal())
+	}
+	out := env.stdout.String()
+	if !strings.Contains(out, "Metadata: my metadata value") {
+		t.Fatalf("expected 'Metadata: my metadata value' in stdout, got: %s", out)
+	}
+}
+
+func TestCLIRunAddLoginWithMetadata(t *testing.T) {
+	env := setupTestEnv(t)
+	ctx := context.Background()
+	_ = env.core.Login(ctx, "user@example.com", "test-password")
+
+	var savedRecord *models.Record
+	env.transport.CreateRecordFunc = func(ctx context.Context, rec *models.Record) (*models.Record, error) {
+		savedRecord = rec
+		return &models.Record{
+			ID:       200,
+			Type:     rec.Type,
+			Name:     rec.Name,
+			Metadata: rec.Metadata,
+			Payload:  rec.Payload,
+			Revision: 1,
+		}, nil
+	}
+
+	env.captureOutput(func() {
+		defer func() { recover() }()
+		runAdd([]string{"login", "my site", "--metadata", "work credentials"})
+	})
+
+	if env.lastFatal() != nil {
+		t.Fatalf("unexpected fatal: %v", env.lastFatal())
+	}
+	if savedRecord.Metadata != "work credentials" {
+		t.Fatalf("expected metadata 'work credentials', got %q", savedRecord.Metadata)
+	}
+}
+
+func TestCLIRunAddCardWithMetadata(t *testing.T) {
+	env := setupTestEnv(t)
+	ctx := context.Background()
+	_ = env.core.Login(ctx, "user@example.com", "test-password")
+
+	var savedRecord *models.Record
+	env.transport.CreateRecordFunc = func(ctx context.Context, rec *models.Record) (*models.Record, error) {
+		savedRecord = rec
+		return &models.Record{
+			ID:       300,
+			Type:     rec.Type,
+			Name:     rec.Name,
+			Metadata: rec.Metadata,
+			Payload:  rec.Payload,
+			Revision: 1,
+		}, nil
+	}
+
+	env.captureOutput(func() {
+		defer func() { recover() }()
+		runAdd([]string{"card", "my card", "4111111111111111", "--metadata", "main card"})
+	})
+
+	if env.lastFatal() != nil {
+		t.Fatalf("unexpected fatal: %v", env.lastFatal())
+	}
+	if savedRecord.Metadata != "main card" {
+		t.Fatalf("expected metadata 'main card', got %q", savedRecord.Metadata)
+	}
+}
+
+// --- Metadata-only update tests ---
+
+func TestCLIRunUpdateMetadataOnly(t *testing.T) {
+	env := setupTestEnv(t)
+	ctx := context.Background()
+	_ = env.core.Login(ctx, "user@example.com", "test-password")
+
+	env.transport.GetRecordFunc = func(ctx context.Context, id int64) (*models.Record, error) {
+		return &models.Record{
+			ID:       id,
+			Type:     models.RecordTypeText,
+			Name:     "old-name",
+			Metadata: "old meta",
+			Payload:  models.TextPayload{Content: "original content"},
+			Revision: 1,
+		}, nil
+	}
+
+	var savedRecord *models.Record
+	env.transport.UpdateRecordFunc = func(ctx context.Context, rec *models.Record) (*models.Record, error) {
+		savedRecord = rec
+		return &models.Record{
+			ID:       rec.ID,
+			Type:     rec.Type,
+			Name:     rec.Name,
+			Metadata: rec.Metadata,
+			Payload:  rec.Payload,
+			Revision: rec.Revision + 1,
+		}, nil
+	}
+
+	env.captureOutput(func() {
+		defer func() { recover() }()
+		// update <id> <name> --metadata <text> — no data, no payload change
+		runUpdate([]string{"5", "old-name", "--metadata", "new meta only"})
+	})
+
+	if env.lastFatal() != nil {
+		t.Fatalf("unexpected fatal: %v", env.lastFatal())
+	}
+	if savedRecord.Metadata != "new meta only" {
+		t.Fatalf("expected metadata 'new meta only', got %q", savedRecord.Metadata)
+	}
+	// Verify payload was NOT changed
+	tp, ok := savedRecord.Payload.(models.TextPayload)
+	if !ok {
+		t.Fatal("expected TextPayload")
+	}
+	if tp.Content != "original content" {
+		t.Fatalf("payload should be preserved, got %q", tp.Content)
+	}
+}
+
+func TestCLIRunUpdateMetadataOnlyBinary(t *testing.T) {
+	env := setupTestEnv(t)
+	ctx := context.Background()
+	_ = env.core.Login(ctx, "user@example.com", "test-password")
+
+	env.transport.GetRecordFunc = func(ctx context.Context, id int64) (*models.Record, error) {
+		return &models.Record{
+			ID:       id,
+			Type:     models.RecordTypeBinary,
+			Name:     "old-name",
+			Metadata: "old meta",
+			Payload:  models.BinaryPayload{Data: []byte("original binary")},
+			Revision: 1,
+		}, nil
+	}
+
+	var savedRecord *models.Record
+	env.transport.UpdateRecordFunc = func(ctx context.Context, rec *models.Record) (*models.Record, error) {
+		savedRecord = rec
+		return &models.Record{
+			ID:       rec.ID,
+			Type:     rec.Type,
+			Name:     rec.Name,
+			Metadata: rec.Metadata,
+			Payload:  rec.Payload,
+			Revision: rec.Revision + 1,
+		}, nil
+	}
+
+	env.captureOutput(func() {
+		defer func() { recover() }()
+		// update <id> <name> --metadata <text> — no file path, binary payload preserved
+		runUpdate([]string{"5", "old-name", "--metadata", "binary meta"})
+	})
+
+	if env.lastFatal() != nil {
+		t.Fatalf("unexpected fatal: %v", env.lastFatal())
+	}
+	if savedRecord.Metadata != "binary meta" {
+		t.Fatalf("expected metadata 'binary meta', got %q", savedRecord.Metadata)
+	}
+	// Verify payload was NOT changed (no upload should happen)
+	bp, ok := savedRecord.Payload.(models.BinaryPayload)
+	if !ok {
+		t.Fatal("expected BinaryPayload")
+	}
+	if string(bp.Data) != "original binary" {
+		t.Fatalf("payload should be preserved, got %q", string(bp.Data))
+	}
+}
+
+func TestCLIRunUpdateClearMetadataOnly(t *testing.T) {
+	env := setupTestEnv(t)
+	ctx := context.Background()
+	_ = env.core.Login(ctx, "user@example.com", "test-password")
+
+	env.transport.GetRecordFunc = func(ctx context.Context, id int64) (*models.Record, error) {
+		return &models.Record{
+			ID:       id,
+			Type:     models.RecordTypeText,
+			Name:     "old-name",
+			Metadata: "old meta",
+			Payload:  models.TextPayload{Content: "original content"},
+			Revision: 1,
+		}, nil
+	}
+
+	var savedRecord *models.Record
+	env.transport.UpdateRecordFunc = func(ctx context.Context, rec *models.Record) (*models.Record, error) {
+		savedRecord = rec
+		return &models.Record{
+			ID:       rec.ID,
+			Type:     rec.Type,
+			Name:     rec.Name,
+			Metadata: rec.Metadata,
+			Payload:  rec.Payload,
+			Revision: rec.Revision + 1,
+		}, nil
+	}
+
+	env.captureOutput(func() {
+		defer func() { recover() }()
+		// update <id> <name> --metadata "" — clear metadata, no payload change
+		runUpdate([]string{"5", "old-name", "--metadata", ""})
+	})
+
+	if env.lastFatal() != nil {
+		t.Fatalf("unexpected fatal: %v", env.lastFatal())
+	}
+	if savedRecord.Metadata != "" {
+		t.Fatalf("expected empty metadata after clear, got %q", savedRecord.Metadata)
+	}
+	tp, ok := savedRecord.Payload.(models.TextPayload)
+	if !ok {
+		t.Fatal("expected TextPayload")
+	}
+	if tp.Content != "original content" {
+		t.Fatalf("payload should be preserved, got %q", tp.Content)
+	}
+}
+
+// --- Metadata display tests ---
+
+func TestPrintRecordWithMetadata(t *testing.T) {
+	rec := &models.Record{
+		ID:       1,
+		Type:     models.RecordTypeText,
+		Name:     "test note",
+		Revision: 5,
+		Metadata: "some metadata",
+		Payload:  models.TextPayload{Content: "hello"},
+	}
+
+	var buf bytes.Buffer
+	old := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	printRecord(rec)
+
+	w.Close()
+	os.Stdout = old
+	buf.ReadFrom(r)
+	output := buf.String()
+
+	if !strings.Contains(output, "Metadata: some metadata") {
+		t.Fatalf("expected 'Metadata: some metadata' in output, got: %s", output)
+	}
+}
+
+func TestPrintRecordWithEmptyMetadata(t *testing.T) {
+	rec := &models.Record{
+		ID:       2,
+		Type:     models.RecordTypeText,
+		Name:     "test note",
+		Revision: 5,
+		Metadata: "",
+		Payload:  models.TextPayload{Content: "hello"},
+	}
+
+	var buf bytes.Buffer
+	old := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	printRecord(rec)
+
+	w.Close()
+	os.Stdout = old
+	buf.ReadFrom(r)
+	output := buf.String()
+
+	if !strings.Contains(output, "Metadata:") {
+		t.Fatalf("expected 'Metadata:' line in output even when empty, got: %s", output)
+	}
+}
+
+func TestPrintRecordWithMultilineMetadata(t *testing.T) {
+	rec := &models.Record{
+		ID:       3,
+		Type:     models.RecordTypeText,
+		Name:     "test note",
+		Revision: 5,
+		Metadata: "line1\nline2\nline3",
+		Payload:  models.TextPayload{Content: "hello"},
+	}
+
+	var buf bytes.Buffer
+	old := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	printRecord(rec)
+
+	w.Close()
+	os.Stdout = old
+	buf.ReadFrom(r)
+	output := buf.String()
+
+	if !strings.Contains(output, "Metadata: line1\nline2\nline3") {
+		t.Fatalf("expected multiline metadata preserved, got: %s", output)
+	}
+}
+
+func TestPrintRecordShortWithMetadata(t *testing.T) {
+	rec := models.Record{
+		ID:       10,
+		Type:     models.RecordTypeText,
+		Name:     "file.txt",
+		Revision: 2,
+		Metadata: "some info",
+		Payload:  models.TextPayload{Content: "data"},
+	}
+
+	var buf bytes.Buffer
+	old := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	printRecordShort(rec)
+
+	w.Close()
+	os.Stdout = old
+	buf.ReadFrom(r)
+	output := buf.String()
+
+	if !strings.Contains(output, "some info") {
+		t.Fatalf("expected metadata in short output, got: %s", output)
+	}
+}
+
+func TestPrintRecordShortWithoutMetadata(t *testing.T) {
+	rec := models.Record{
+		ID:       11,
+		Type:     models.RecordTypeText,
+		Name:     "file.txt",
+		Revision: 2,
+		Payload:  models.TextPayload{Content: "data"},
+	}
+
+	var buf bytes.Buffer
+	old := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	printRecordShort(rec)
+
+	w.Close()
+	os.Stdout = old
+	buf.ReadFrom(r)
+	output := buf.String()
+
+	if strings.Contains(output, "\t\t") {
+		// Should not have extra tabs for metadata
+		t.Fatalf("unexpected extra tab for empty metadata, got: %q", output)
+	}
+}
+
+func TestCLIRunListWithMetadata(t *testing.T) {
+	env := setupTestEnv(t)
+	ctx := context.Background()
+	_ = env.core.Login(ctx, "user@example.com", "test-password")
+
+	// Save a record with metadata through the transport mock
+	env.transport.CreateRecordFunc = func(ctx context.Context, rec *models.Record) (*models.Record, error) {
+		return &models.Record{
+			ID:       1,
+			Type:     rec.Type,
+			Name:     rec.Name,
+			Metadata: rec.Metadata,
+			Payload:  rec.Payload,
+			Revision: 1,
+		}, nil
+	}
+	env.transport.ListRecordsFunc = func(ctx context.Context, rt models.RecordType, includeDeleted bool) ([]models.Record, error) {
+		return []models.Record{
+			{ID: 1, Type: models.RecordTypeText, Name: "list test", Revision: 1, Metadata: "important info"},
+		}, nil
+	}
+
+	// Save to cache so ListRecords (which reads from cache) returns it
+	env.store.Records().Put(&models.Record{
+		ID:       1,
+		Type:     models.RecordTypeText,
+		Name:     "list test",
+		Revision: 1,
+		Metadata: "important info",
+		Payload:  models.TextPayload{Content: "content"},
+	})
+
+	env.captureOutput(func() {
+		defer func() { recover() }()
+		runList(nil)
+	})
+
+	if env.lastFatal() != nil {
+		t.Fatalf("unexpected fatal: %v", env.lastFatal())
+	}
+	out := env.stdout.String()
+	if !strings.Contains(out, "important info") {
+		t.Fatalf("expected metadata 'important info' in list output, got: %s", out)
+	}
+}

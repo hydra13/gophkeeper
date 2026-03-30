@@ -381,6 +381,66 @@ func TestValidateSession_InvalidToken(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestNewJWTManager_EmptySecret(t *testing.T) {
+	_, err := NewJWTManager("", 15*time.Minute)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "secret is required")
+}
+
+func TestNewJWTManager_DefaultTTL(t *testing.T) {
+	mgr, err := NewJWTManager("secret", 0)
+	require.NoError(t, err)
+	require.Equal(t, defaultAccessTTL, mgr.accessTTL)
+}
+
+func TestLogoutAllDevices(t *testing.T) {
+	svc := newTestService(t)
+	ctx := context.Background()
+
+	_, err := svc.Register(ctx, "user@example.com", "super-secret")
+	require.NoError(t, err)
+
+	// Login on device-1
+	access1, refresh1, err := svc.Login(ctx, "user@example.com", "super-secret", "device-1", "MacBook", "cli")
+	require.NoError(t, err)
+
+	// Login on device-2
+	access2, refresh2, err := svc.Login(ctx, "user@example.com", "super-secret", "device-2", "iPhone", "cli")
+	require.NoError(t, err)
+
+	// Logout all devices
+	err = svc.LogoutAllDevices(ctx, 1)
+	require.NoError(t, err)
+
+	// Both sessions should be revoked
+	_, err = svc.ValidateSession(access1)
+	require.ErrorIs(t, err, models.ErrSessionRevoked)
+
+	_, err = svc.ValidateSession(access2)
+	require.ErrorIs(t, err, models.ErrSessionRevoked)
+
+	// Both refresh tokens should fail
+	_, _, err = svc.Refresh(ctx, refresh1)
+	require.ErrorIs(t, err, models.ErrSessionRevoked)
+
+	_, _, err = svc.Refresh(ctx, refresh2)
+	require.ErrorIs(t, err, models.ErrSessionRevoked)
+}
+
+func TestNewService_NilDeps(t *testing.T) {
+	jwtManager, err := NewJWTManager("test-secret", 15*time.Minute)
+	require.NoError(t, err)
+
+	_, err = NewService(nil, newMemSessionRepo(), jwtManager, time.Hour)
+	require.Error(t, err)
+
+	_, err = NewService(newMemUserRepo(), nil, jwtManager, time.Hour)
+	require.Error(t, err)
+
+	_, err = NewService(newMemUserRepo(), newMemSessionRepo(), nil, time.Hour)
+	require.Error(t, err)
+}
+
 func TestLogout_RevokesSpecificSession(t *testing.T) {
 	svc := newTestService(t)
 	ctx := context.Background()

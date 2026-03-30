@@ -45,30 +45,49 @@ graph TD
         T12["<b>task_12</b><br/>Records use-case"]
         T13["<b>task_13</b><br/>Uploads use-case"]
     end
+    class P6 completed
     class T11 completed
     class T12 completed
+    class T13 completed
 
     subgraph P7["Phase 7 — Синхронизация"]
         T14["<b>task_14</b><br/>Sync use-case"]
     end
-    class T14 crit
+    class P7 completed
+    class T14 completed
 
     subgraph P8["Phase 8 — Client core"]
         T15["<b>task_15</b><br/>Shared client core"]
     end
-    class T15 crit
+    class P8 completed
+    class T15 completed
 
     subgraph P9["Phase 9 — CLI"]
         T16["<b>task_16</b><br/>CLI-клиент"]
     end
-    class T16 crit
+    class P9 completed
+    class T16 completed
 
     subgraph P10["Phase 10 — Финализация"]
         T17["<b>task_17</b><br/>Тестирование и CI"]
         T18["<b>task_18</b><br/>Документация, MVP"]
     end
-    class T17 crit
-    class T18 crit
+    class P10 completed
+    class T17 completed
+    class T18 completed
+
+    subgraph P11["Phase 11 — Remediation"]
+        T19["<b>task_19</b><br/>Metadata в CLI"]
+        T20["<b>task_20</b><br/>TLS и quick start"]
+        T21["<b>task_21</b><br/>Fail-fast bootstrap"]
+    end
+
+    subgraph P12["Phase 12 — Повторная валидация"]
+        T22["<b>task_22</b><br/>Покрытие 70%"]
+        T23["<b>task_23</b><br/>Release readiness re-check"]
+    end
+    class P12 completed
+    class T22 completed
 
     %% Phase 1
     T1 --> T2
@@ -153,12 +172,36 @@ graph TD
     T10 --> T18
     T16 --> T18
     T17 --> T18
+
+    %% Phase 11
+    T16 --> T19
+    T18 --> T19
+
+    T8 --> T20
+    T15 --> T20
+    T16 --> T20
+    T18 --> T20
+
+    T8 --> T21
+    T9 --> T21
+    T18 --> T21
+
+    %% Phase 12
+    T17 --> T22
+    T19 --> T22
+    T20 --> T22
+    T21 --> T22
+
+    T19 --> T23
+    T20 --> T23
+    T21 --> T23
+    T22 --> T23
 ```
 
 ## Критический путь
 
 ```
-task_1 → task_3 → task_9 → task_10 → task_11 → task_12 → task_14 → task_15 → task_16 → task_17 → task_18
+task_1 → task_3 → task_9 → task_10 → task_11 → task_12 → task_14 → task_15 → task_16 → task_20 → task_22 → task_23
 ```
 
 ## Параллельные группы (можно выполнять одновременно)
@@ -171,8 +214,11 @@ task_1 → task_3 → task_9 → task_10 → task_11 → task_12 → task_14 →
 | 4 | <span style="background-color: lightgreen;">task_8</span>, <span style="background-color: lightgreen;">task_9</span> |
 | 5 | <span style="background-color: lightgreen;">task_10</span> |
 | 6 | <span style="background-color: lightgreen;">task_11</span> |
-| 7 | <span style="background-color: lightgreen;">task_12</span>, task_13 |
-| 8 | task_14 |
-| 9 | task_15 |
-| 10 | task_16 |
-| 11 | task_17, task_18 |
+| 7 | <span style="background-color: lightgreen;">task_12</span>, <span style="background-color: lightgreen;">task_13</span> |
+| 8 | <span style="background-color: lightgreen;">task_14</span> |
+| 9 | <span style="background-color: lightgreen;">task_15</span> |
+| 10 | <span style="background-color: lightgreen;">task_16</span> |
+| 11 | <span style="background-color: lightgreen;">task_17</span>, <span style="background-color: lightgreen;">task_18</span> |
+| 12 | task_19, task_20, task_21 |
+| 13 | <span style="background-color: lightgreen;">task_22</span> |
+| 14 | task_23 |

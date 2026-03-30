@@ -1,9 +1,15 @@
+// Package grpc реализует gRPC-транспортный клиент для GophKeeper.
+// Предоставляет Client, удовлетворяющий интерфейсу apiclient.Transport,
+// и поддерживает аутентификацию, CRUD записей, синхронизацию и chunk-загрузку файлов.
 package grpc
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"io"
+	"os"
 
 	apiclient "github.com/hydra13/gophkeeper/pkg/apiclient"
 
@@ -38,9 +44,9 @@ func NewClient(ctx context.Context, cfg Config) (*Client, error) {
 	var opts []grpc.DialOption
 
 	if cfg.TLSCertFile != "" {
-		creds, err := credentials.NewClientTLSFromFile(cfg.TLSCertFile, "")
+		creds, err := tlsCredentialsFromFile(cfg.TLSCertFile)
 		if err != nil {
-			return nil, fmt.Errorf("load TLS cert: %w", err)
+			return nil, fmt.Errorf("TLS configuration error: %w", err)
 		}
 		opts = append(opts, grpc.WithTransportCredentials(creds))
 	} else {
@@ -411,6 +417,26 @@ func (c *Client) GetDownloadStatus(ctx context.Context, downloadID int64) (*apic
 		ConfirmedChunks: resp.ConfirmedChunks,
 		RemainingChunks: resp.RemainingChunks,
 	}, nil
+}
+
+// tlsCredentialsFromFile загружает TLS-credentials из CA-сертификата.
+// Поддерживает self-signed сертификаты для локальной разработки.
+func tlsCredentialsFromFile(certFile string) (credentials.TransportCredentials, error) {
+	pemData, err := os.ReadFile(certFile)
+	if err != nil {
+		return nil, fmt.Errorf("read CA cert %s: %w", certFile, err)
+	}
+
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(pemData) {
+		return nil, fmt.Errorf("failed to append CA cert from %s: no certificates were parsed", certFile)
+	}
+
+	tlsCfg := &tls.Config{
+		RootCAs:    pool,
+		MinVersion: tls.VersionTLS12,
+	}
+	return credentials.NewTLS(tlsCfg), nil
 }
 
 // --- Конвертация доменных моделей <-> protobuf ---

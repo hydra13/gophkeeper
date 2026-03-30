@@ -5,6 +5,8 @@ import (
 	"encoding/base64"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
@@ -126,4 +128,90 @@ func testMasterKey(t *testing.T) string {
 		t.Fatalf("rand error: %v", err)
 	}
 	return base64.StdEncoding.EncodeToString(key)
+}
+
+func TestCreateActive(t *testing.T) {
+	t.Run("creates active key from empty repo", func(t *testing.T) {
+		repo := newMemRepo()
+		mgr, err := NewManager(repo, testMasterKey(t))
+		require.NoError(t, err)
+
+		kv, err := mgr.CreateActive()
+		require.NoError(t, err)
+		require.NotNil(t, kv)
+		require.True(t, kv.IsActive())
+		require.Equal(t, int64(1), kv.Version)
+		require.NotEmpty(t, kv.EncryptedKey)
+		require.NotEmpty(t, kv.KeyNonce)
+	})
+
+	t.Run("increments version on subsequent calls", func(t *testing.T) {
+		repo := newMemRepo()
+		mgr, err := NewManager(repo, testMasterKey(t))
+		require.NoError(t, err)
+
+		kv1, err := mgr.CreateActive()
+		require.NoError(t, err)
+		require.Equal(t, int64(1), kv1.Version)
+
+		kv2, err := mgr.CreateActive()
+		require.NoError(t, err)
+		require.Equal(t, int64(2), kv2.Version)
+
+		// Both should be active
+		require.True(t, kv1.IsActive())
+		require.True(t, kv2.IsActive())
+	})
+
+	t.Run("created key can be unwrapped and used for encryption", func(t *testing.T) {
+		repo := newMemRepo()
+		mgr, err := NewManager(repo, testMasterKey(t))
+		require.NoError(t, err)
+
+		kv, err := mgr.CreateActive()
+		require.NoError(t, err)
+
+		// KeyForEncrypt should succeed for active key
+		dataKey, err := mgr.KeyForEncrypt(kv.Version)
+		require.NoError(t, err)
+		require.Len(t, dataKey, dataKeySize)
+
+		// KeyForDecrypt should also work
+		decKey, err := mgr.KeyForDecrypt(kv.Version)
+		require.NoError(t, err)
+		require.Equal(t, dataKey, decKey)
+	})
+
+	t.Run("each CreateActive produces unique data keys", func(t *testing.T) {
+		repo := newMemRepo()
+		mgr, err := NewManager(repo, testMasterKey(t))
+		require.NoError(t, err)
+
+		kv1, err := mgr.CreateActive()
+		require.NoError(t, err)
+		kv2, err := mgr.CreateActive()
+		require.NoError(t, err)
+
+		dk1, err := mgr.KeyForEncrypt(kv1.Version)
+		require.NoError(t, err)
+		dk2, err := mgr.KeyForEncrypt(kv2.Version)
+		require.NoError(t, err)
+
+		require.NotEqual(t, dk1, dk2, "each version should have a unique data key")
+	})
+
+	t.Run("persists key in repository", func(t *testing.T) {
+		repo := newMemRepo()
+		mgr, err := NewManager(repo, testMasterKey(t))
+		require.NoError(t, err)
+
+		kv, err := mgr.CreateActive()
+		require.NoError(t, err)
+
+		// Verify it was actually stored
+		stored, err := repo.GetKeyVersion(kv.Version)
+		require.NoError(t, err)
+		require.Equal(t, kv.Version, stored.Version)
+		require.Equal(t, models.KeyStatusActive, stored.Status)
+	})
 }

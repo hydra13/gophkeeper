@@ -363,6 +363,11 @@ func isPublicPath(path string) bool {
 	return strings.HasPrefix(path, "/api/v1/auth/")
 }
 
+// healthChecker always reports healthy. This is safe because the fail-fast
+// bootstrap in cmd/server guarantees that all persistence dependencies
+// (database connection, migrations, services) are fully initialized before
+// the HTTP server starts accepting requests. If any critical dependency
+// fails, the process exits with a diagnostic message and never reaches Run.
 type healthChecker struct{}
 
 func (h *healthChecker) Health() error {

@@ -1,3 +1,5 @@
+// Package buildinfo предоставляет информацию о версии и дате сборки бинарника GophKeeper.
+// Значения задаются через -ldflags при сборке.
 package buildinfo
 
 // Version — версия бинарника. Задаётся через -ldflags "-X github.com/hydra13/gophkeeper/pkg/buildinfo.Version=...".

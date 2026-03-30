@@ -546,3 +546,375 @@ func TestClientCore_DownloadBinary_ResumeFromPaused(t *testing.T) {
 	assert.Equal(t, []int64{1, 2}, chunksDownloaded)
 	assert.Equal(t, "datadata", string(data))
 }
+
+// --- GetRecord additional tests ---
+
+func TestClientCore_GetRecord_CacheMiss_Online(t *testing.T) {
+	core, transport, _ := newTestCore(t)
+	loginHelper(t, core)
+
+	transport.GetRecordFunc = func(ctx context.Context, id int64) (*models.Record, error) {
+		assert.Equal(t, int64(42), id)
+		return &models.Record{
+			ID:       42,
+			UserID:   1,
+			Type:     models.RecordTypeLogin,
+			Name:     "from-server",
+			Payload:  models.LoginPayload{Login: "u", Password: "p"},
+			Revision: 1,
+			DeviceID: "test-device",
+		}, nil
+	}
+
+	rec, err := core.GetRecord(context.Background(), 42)
+	require.NoError(t, err)
+	assert.Equal(t, "from-server", rec.Name)
+	assert.Equal(t, int64(42), rec.ID)
+}
+
+func TestClientCore_GetRecord_TransportError(t *testing.T) {
+	core, transport, _ := newTestCore(t)
+	loginHelper(t, core)
+
+	transport.GetRecordFunc = func(ctx context.Context, id int64) (*models.Record, error) {
+		return nil, fmt.Errorf("connection refused")
+	}
+
+	_, err := core.GetRecord(context.Background(), 999)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "get record")
+}
+
+func TestClientCore_GetRecord_Offline_NotFound(t *testing.T) {
+	core, _, _ := newTestCore(t)
+	// Не логинимся — офлайн, и в кеше пусто
+
+	_, err := core.GetRecord(context.Background(), 999)
+	assert.ErrorIs(t, err, models.ErrRecordNotFound)
+}
+
+// --- Register additional tests ---
+
+func TestClientCore_Register_TransportError(t *testing.T) {
+	core, transport, _ := newTestCore(t)
+
+	transport.RegisterFunc = func(ctx context.Context, email, password string) (int64, error) {
+		return 0, fmt.Errorf("email already exists")
+	}
+
+	err := core.Register(context.Background(), "taken@example.com", "pass")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "register")
+}
+
+func TestClientCore_Register_SetsAuthAndFlushes(t *testing.T) {
+	core, transport, store := newTestCore(t)
+
+	transport.RegisterFunc = func(ctx context.Context, email, password string) (int64, error) {
+		return 42, nil
+	}
+
+	err := core.Register(context.Background(), "new@example.com", "pass123")
+	require.NoError(t, err)
+
+	// Check that auth data was set with returned userID
+	authData, ok := store.Auth().Get()
+	require.True(t, ok)
+	assert.Equal(t, int64(42), authData.UserID)
+	assert.Equal(t, "new@example.com", authData.Email)
+	assert.Equal(t, "test-device", authData.DeviceID)
+}
+
+// --- UpdateRecord via SaveRecord (existing record, offline) ---
+
+func TestClientCore_SaveRecord_Update_Offline(t *testing.T) {
+	core, _, store := newTestCore(t)
+	// Не логинимся — офлайн
+
+	rec := &models.Record{
+		ID:       10,
+		Type:     models.RecordTypeText,
+		Name:     "updated-offline",
+		Payload:  models.TextPayload{Content: "new data"},
+		Revision: 1,
+	}
+
+	result, err := core.SaveRecord(context.Background(), rec)
+	require.NoError(t, err)
+	assert.Equal(t, int64(10), result.ID)
+	assert.Equal(t, "test-device", result.DeviceID)
+
+	// Pending операция — OperationUpdate (ID > 0)
+	assert.Equal(t, 1, store.Pending().Len())
+	ops, err := store.Pending().Peek()
+	require.NoError(t, err)
+	assert.Equal(t, cache.OperationUpdate, ops[0].Operation)
+}
+
+// --- flushPending direct tests ---
+
+func TestClientCore_FlushPending_EmptyQueue(t *testing.T) {
+	core, _, _ := newTestCore(t)
+	loginHelper(t, core)
+
+	// No pending ops — should succeed immediately
+	err := core.flushPending(context.Background())
+	require.NoError(t, err)
+}
+
+func TestClientCore_FlushPending_UpdateOperation(t *testing.T) {
+	core, transport, store := newTestCore(t)
+	loginHelper(t, core)
+
+	store.Pending().Enqueue(cache.PendingOp{
+		RecordID:  5,
+		Operation: cache.OperationUpdate,
+		Record: &models.Record{
+			ID:      5,
+			Name:    "update-me",
+			Type:    models.RecordTypeText,
+			Payload: models.TextPayload{Content: "updated"},
+			Revision: 1,
+		},
+	})
+
+	updated := false
+	transport.UpdateRecordFunc = func(ctx context.Context, record *models.Record) (*models.Record, error) {
+		updated = true
+		result := *record
+		result.Revision = 2
+		return &result, nil
+	}
+
+	transport.PullFunc = func(ctx context.Context, sinceRevision int64, deviceID string, limit int32) (*apiclient.PullResult, error) {
+		return &apiclient.PullResult{}, nil
+	}
+
+	err := core.SyncNow(context.Background())
+	require.NoError(t, err)
+	assert.True(t, updated)
+	assert.Equal(t, 0, store.Pending().Len())
+
+	// Record in cache should have revision bumped
+	rec, ok := store.Records().Get(5)
+	require.True(t, ok)
+	assert.Equal(t, int64(2), rec.Revision)
+}
+
+func TestClientCore_FlushPending_DeleteOperation(t *testing.T) {
+	core, transport, store := newTestCore(t)
+	loginHelper(t, core)
+
+	store.Records().Put(&models.Record{ID: 7, Name: "to-delete", Revision: 1})
+
+	store.Pending().Enqueue(cache.PendingOp{
+		RecordID:  7,
+		Operation: cache.OperationDelete,
+		Record: &models.Record{
+			ID:       7,
+			Name:     "to-delete",
+			Revision: 1,
+		},
+	})
+
+	deleted := false
+	transport.DeleteRecordFunc = func(ctx context.Context, id int64) error {
+		deleted = true
+		assert.Equal(t, int64(7), id)
+		return nil
+	}
+
+	transport.PullFunc = func(ctx context.Context, sinceRevision int64, deviceID string, limit int32) (*apiclient.PullResult, error) {
+		return &apiclient.PullResult{}, nil
+	}
+
+	err := core.SyncNow(context.Background())
+	require.NoError(t, err)
+	assert.True(t, deleted)
+	assert.Equal(t, 0, store.Pending().Len())
+
+	// Record removed from cache
+	_, ok := store.Records().Get(7)
+	assert.False(t, ok)
+}
+
+func TestClientCore_FlushPending_UpdateError_Requeues(t *testing.T) {
+	core, transport, store := newTestCore(t)
+	loginHelper(t, core)
+
+	store.Pending().Enqueue(cache.PendingOp{
+		RecordID:  8,
+		Operation: cache.OperationUpdate,
+		Record: &models.Record{
+			ID:      8,
+			Name:    "will-fail-update",
+			Type:    models.RecordTypeText,
+			Payload: models.TextPayload{Content: "x"},
+		},
+	})
+
+	transport.UpdateRecordFunc = func(ctx context.Context, record *models.Record) (*models.Record, error) {
+		return nil, fmt.Errorf("conflict")
+	}
+
+	transport.PullFunc = func(ctx context.Context, sinceRevision int64, deviceID string, limit int32) (*apiclient.PullResult, error) {
+		return &apiclient.PullResult{}, nil
+	}
+
+	err := core.SyncNow(context.Background())
+	assert.Error(t, err)
+
+	// Pending op should be back in queue
+	assert.Equal(t, 1, store.Pending().Len())
+}
+
+func TestClientCore_FlushPending_DeleteError_Requeues(t *testing.T) {
+	core, transport, store := newTestCore(t)
+	loginHelper(t, core)
+
+	store.Pending().Enqueue(cache.PendingOp{
+		RecordID:  9,
+		Operation: cache.OperationDelete,
+		Record: &models.Record{
+			ID: 9, Name: "will-fail-delete",
+		},
+	})
+
+	transport.DeleteRecordFunc = func(ctx context.Context, id int64) error {
+		return fmt.Errorf("forbidden")
+	}
+
+	transport.PullFunc = func(ctx context.Context, sinceRevision int64, deviceID string, limit int32) (*apiclient.PullResult, error) {
+		return &apiclient.PullResult{}, nil
+	}
+
+	err := core.SyncNow(context.Background())
+	assert.Error(t, err)
+
+	assert.Equal(t, 1, store.Pending().Len())
+}
+
+// --- syncFromServer tests ---
+
+func TestClientCore_SyncFromServer_PullsRecords(t *testing.T) {
+	core, transport, store := newTestCore(t)
+	loginHelper(t, core)
+
+	transport.PullFunc = func(ctx context.Context, sinceRevision int64, deviceID string, limit int32) (*apiclient.PullResult, error) {
+		assert.Equal(t, int64(0), sinceRevision)
+		assert.Equal(t, "test-device", deviceID)
+		return &apiclient.PullResult{
+			Records: []models.Record{
+				{ID: 100, Name: "pulled-1", Type: models.RecordTypeText, Payload: models.TextPayload{Content: "a"}},
+				{ID: 101, Name: "pulled-2", Type: models.RecordTypeLogin, Payload: models.LoginPayload{Login: "u", Password: "p"}},
+			},
+			NextRevision: 5,
+		}, nil
+	}
+
+	err := core.SyncNow(context.Background())
+	require.NoError(t, err)
+
+	rec, ok := store.Records().Get(100)
+	require.True(t, ok)
+	assert.Equal(t, "pulled-1", rec.Name)
+
+	rec, ok = store.Records().Get(101)
+	require.True(t, ok)
+	assert.Equal(t, "pulled-2", rec.Name)
+
+	assert.Equal(t, int64(5), store.Sync().Get().LastRevision)
+}
+
+func TestClientCore_SyncNow_FlushError_StopsBeforePull(t *testing.T) {
+	core, transport, store := newTestCore(t)
+	loginHelper(t, core)
+
+	store.Pending().Enqueue(cache.PendingOp{
+		RecordID:  1,
+		Operation: cache.OperationCreate,
+		Record: &models.Record{
+			ID: 1, Name: "fail-first", Type: models.RecordTypeText,
+			Payload: models.TextPayload{Content: "x"},
+		},
+	})
+
+	pullCalled := false
+	transport.CreateRecordFunc = func(ctx context.Context, record *models.Record) (*models.Record, error) {
+		return nil, fmt.Errorf("server down")
+	}
+	transport.PullFunc = func(ctx context.Context, sinceRevision int64, deviceID string, limit int32) (*apiclient.PullResult, error) {
+		pullCalled = true
+		return &apiclient.PullResult{}, nil
+	}
+
+	err := core.SyncNow(context.Background())
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "flush pending")
+	assert.False(t, pullCalled, "Pull should not be called when flush fails")
+}
+
+// --- SaveRecord online error ---
+
+func TestClientCore_SaveRecord_Create_Online_TransportError(t *testing.T) {
+	core, transport, _ := newTestCore(t)
+	loginHelper(t, core)
+
+	transport.CreateRecordFunc = func(ctx context.Context, record *models.Record) (*models.Record, error) {
+		return nil, fmt.Errorf("internal server error")
+	}
+
+	rec := &models.Record{
+		Type:    models.RecordTypeLogin,
+		Name:    "fail-create",
+		Payload: models.LoginPayload{Login: "u", Password: "p"},
+	}
+
+	_, err := core.SaveRecord(context.Background(), rec)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "save record")
+}
+
+// --- DeleteRecord offline for non-existent record ---
+
+func TestClientCore_DeleteRecord_Offline_NotInCache(t *testing.T) {
+	core, _, store := newTestCore(t)
+	// Не логинимся, записи с ID=999 нет в кеше
+
+	err := core.DeleteRecord(context.Background(), 999)
+	require.NoError(t, err)
+
+	// Pending не добавлена, т.к. записи нет в кеше
+	assert.Equal(t, 0, store.Pending().Len())
+}
+
+// --- Logout error from transport ---
+
+func TestClientCore_Logout_TransportError(t *testing.T) {
+	core, transport, _ := newTestCore(t)
+	loginHelper(t, core)
+
+	transport.LogoutFunc = func(ctx context.Context) error {
+		return fmt.Errorf("session expired")
+	}
+
+	err := core.Logout(context.Background())
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "logout")
+}
+
+// --- Login sets access token on transport ---
+
+func TestClientCore_Login_SetsAccessToken(t *testing.T) {
+	core, transport, _ := newTestCore(t)
+
+	var capturedToken string
+	transport.SetAccessTokenFunc = func(token string) {
+		capturedToken = token
+	}
+
+	err := core.Login(context.Background(), "test@example.com", "password123")
+	require.NoError(t, err)
+	assert.Equal(t, "test-access-token", capturedToken)
+	assert.True(t, core.IsAuthenticated())
+}

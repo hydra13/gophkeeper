@@ -631,3 +631,41 @@ func TestMapDownloadError_AllCases(t *testing.T) {
 		})
 	}
 }
+
+func TestDomainUploadStatusToProto(t *testing.T) {
+	tests := []struct {
+		name string
+		s    models.UploadStatus
+		want pbv1.UploadStatus
+	}{
+		{"pending", models.UploadStatusPending, pbv1.UploadStatus_UPLOAD_STATUS_PENDING},
+		{"completed", models.UploadStatusCompleted, pbv1.UploadStatus_UPLOAD_STATUS_COMPLETED},
+		{"aborted", models.UploadStatusAborted, pbv1.UploadStatus_UPLOAD_STATUS_ABORTED},
+		{"unknown", models.UploadStatus("unknown"), pbv1.UploadStatus_UPLOAD_STATUS_UNSPECIFIED},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := domainUploadStatusToProto(tt.s)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestDomainDownloadStatusToProto(t *testing.T) {
+	tests := []struct {
+		name string
+		s    models.DownloadStatus
+		want pbv1.DownloadStatus
+	}{
+		{"active", models.DownloadStatusActive, pbv1.DownloadStatus_DOWNLOAD_STATUS_ACTIVE},
+		{"completed", models.DownloadStatusCompleted, pbv1.DownloadStatus_DOWNLOAD_STATUS_COMPLETED},
+		{"aborted", models.DownloadStatusAborted, pbv1.DownloadStatus_DOWNLOAD_STATUS_ABORTED},
+		{"unknown", models.DownloadStatus("unknown"), pbv1.DownloadStatus_DOWNLOAD_STATUS_UNSPECIFIED},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := domainDownloadStatusToProto(tt.s)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}

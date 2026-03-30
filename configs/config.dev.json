@@ -6,7 +6,7 @@
     "tls_key_file": "configs/certs/dev.key"
   },
   "database": {
-    "dsn": "postgres://user:password@localhost:5432/gophkeeper?sslmode=disable"
+    "dsn": "postgres://postgres:postgres@localhost:5432/gophkeeper?sslmode=disable"
   },
   "auth": {
     "jwt_secret": "dev-jwt-secret",

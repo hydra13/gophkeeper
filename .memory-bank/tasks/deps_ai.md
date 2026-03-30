@@ -181,20 +181,77 @@ tasks:
   - id: task_17
     title: "Тестирование и CI"
     file: ".memory-bank/tasks/task_17.md"
+    status: "completed"
     phase: 10
     parallel_group: 12
     mvp: true
     depends_on: [task_2, task_4, task_8, task_9, task_10, task_11, task_12, task_13, task_14, task_15, task_16]
     blocks: [task_18]
-    notes: "Закрывает test matrix, coverage и автоматизацию проверок."
+    notes: "Повторная валидация 2026-03-30 пройдена: замечания закрыты, все критерии приёмки выполнены; test matrix, coverage и автоматизация проверок подтверждены."
 
   - id: task_18
     title: "Документация и выпуск MVP"
     file: ".memory-bank/tasks/task_18.md"
+    status: "completed"
     phase: 10
     parallel_group: 13
     mvp: true
     depends_on: [task_2, task_3, task_10, task_16, task_17]
     blocks: []
-    notes: "Финализирует scope MVP, эксплуатационные документы и release readiness."
+    notes: "Повторная валидация 2026-03-30 пройдена: замечания закрыты, все критерии приёмки выполнены; README и backlog-границы актуализированы, package docs добавлены, runbook'и по key rotation/re-encryption уточнены, release readiness review зафиксирован."
+
+  - id: task_19
+    title: "Поддержка metadata в CLI для всех типов записей"
+    file: ".memory-bank/tasks/task_19.md"
+    status: "completed"
+    phase: 11
+    parallel_group: 14
+    mvp: true
+    depends_on: [task_16, task_18]
+    blocks: [task_22, task_23]
+    notes: "Повторная валидация 2026-03-30 пройдена: замечания закрыты, все критерии приёмки выполнены; metadata поддержана в add/update/get/list, help и README обновлены, CLI и e2e roundtrip через server/sync подтверждены тестами."
+
+  - id: task_20
+    title: "Согласовать CLI с TLS-only сервером и воспроизводимым quick start"
+    file: ".memory-bank/tasks/task_20.md"
+    status: "completed"
+    phase: 11
+    parallel_group: 14
+    mvp: true
+    depends_on: [task_8, task_15, task_16, task_18]
+    blocks: [task_22, task_23]
+    notes: "Повторная валидация 2026-03-30 пройдена: замечания закрыты, все 7 критериев приёмки выполнены; CLI fail-fast требует TLS cert, quick start и default config синхронизированы на configs/config.dev.json, documented TLS-path с configs/certs/dev.crt подтверждён тестами."
+
+  - id: task_21
+    title: "Fail-fast bootstrap сервера без stub-режима"
+    file: ".memory-bank/tasks/task_21.md"
+    status: "completed"
+    phase: 11
+    parallel_group: 14
+    mvp: true
+    depends_on: [task_8, task_9, task_18]
+    blocks: [task_22, task_23]
+    notes: "Повторная валидация 2026-03-30 пройдена: замечания закрыты, все 7 критериев приёмки выполнены; bootstrap fail-fast требует database.dsn, завершает старт при ошибке подключения/миграций, README синхронизирован, поведение health/readiness зафиксировано, тесты cmd/server и internal/config проходят."
+
+  - id: task_22
+    title: "Подтвердить и обеспечить покрытие тестами не ниже 70% по всей системе"
+    file: ".memory-bank/tasks/task_22.md"
+    status: "pending"
+    phase: 12
+    parallel_group: 15
+    mvp: true
+    depends_on: [task_17, task_19, task_20, task_21]
+    blocks: [task_23]
+    notes: "Делает coverage gate доказуемым: единая метрика, честный подсчёт по системе и подтверждённый порог >= 70%."
+
+  - id: task_23
+    title: "Повторная валидация соответствия MVP и release readiness"
+    file: ".memory-bank/tasks/task_23.md"
+    status: "pending"
+    phase: 12
+    parallel_group: 16
+    mvp: true
+    depends_on: [task_19, task_20, task_21, task_22]
+    blocks: []
+    notes: "Финализирует remediation-цикл: обновляет validation/release-readiness и подтверждает, что исправления действительно закрыли найденные расхождения."
 ```
