@@ -11,6 +11,11 @@ import (
 	"github.com/hydra13/gophkeeper/pkg/cache"
 )
 
+const (
+	defaultClientName = "cli-client"
+	defaultClientType = "cli"
+)
+
 // ClientCore — общий клиентский слой для CLI и desktop.
 // Не зависит от конкретного UI.
 // Работает через Transport (apiclient) и Store (cache).
@@ -54,7 +59,12 @@ func (c *ClientCore) Register(ctx context.Context, email, password string) error
 
 // Login аутентифицирует пользователя.
 func (c *ClientCore) Login(ctx context.Context, email, password string) error {
-	accessToken, refreshToken, err := c.transport.Login(ctx, email, password, c.deviceID, "cli-client", "cli")
+	return c.LoginWithClient(ctx, email, password, defaultClientName, defaultClientType)
+}
+
+// LoginWithClient аутентифицирует пользователя с явным client descriptor.
+func (c *ClientCore) LoginWithClient(ctx context.Context, email, password, clientName, clientType string) error {
+	accessToken, refreshToken, err := c.transport.Login(ctx, email, password, c.deviceID, clientName, clientType)
 	if err != nil {
 		return fmt.Errorf("login: %w", err)
 	}
@@ -97,6 +107,14 @@ func (c *ClientCore) ListRecords(ctx context.Context, recordType models.RecordTy
 
 	// Возвращаем из кеша
 	all := c.store.Records().GetAll()
+	if c.isOnline() && len(all) == 0 && c.store.Pending().Len() == 0 {
+		records, err := c.fetchRecordsSnapshot(ctx, recordType)
+		if err != nil {
+			return nil, err
+		}
+		return records, nil
+	}
+
 	if recordType == "" {
 		return all, nil
 	}
@@ -105,6 +123,39 @@ func (c *ClientCore) ListRecords(ctx context.Context, recordType models.RecordTy
 	for _, r := range all {
 		if r.Type == recordType && !r.IsDeleted() {
 			filtered = append(filtered, r)
+		}
+	}
+	return filtered, nil
+}
+
+func (c *ClientCore) fetchRecordsSnapshot(ctx context.Context, recordType models.RecordType) ([]models.Record, error) {
+	includeDeleted := recordType == ""
+	records, err := c.transport.ListRecords(ctx, recordType, includeDeleted)
+	if err != nil {
+		return nil, fmt.Errorf("list records: %w", err)
+	}
+
+	var maxRevision int64
+	for i := range records {
+		rec := records[i]
+		if rec.Revision > maxRevision {
+			maxRevision = rec.Revision
+		}
+		c.store.Records().Put(&rec)
+	}
+	if maxRevision > c.store.Sync().Get().LastRevision {
+		c.store.Sync().SetLastRevision(maxRevision)
+	}
+	_ = c.store.Flush()
+
+	if recordType == "" {
+		return c.store.Records().GetAll(), nil
+	}
+
+	var filtered []models.Record
+	for _, rec := range c.store.Records().GetAll() {
+		if rec.Type == recordType && !rec.IsDeleted() {
+			filtered = append(filtered, rec)
 		}
 	}
 	return filtered, nil
@@ -319,6 +370,15 @@ func (c *ClientCore) RestoreAuth() bool {
 func (c *ClientCore) IsAuthenticated() bool {
 	authData, ok := c.store.Auth().Get()
 	return ok && authData.AccessToken != ""
+}
+
+// CurrentAuth возвращает копию текущего состояния аутентификации из локального кеша.
+func (c *ClientCore) CurrentAuth() (cache.AuthData, bool) {
+	authData, ok := c.store.Auth().Get()
+	if !ok || authData == nil {
+		return cache.AuthData{}, false
+	}
+	return *authData, true
 }
 
 // UploadBinary загружает бинарные данные на сервер через chunk upload.

@@ -273,6 +273,56 @@ func TestClientCore_ListRecords_FilterByType(t *testing.T) {
 	assert.Len(t, records, 3)
 }
 
+func TestClientCore_ListRecords_FallbackToServerSnapshotAfterRelogin(t *testing.T) {
+	core, transport, store := newTestCore(t)
+	loginHelper(t, core)
+
+	store.Records().Put(&models.Record{
+		ID:       1,
+		Name:     "cached-before-logout",
+		Type:     models.RecordTypeText,
+		Payload:  models.TextPayload{Content: "old"},
+		Revision: 1,
+	})
+
+	require.NoError(t, core.Logout(context.Background()))
+	require.NoError(t, core.Login(context.Background(), "test@example.com", "password123"))
+
+	pullCalls := 0
+	transport.PullFunc = func(ctx context.Context, sinceRevision int64, deviceID string, limit int32) (*apiclient.PullResult, error) {
+		pullCalls++
+		return &apiclient.PullResult{NextRevision: sinceRevision}, nil
+	}
+
+	listCalls := 0
+	transport.ListRecordsFunc = func(ctx context.Context, recordType models.RecordType, includeDeleted bool) ([]models.Record, error) {
+		listCalls++
+		assert.Equal(t, models.RecordType(""), recordType)
+		assert.True(t, includeDeleted)
+		return []models.Record{
+			{
+				ID:       42,
+				Name:     "server-secret",
+				Type:     models.RecordTypeLogin,
+				Payload:  models.LoginPayload{Login: "u", Password: "p"},
+				Revision: 7,
+			},
+		}, nil
+	}
+
+	records, err := core.ListRecords(context.Background(), "")
+	require.NoError(t, err)
+	assert.Len(t, records, 1)
+	assert.Equal(t, "server-secret", records[0].Name)
+	assert.Equal(t, 1, listCalls)
+	assert.Equal(t, 1, pullCalls)
+	assert.Equal(t, int64(7), store.Sync().Get().LastRevision)
+
+	cached, ok := store.Records().Get(42)
+	require.True(t, ok)
+	assert.Equal(t, "server-secret", cached.Name)
+}
+
 // --- Sync ---
 
 func TestClientCore_SyncNow(t *testing.T) {

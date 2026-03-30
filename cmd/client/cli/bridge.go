@@ -1,57 +1,22 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/hydra13/gophkeeper/cmd/client/cli/commands"
+	"github.com/hydra13/gophkeeper/cmd/client/common"
 	"github.com/hydra13/gophkeeper/internal/models"
-	grpcc "github.com/hydra13/gophkeeper/pkg/apiclient/grpc"
-	"github.com/hydra13/gophkeeper/pkg/cache"
 	clientcore "github.com/hydra13/gophkeeper/pkg/clientcore"
+	"github.com/hydra13/gophkeeper/pkg/clientui"
 	"golang.org/x/term"
 )
 
-var newCoreFunc = defaultNewCore
+var newCoreFunc = common.NewCore
 
 func defaultNewCore() (*clientcore.ClientCore, func(), error) {
-	ctx := context.Background()
-	addr := defaultServerAddr()
-	certFile := defaultTLSCertFile()
-
-	if certFile == "" {
-		return nil, nil, fmt.Errorf("TLS certificate is required: set GK_TLS_CERT_FILE or run from project root (configs/certs/dev.crt)")
-	}
-
-	client, err := grpcc.NewClient(ctx, grpcc.Config{
-		Address:     addr,
-		TLSCertFile: certFile,
-	})
-	if err != nil {
-		return nil, nil, fmt.Errorf("connect to server: %w", err)
-	}
-
-	store, err := cache.NewFileStore(defaultCacheDir())
-	if err != nil {
-		client.Close()
-		return nil, nil, fmt.Errorf("init cache: %w", err)
-	}
-
-	core := clientcore.New(client, store, clientcore.Config{
-		DeviceID: "cli-" + hostname(),
-	})
-
-	core.RestoreAuth()
-
-	cleanup := func() {
-		store.Flush()
-		client.Close()
-	}
-
-	return core, cleanup, nil
+	return common.NewCore()
 }
 
 func newCore() (*clientcore.ClientCore, func(), error) {
@@ -70,36 +35,19 @@ func fatal(err error) {
 }
 
 func defaultCacheDir() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		home = "."
-	}
-	return filepath.Join(home, ".gophkeeper", "cache")
+	return common.DefaultCacheDir()
 }
 
 func defaultServerAddr() string {
-	if v := os.Getenv("GK_GRPC_ADDRESS"); v != "" {
-		return v
-	}
-	return "localhost:9090"
+	return common.DefaultServerAddr()
 }
 
 func defaultTLSCertFile() string {
-	if v := os.Getenv("GK_TLS_CERT_FILE"); v != "" {
-		return v
-	}
-	if _, err := os.Stat("configs/certs/dev.crt"); err == nil {
-		return "configs/certs/dev.crt"
-	}
-	return ""
+	return common.DefaultTLSCertFile()
 }
 
 func hostname() string {
-	name, err := os.Hostname()
-	if err != nil {
-		return "unknown"
-	}
-	return name
+	return common.Hostname()
 }
 
 var readPasswordFunc = defaultReadPassword
@@ -149,19 +97,19 @@ func printUsage() {
 }
 
 func extractMetadata(args []string) (metadata string, found bool, rest []string) {
-	return commands.ExtractMetadata(args)
+	return clientui.ExtractMetadata(args)
 }
 
 func parseRecordType(s string) (models.RecordType, error) {
-	return commands.ParseRecordType(s)
+	return clientui.ParseRecordType(s)
 }
 
 func printRecord(rec *models.Record) {
-	commands.PrintRecord(os.Stdout, rec)
+	clientui.PrintRecord(os.Stdout, rec)
 }
 
 func printRecordShort(r models.Record) {
-	commands.PrintRecordShort(os.Stdout, r)
+	clientui.PrintRecordShort(os.Stdout, r)
 }
 
 func buildPayload(recordType models.RecordType, data string) models.RecordPayload {

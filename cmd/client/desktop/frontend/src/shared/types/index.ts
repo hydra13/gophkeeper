@@ -1,0 +1,69 @@
+export type RecordType = "login" | "text" | "binary" | "card";
+export type RecordFilter = "all" | RecordType;
+
+export type SessionState = {
+  authenticated: boolean;
+  email: string;
+  deviceId: string;
+  appName: string;
+  version: string;
+  serverAddress: string;
+  cacheDir: string;
+};
+
+export type RecordPayload = {
+  login: string;
+  password: string;
+  content: string;
+  number: string;
+  holder: string;
+  expiry: string;
+  cvv: string;
+  binarySize: number;
+};
+
+export type RecordListItem = {
+  id: number;
+  type: RecordType;
+  name: string;
+  metadata: string;
+  metadataPreview: string;
+  revision: number;
+  deleted: boolean;
+  payloadVersion: number;
+  payload: RecordPayload;
+};
+
+export type RecordDetails = {
+  id: number;
+  type: RecordType;
+  name: string;
+  metadata: string;
+  revision: number;
+  deleted: boolean;
+  deviceId: string;
+  keyVersion: number;
+  payloadVersion: number;
+  createdAt: string;
+  updatedAt: string;
+  payload: RecordPayload;
+};
+
+export type RecordUpsertInput = {
+  id: number;
+  type: RecordType;
+  name: string;
+  metadata: string;
+  login: string;
+  password: string;
+  content: string;
+  number: string;
+  holder: string;
+  expiry: string;
+  cvv: string;
+  filePath: string;
+};
+
+export type SyncResult = {
+  message: string;
+};

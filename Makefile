@@ -1,4 +1,4 @@
-.PHONY: fmt lint test cover cover-check proto proto-check build build-server build-client clean dev-up dev-down dev-reset test-storage-integration
+.PHONY: fmt lint test cover cover-check proto proto-check build build-server build-client build-client-cli build-client-tui build-client-desktop clean dev-up dev-down dev-reset test-storage-integration
 
 fmt:
 	goimports -w .
@@ -24,21 +24,30 @@ cover-check: test
 	echo "PASS: coverage $${COVERAGE}% meets 70% threshold"
 
 proto:
-	protoc --go_out=. --go_opt=paths=source_relative \
-	       --go-grpc_out=. --go-grpc_opt=paths=source_relative \
+	protoc --go_out=. --go_opt=module=github.com/hydra13/gophkeeper \
+	       --go-grpc_out=. --go-grpc_opt=module=github.com/hydra13/gophkeeper \
 	       rpc/proto/v1/*.proto
 
 proto-check:
 	@echo "==> Checking proto compilation..."
-	@protoc --go_out=. --go_opt=paths=source_relative \
-	        --go-grpc_out=. --go-grpc_opt=paths=source_relative \
+	@protoc --go_out=. --go_opt=module=github.com/hydra13/gophkeeper \
+	        --go-grpc_out=. --go-grpc_opt=module=github.com/hydra13/gophkeeper \
 	        rpc/proto/v1/*.proto && echo "Proto compilation OK"
 
 build-server:
 	go build -o bin/server ./cmd/server
 
-build-client:
+build-client-cli:
 	go build -o bin/client ./cmd/client/cli
+
+build-client-tui:
+	go build -o bin/client-tui ./cmd/client/tui
+
+build-client-desktop:
+	cd cmd/client/desktop/frontend && npm install && npm run build
+	env CGO_LDFLAGS="-framework UniformTypeIdentifiers $$CGO_LDFLAGS" go build -tags production -o bin/client-desktop ./cmd/client/desktop
+
+build-client: build-client-cli build-client-tui
 
 build: build-server build-client
 

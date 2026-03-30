@@ -1,12 +1,13 @@
 # gophkeeper
 
-Менеджер паролей GophKeeper — серверное хранилище секретов с CLI-клиентом.
+Менеджер паролей GophKeeper — серверное хранилище секретов с CLI-, TUI- и desktop-клиентами.
 
 ## MVP scope
 
 **Входит в первую поставку:**
 - Сервер (`cmd/server`) — HTTP REST + gRPC API, TLS-only
-- CLI-клиент (`cmd/client/cli`) — интерактивный терминальный клиент
+- CLI-клиент (`cmd/client/cli`) — командный интерфейс
+- TUI-клиент (`cmd/client/tui`) — интерактивный терминальный интерфейс на `tview`
 - Типы записей: логин/пароль, текст, бинарные данные, банковские карты
 - Server-side шифрование (AES-256-GCM, envelope encryption с data keys)
 - Ротация ключей и фоновое перешифрование данных
@@ -15,10 +16,8 @@
 - PostgreSQL для хранения, S3-compatible blob-хранилище для бинарных данных
 
 **Не входит в MVP (вынесено в backlog):**
-- Desktop-клиент (GUI)
 - Web-клиент
 - OTP/TOTP
-- TUI-интерфейс
 - Импорт/экспорт данных
 
 ## Архитектура
@@ -27,6 +26,9 @@
 cmd/
   server/           — точка входа сервера
   client/cli/       — точка входа CLI-клиента
+  client/tui/       — точка входа TUI-клиента
+  client/desktop/   — desktop-клиент на Wails + React
+  client/common/    — общий bootstrap клиента
 internal/
   api/              — HTTP-обработчики (по одному пакету на endpoint)
   rpc/              — gRPC-сервисы и protobuf-контракты
@@ -40,6 +42,7 @@ internal/
   migrations/       — applying goose-миграций
 pkg/
   clientcore/       — use-case слой клиента (офлайн, pending-ops, sync)
+  clientui/         — общие helper-функции для CLI/TUI
   apiclient/        — транспортный слой клиента (gRPC; HTTP — заглушка, post-MVP)
   cache/            — клиентское локальное хранилище состояния
   buildinfo/        — версия и дата сборки
@@ -108,14 +111,14 @@ make dev-down
 - `blob.secret_key = "minioadmin"`
 - `blob.region = "us-east-1"`
 
-CLI-клиент использует переменные окружения для адреса и сертификата:
+CLI-, TUI- и desktop-клиенты используют переменные окружения для адреса и сертификата:
 
 | Переменная          | По умолчанию               | Описание                              |
 | ------------------- | -------------------------- | ------------------------------------- |
 | `GK_GRPC_ADDRESS`   | `localhost:9090`           | Адрес gRPC-сервера                    |
 | `GK_TLS_CERT_FILE`  | `configs/certs/dev.crt`    | Путь к CA-сертификату для TLS         |
 
-Для разработки в `configs/certs/` лежат самоподписанные сертификаты. CLI автоматически подхватит `configs/certs/dev.crt` при запуске из корня проекта. Сервер и CLI должны запускаться из корня репозитория, чтобы пути к сертификатам разрешались корректно.
+Для разработки в `configs/certs/` лежат самоподписанные сертификаты. Клиенты автоматически подхватят `configs/certs/dev.crt` при запуске из корня проекта. Сервер, CLI и TUI должны запускаться из корня репозитория, чтобы пути к сертификатам разрешались корректно.
 
 ### 3. Сборка и запуск сервера
 
@@ -131,7 +134,7 @@ make build-server
 CLI подключается к серверу по TLS. По умолчанию используется `configs/certs/dev.crt` как CA-сертификат — запускайте из корня проекта.
 
 ```bash
-make build-client
+make build-client-cli
 ./bin/client register user@example.com
 ./bin/client login user@example.com
 ./bin/client add login "Мой сайт"
@@ -143,6 +146,62 @@ make build-client
 
 ```bash
 GK_TLS_CERT_FILE=/path/to/ca.crt ./bin/client register user@example.com
+```
+
+### 5. Сборка и запуск TUI
+
+TUI использует тот же `ClientCore`, тот же локальный cache и те же TLS-параметры, что и CLI. При старте доступны `Login`, `Register`, `Exit`; после входа доступны `list/get/add/update/delete/sync/logout`.
+
+```bash
+make build-client-tui
+./bin/client-tui
+```
+
+Для быстрого запуска без сборки бинарника:
+
+```bash
+go run ./cmd/client/tui
+```
+
+Горячие клавиши на основном экране:
+
+- `l` — обновить список
+- `g` — открыть запись или сохранить binary на диск
+- `a` — добавить запись
+- `u` — обновить выбранную запись
+- `d` — удалить выбранную запись
+- `s` — синхронизация
+- `o` — logout
+- `q` — выход
+
+### 6. Сборка и запуск desktop
+
+Desktop-клиент использует тот же `ClientCore`, тот же локальный cache и тот же TLS bootstrap, что и CLI/TUI. На старте доступны только `Login` и `Register`; после успешного `register` показывается modal `registered successfully`, затем автоматически выполняется login.
+
+Для локальной сборки нужен установленный Node.js 20+ и Wails CLI.
+
+```bash
+cd cmd/client/desktop/frontend
+npm install
+npm run build
+cd ../../..
+env CGO_LDFLAGS="-framework UniformTypeIdentifiers $CGO_LDFLAGS" \
+  go run -tags production ./cmd/client/desktop
+```
+
+Или через `make`:
+
+```bash
+make build-client-desktop
+./bin/client-desktop
+```
+
+Важно: `Wails` требует специальные build tags. Поэтому direct-сборка и direct-запуск должны идти с `-tags production`, например:
+
+```bash
+env CGO_LDFLAGS="-framework UniformTypeIdentifiers $CGO_LDFLAGS" \
+  go build -tags production -o bin/client-desktop ./cmd/client/desktop
+./bin/client-desktop
 ```
 
 ## CLI-команды
@@ -248,7 +307,9 @@ curl http://localhost:9000/minio/health/live
 | `make proto`       | Генерация Go-кода из protobuf                 |
 | `make build`       | Сборка server + client                        |
 | `make build-server`| Сборка только сервера                         |
-| `make build-client`| Сборка только CLI-клиента                     |
+| `make build-client`| Сборка обоих клиентов: CLI + TUI              |
+| `make build-client-cli`| Сборка только CLI-клиента                |
+| `make build-client-tui`| Сборка только TUI-клиента                |
 | `make clean`       | Удаление артефактов сборки                    |
 | `make dev-up`      | Поднять PostgreSQL + MinIO через Docker Compose |
 | `make dev-down`    | Остановить локальную инфраструктуру           |

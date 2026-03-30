@@ -4,78 +4,25 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
-	"time"
 
 	"github.com/hydra13/gophkeeper/internal/models"
+	"github.com/hydra13/gophkeeper/pkg/clientui"
 )
 
 func ExtractMetadata(args []string) (metadata string, found bool, rest []string) {
-	for i := 0; i < len(args); i++ {
-		if args[i] == "--metadata" {
-			if i+1 < len(args) {
-				return args[i+1], true, append(args[:i:i], args[i+2:]...)
-			}
-			return "", true, args[:i:i]
-		}
-	}
-	return "", false, args
+	return clientui.ExtractMetadata(args)
 }
 
 func ParseRecordType(s string) (models.RecordType, error) {
-	rt := models.RecordType(strings.ToLower(s))
-	if !models.ValidRecordTypes[rt] {
-		return "", fmt.Errorf("invalid record type %q; valid: login, text, binary, card", s)
-	}
-	return rt, nil
+	return clientui.ParseRecordType(s)
 }
 
 func PrintRecord(w io.Writer, rec *models.Record) {
-	fmt.Fprintf(w, "ID:       %d\n", rec.ID)
-	fmt.Fprintf(w, "Type:     %s\n", rec.Type)
-	fmt.Fprintf(w, "Name:     %s\n", rec.Name)
-	fmt.Fprintf(w, "Revision: %d\n", rec.Revision)
-	fmt.Fprintf(w, "Metadata: %s\n", rec.Metadata)
-
-	switch p := rec.Payload.(type) {
-	case models.LoginPayload:
-		fmt.Fprintf(w, "Login:    %s\n", p.Login)
-		fmt.Fprintf(w, "Password: %s\n", p.Password)
-	case models.TextPayload:
-		fmt.Fprintf(w, "Content:  %s\n", p.Content)
-	case models.BinaryPayload:
-		fmt.Fprintf(w, "Size:     %d bytes\n", len(p.Data))
-	case models.CardPayload:
-		fmt.Fprintf(w, "Number:     %s\n", p.Number)
-		fmt.Fprintf(w, "Holder:     %s\n", p.HolderName)
-		fmt.Fprintf(w, "Expiry:     %s\n", p.ExpiryDate)
-		fmt.Fprintf(w, "CVV:        %s\n", p.CVV)
-	default:
-		fmt.Fprintf(w, "Payload:  %v\n", rec.Payload)
-	}
-
-	if rec.IsDeleted() {
-		fmt.Fprintf(w, "Deleted:  %s\n", rec.DeletedAt.Format(time.RFC3339))
-	}
+	clientui.PrintRecord(w, rec)
 }
 
-func PrintRecordShort(w io.Writer, r models.Record) {
-	deleted := ""
-	if r.IsDeleted() {
-		deleted = " [deleted]"
-	}
-	meta := ""
-	if r.Metadata != "" {
-		firstLine := r.Metadata
-		if idx := strings.Index(r.Metadata, "\n"); idx >= 0 {
-			firstLine = r.Metadata[:idx]
-		}
-		if len(firstLine) > 40 {
-			firstLine = firstLine[:40] + "..."
-		}
-		meta = fmt.Sprintf("\t%s", firstLine)
-	}
-	fmt.Fprintf(w, "%d\t%s\t%s\trev=%d%s%s\n", r.ID, r.Type, r.Name, r.Revision, deleted, meta)
+func PrintRecordShort(w io.Writer, rec models.Record) {
+	clientui.PrintRecordShort(w, rec)
 }
 
 func (r *Runner) promptPayload(recordType models.RecordType) models.RecordPayload {
@@ -112,12 +59,20 @@ func (r *Runner) BuildPayload(recordType models.RecordType, data string) models.
 		return r.promptPayload(recordType)
 	case models.RecordTypeText:
 		if data != "" {
-			return models.TextPayload{Content: data}
+			payload, err := clientui.BuildPayload(recordType, clientui.PayloadFields{Content: data})
+			if err != nil {
+				r.fatal(err)
+			}
+			return payload
 		}
 		return r.promptPayload(recordType)
 	case models.RecordTypeCard:
 		if data != "" {
-			return models.CardPayload{Number: data}
+			payload, err := clientui.BuildPayload(recordType, clientui.PayloadFields{Number: data})
+			if err != nil {
+				r.fatal(err)
+			}
+			return payload
 		}
 		return r.promptPayload(recordType)
 	case models.RecordTypeBinary:
