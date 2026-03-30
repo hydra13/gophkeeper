@@ -17,7 +17,7 @@ type MockTransport struct {
 	GetRecordFunc             func(ctx context.Context, id int64) (*models.Record, error)
 	ListRecordsFunc           func(ctx context.Context, recordType models.RecordType, includeDeleted bool) ([]models.Record, error)
 	UpdateRecordFunc          func(ctx context.Context, record *models.Record) (*models.Record, error)
-	DeleteRecordFunc          func(ctx context.Context, id int64) error
+	DeleteRecordFunc          func(ctx context.Context, id int64, deviceID string) error
 	PullFunc                  func(ctx context.Context, sinceRevision int64, deviceID string, limit int32) (*apiclient.PullResult, error)
 	PushFunc                  func(ctx context.Context, changes []apiclient.PendingChange, deviceID string) (*apiclient.PushResult, error)
 	CreateUploadSessionFunc   func(ctx context.Context, recordID, totalChunks, chunkSize, totalSize, keyVersion int64) (int64, error)
@@ -107,9 +107,9 @@ func (m *MockTransport) UpdateRecord(ctx context.Context, record *models.Record)
 	return &result, nil
 }
 
-func (m *MockTransport) DeleteRecord(ctx context.Context, id int64) error {
+func (m *MockTransport) DeleteRecord(ctx context.Context, id int64, deviceID string) error {
 	if m.DeleteRecordFunc != nil {
-		return m.DeleteRecordFunc(ctx, id)
+		return m.DeleteRecordFunc(ctx, id, deviceID)
 	}
 	return nil
 }

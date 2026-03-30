@@ -3,6 +3,7 @@ package clientcore
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/hydra13/gophkeeper/internal/models"
@@ -18,6 +19,8 @@ type ClientCore struct {
 	store     cache.Store
 	deviceID  string
 }
+
+var localIDSeq atomic.Int64
 
 // Config — конфигурация ClientCore.
 type Config struct {
@@ -131,6 +134,8 @@ func (c *ClientCore) GetRecord(ctx context.Context, id int64) (*models.Record, e
 // SaveRecord создаёт или обновляет запись.
 // Если офлайн — добавляет в pending-очередь.
 func (c *ClientCore) SaveRecord(ctx context.Context, record *models.Record) (*models.Record, error) {
+	record.DeviceID = c.deviceID
+
 	if c.isOnline() {
 		var result *models.Record
 		var err error
@@ -151,7 +156,9 @@ func (c *ClientCore) SaveRecord(ctx context.Context, record *models.Record) (*mo
 	}
 
 	// Офлайн — сохраняем в кеш и добавляем в pending
-	record.DeviceID = c.deviceID
+	if record.ID == 0 {
+		record.ID = nextLocalID()
+	}
 	c.store.Records().Put(record)
 
 	opType := cache.OperationCreate
@@ -175,7 +182,7 @@ func (c *ClientCore) SaveRecord(ctx context.Context, record *models.Record) (*mo
 // Если офлайн — добавляет в pending-очередь.
 func (c *ClientCore) DeleteRecord(ctx context.Context, id int64) error {
 	if c.isOnline() {
-		if err := c.transport.DeleteRecord(ctx, id); err != nil {
+		if err := c.transport.DeleteRecord(ctx, id, c.deviceID); err != nil {
 			return fmt.Errorf("delete record: %w", err)
 		}
 
@@ -213,6 +220,10 @@ func (c *ClientCore) SyncNow(ctx context.Context) error {
 		return fmt.Errorf("flush pending: %w", err)
 	}
 
+	if err := c.flushPendingTransfers(ctx); err != nil {
+		return fmt.Errorf("flush pending transfers: %w", err)
+	}
+
 	// Затем получаем изменения с сервера
 	if err := c.syncFromServer(ctx); err != nil {
 		return fmt.Errorf("sync from server: %w", err)
@@ -236,12 +247,14 @@ func (c *ClientCore) flushPending(ctx context.Context) error {
 		switch op.Operation {
 		case cache.OperationCreate:
 			if op.Record != nil {
+				localID := op.Record.ID
 				result, err := c.transport.CreateRecord(ctx, op.Record)
 				if err != nil {
 					// Возвращаем в очередь при ошибке
 					c.store.Pending().Enqueue(op)
 					return fmt.Errorf("push create record %d: %w", op.RecordID, err)
 				}
+				c.rebindOfflineRecord(localID, result, ops)
 				c.store.Records().Put(result)
 			}
 		case cache.OperationUpdate:
@@ -254,7 +267,7 @@ func (c *ClientCore) flushPending(ctx context.Context) error {
 				c.store.Records().Put(result)
 			}
 		case cache.OperationDelete:
-			if err := c.transport.DeleteRecord(ctx, op.RecordID); err != nil {
+			if err := c.transport.DeleteRecord(ctx, op.RecordID, c.deviceID); err != nil {
 				c.store.Pending().Enqueue(op)
 				return fmt.Errorf("push delete record %d: %w", op.RecordID, err)
 			}
@@ -311,14 +324,30 @@ func (c *ClientCore) IsAuthenticated() bool {
 // UploadBinary загружает бинарные данные на сервер через chunk upload.
 // Поддерживает resume: если upload уже был начат, продолжает с последнего чанка.
 func (c *ClientCore) UploadBinary(ctx context.Context, recordID int64, data []byte, chunkSize int64) error {
-	if !c.isOnline() {
-		return fmt.Errorf("offline: cannot upload")
-	}
-
 	totalSize := int64(len(data))
 	totalChunks := totalSize / chunkSize
 	if totalSize%chunkSize != 0 {
 		totalChunks++
+	}
+
+	if !c.isOnline() {
+		transferID := nextLocalID()
+		if existing, ok := c.store.Transfers().GetByRecord(recordID); ok && existing.Type == cache.TransferUpload {
+			transferID = existing.ID
+		}
+		c.store.Transfers().Save(cache.Transfer{
+			ID:           transferID,
+			Type:         cache.TransferUpload,
+			RecordID:     recordID,
+			TotalChunks:  totalChunks,
+			CompletedIdx: -1,
+			Status:       cache.TransferStatusPaused,
+			ChunkSize:    chunkSize,
+			TotalSize:    totalSize,
+			Data:         append([]byte(nil), data...),
+		})
+		_ = c.store.Flush()
+		return nil
 	}
 
 	// Проверим, есть ли незавершённый upload (active или paused)
@@ -329,31 +358,39 @@ func (c *ClientCore) UploadBinary(ctx context.Context, recordID int64, data []by
 
 	var uploadID int64
 	var startChunk int64
+	var err error
 
 	if transfer != nil {
 		// Resume
 		uploadID = transfer.SessionID
 		startChunk = transfer.CompletedIdx + 1
 
-		status, err := c.transport.GetUploadStatus(ctx, uploadID)
-		if err != nil {
-			// Upload больше не валиден — создаём новый
+		if uploadID <= 0 {
 			uploadID, err = c.transport.CreateUploadSession(ctx, recordID, totalChunks, chunkSize, totalSize, 1)
 			if err != nil {
 				return fmt.Errorf("create upload session: %w", err)
 			}
 			startChunk = 0
 		} else {
-			// Проверим, какие чанки уже загружены
-			if len(status.MissingChunks) > 0 {
-				startChunk = status.MissingChunks[0]
+			status, err := c.transport.GetUploadStatus(ctx, uploadID)
+			if err != nil {
+				// Upload больше не валиден — создаём новый
+				uploadID, err = c.transport.CreateUploadSession(ctx, recordID, totalChunks, chunkSize, totalSize, 1)
+				if err != nil {
+					return fmt.Errorf("create upload session: %w", err)
+				}
+				startChunk = 0
 			} else {
-				startChunk = status.ReceivedChunks
+				// Проверим, какие чанки уже загружены
+				if len(status.MissingChunks) > 0 {
+					startChunk = status.MissingChunks[0]
+				} else {
+					startChunk = status.ReceivedChunks
+				}
 			}
 		}
 	} else {
 		// Новый upload
-		var err error
 		uploadID, err = c.transport.CreateUploadSession(ctx, recordID, totalChunks, chunkSize, totalSize, 1)
 		if err != nil {
 			return fmt.Errorf("create upload session: %w", err)
@@ -368,7 +405,21 @@ func (c *ClientCore) UploadBinary(ctx context.Context, recordID int64, data []by
 			Status:      cache.TransferStatusActive,
 			ChunkSize:   chunkSize,
 			TotalSize:   totalSize,
+			Data:        append([]byte(nil), data...),
 		}
+		c.store.Transfers().Save(*transfer)
+	}
+
+	// Если transfer существовал офлайн/локально — переведём его на server session id.
+	if transfer != nil && transfer.SessionID != uploadID {
+		c.store.Transfers().Delete(transfer.ID)
+		transfer.ID = uploadID
+		transfer.SessionID = uploadID
+		transfer.Status = cache.TransferStatusActive
+		transfer.TotalChunks = totalChunks
+		transfer.ChunkSize = chunkSize
+		transfer.TotalSize = totalSize
+		transfer.Data = append([]byte(nil), data...)
 		c.store.Transfers().Save(*transfer)
 	}
 
@@ -393,7 +444,7 @@ func (c *ClientCore) UploadBinary(ctx context.Context, recordID int64, data []by
 				Status:       cache.TransferStatusPaused,
 				ChunkSize:    chunkSize,
 				TotalSize:    totalSize,
-				Data:         data,
+				Data:         append([]byte(nil), data...),
 			})
 			_ = c.store.Flush()
 			return fmt.Errorf("upload chunk %d: %w", i, err)
@@ -416,6 +467,44 @@ func (c *ClientCore) UploadBinary(ctx context.Context, recordID int64, data []by
 	_ = c.store.Flush()
 
 	return nil
+}
+
+func (c *ClientCore) flushPendingTransfers(ctx context.Context) error {
+	for _, transfer := range c.store.Transfers().ListPending() {
+		if transfer.Type != cache.TransferUpload || len(transfer.Data) == 0 {
+			continue
+		}
+		if transfer.RecordID <= 0 {
+			continue
+		}
+		if err := c.UploadBinary(ctx, transfer.RecordID, transfer.Data, transfer.ChunkSize); err != nil {
+			return fmt.Errorf("upload transfer for record %d: %w", transfer.RecordID, err)
+		}
+	}
+	return nil
+}
+
+func (c *ClientCore) rebindOfflineRecord(localID int64, result *models.Record, ops []cache.PendingOp) {
+	if localID <= 0 {
+		c.store.Records().Delete(localID)
+	}
+	if transfer, ok := c.store.Transfers().GetByRecord(localID); ok {
+		c.store.Transfers().Delete(transfer.ID)
+		transfer.RecordID = result.ID
+		c.store.Transfers().Save(transfer)
+	}
+	for i := range ops {
+		if ops[i].RecordID == localID {
+			ops[i].RecordID = result.ID
+		}
+		if ops[i].Record != nil && ops[i].Record.ID == localID {
+			ops[i].Record.ID = result.ID
+		}
+	}
+}
+
+func nextLocalID() int64 {
+	return -localIDSeq.Add(1)
 }
 
 // DownloadBinary скачивает бинарные данные с сервера через chunk download.

@@ -24,19 +24,19 @@ import (
 
 // Client — gRPC-реализация Transport.
 type Client struct {
-	authConn    *grpc.ClientConn
-	authClient  pbv1.AuthServiceClient
-	dataClient  pbv1.DataServiceClient
-	syncClient  pbv1.SyncServiceClient
+	authConn     *grpc.ClientConn
+	authClient   pbv1.AuthServiceClient
+	dataClient   pbv1.DataServiceClient
+	syncClient   pbv1.SyncServiceClient
 	uploadClient pbv1.UploadsServiceClient
-	accessToken string
+	accessToken  string
 }
 
 // Config — параметры подключения gRPC-клиента.
 type Config struct {
-	Address      string
-	TLSCertFile  string // пустая строка = insecure
-	AccessToken  string
+	Address     string
+	TLSCertFile string // пустая строка = insecure
+	AccessToken string
 }
 
 // NewClient создаёт gRPC-клиент и подключается к серверу.
@@ -147,11 +147,11 @@ func (c *Client) CreateRecord(ctx context.Context, record *models.Record) (*mode
 	pbPayload := domainToProtoPayload(record)
 
 	req := &pbv1.CreateRecordRequest{
-		Type:          pbRecord.Type,
-		Name:          pbRecord.Name,
-		Metadata:      pbRecord.Metadata,
-		DeviceId:      pbRecord.DeviceId,
-		KeyVersion:    pbRecord.KeyVersion,
+		Type:           pbRecord.Type,
+		Name:           pbRecord.Name,
+		Metadata:       pbRecord.Metadata,
+		DeviceId:       pbRecord.DeviceId,
+		KeyVersion:     pbRecord.KeyVersion,
 		PayloadVersion: pbRecord.PayloadVersion,
 	}
 
@@ -233,10 +233,10 @@ func (c *Client) UpdateRecord(ctx context.Context, record *models.Record) (*mode
 }
 
 // DeleteRecord удаляет запись.
-func (c *Client) DeleteRecord(ctx context.Context, id int64) error {
+func (c *Client) DeleteRecord(ctx context.Context, id int64, deviceID string) error {
 	_, err := c.dataClient.DeleteRecord(c.authContext(ctx), &pbv1.DeleteRecordRequest{
 		Id:       id,
-		DeviceId: "", // будет заполнен на уровне clientcore
+		DeviceId: deviceID,
 	})
 	if err != nil {
 		return fmt.Errorf("grpc delete record: %w", err)
@@ -282,7 +282,7 @@ func (c *Client) Push(ctx context.Context, changes []apiclient.PendingChange, de
 	}
 
 	resp, err := c.syncClient.Push(c.authContext(ctx), &pbv1.PushRequest{
-		Changes: pbChanges,
+		Changes:  pbChanges,
 		DeviceId: deviceID,
 	})
 	if err != nil {

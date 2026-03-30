@@ -88,7 +88,7 @@ make dev-down
 | `database.dsn`          | `GK_DATABASE_DSN`         | DSN PostgreSQL                      |
 | `auth.jwt_secret`       | `GK_JWT_SECRET`           | Секрет для подписи JWT              |
 | `auth.token_duration`   | `GK_TOKEN_DURATION`       | Срок жизни access token (ns)        |
-| `crypto.master_key`     | `GK_MASTER_KEY`           | 32-байтный мастер-ключ (base64 или raw) |
+| `crypto.master_key`     | `GK_MASTER_KEY`           | 32-байтный мастер-ключ (base64 или raw, raw-строка должна быть длиной ровно 32 байта) |
 | `blob.provider`         | `GK_BLOB_PROVIDER`        | Провайдер blob-хранилища (`local` или `s3`) |
 | `blob.path`             | `GK_BLOB_PATH`            | Директория для local blob-хранилища |
 | `blob.endpoint`         | `GK_BLOB_ENDPOINT`        | S3 endpoint (`http://localhost:9000`) |
@@ -152,10 +152,13 @@ gophkeeper-cli register [email]       Регистрация нового пол
 gophkeeper-cli login [email]          Вход (получение токенов)
 gophkeeper-cli logout                 Выход (отзыв токенов)
 gophkeeper-cli list [type]            Список записей (login|text|binary|card)
-gophkeeper-cli get <id> [path]        Получить запись по ID
+gophkeeper-cli get name <name> [path] Получить запись по имени
+gophkeeper-cli get id <id> [path]     Получить запись по ID
 gophkeeper-cli add <type> <name>      Добавить запись
-gophkeeper-cli update <id> <name>     Обновить запись
-gophkeeper-cli delete <id>            Удалить запись
+gophkeeper-cli update name <name> <new-name> [data] Обновить запись по имени
+gophkeeper-cli update id <id> <new-name> [data]     Обновить запись по ID
+gophkeeper-cli delete name <name>                   Удалить запись по имени
+gophkeeper-cli delete id <id>                       Удалить запись по ID
 gophkeeper-cli sync                   Синхронизация с сервером
 gophkeeper-cli version                Версия CLI
 ```
@@ -169,10 +172,10 @@ gophkeeper-cli version                Версия CLI
 gophkeeper-cli add text "Мой сайт" --metadata "Рабочий аккаунт"
 
 # Обновление metadata без изменения payload
-gophkeeper-cli update 5 "Мой сайт" --metadata "Новая заметка"
+gophkeeper-cli update id 5 "Мой сайт" --metadata "Новая заметка"
 
 # Очистка metadata
-gophkeeper-cli update 5 "Мой сайт" --metadata ""
+gophkeeper-cli update id 5 "Мой сайт" --metadata ""
 ```
 
 ## HTTP API

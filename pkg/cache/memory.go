@@ -275,6 +275,16 @@ func (t *transferStateImpl) ListActive() []Transfer {
 	return result
 }
 
+func (t *transferStateImpl) ListPending() []Transfer {
+	var result []Transfer
+	for _, tr := range t.data {
+		if tr.Status == TransferStatusActive || tr.Status == TransferStatusPaused {
+			result = append(result, tr)
+		}
+	}
+	return result
+}
+
 func (t *transferStateImpl) Clear() {
 	t.data = make(map[int64]Transfer)
 }

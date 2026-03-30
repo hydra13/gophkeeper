@@ -93,6 +93,7 @@ func TestClientCore_SaveRecord_Create_Online(t *testing.T) {
 	created := false
 	transport.CreateRecordFunc = func(ctx context.Context, record *models.Record) (*models.Record, error) {
 		created = true
+		assert.Equal(t, "test-device", record.DeviceID)
 		result := *record
 		result.ID = 42
 		result.Revision = 1
@@ -119,6 +120,7 @@ func TestClientCore_SaveRecord_Update_Online(t *testing.T) {
 	updated := false
 	transport.UpdateRecordFunc = func(ctx context.Context, record *models.Record) (*models.Record, error) {
 		updated = true
+		assert.Equal(t, "test-device", record.DeviceID)
 		result := *record
 		result.Revision = 2
 		return &result, nil
@@ -146,9 +148,10 @@ func TestClientCore_DeleteRecord_Online(t *testing.T) {
 	store.Records().Put(&models.Record{ID: 1, Name: "to-delete", Revision: 1})
 
 	deleted := false
-	transport.DeleteRecordFunc = func(ctx context.Context, id int64) error {
+	transport.DeleteRecordFunc = func(ctx context.Context, id int64, deviceID string) error {
 		deleted = true
 		assert.Equal(t, int64(1), id)
+		assert.Equal(t, "test-device", deviceID)
 		return nil
 	}
 
@@ -174,10 +177,10 @@ func TestClientCore_SaveRecord_Offline(t *testing.T) {
 
 	result, err := core.SaveRecord(context.Background(), rec)
 	require.NoError(t, err)
-	assert.Equal(t, int64(0), result.ID) // сервер не дал ID
+	assert.Negative(t, result.ID) // локальный временный ID до синхронизации
 
 	// Запись в кеше
-	got, ok := store.Records().Get(0)
+	got, ok := store.Records().Get(result.ID)
 	assert.True(t, ok)
 	assert.Equal(t, "offline-note", got.Name)
 
@@ -186,6 +189,30 @@ func TestClientCore_SaveRecord_Offline(t *testing.T) {
 	ops, err := store.Pending().Peek()
 	require.NoError(t, err)
 	assert.Equal(t, cache.OperationCreate, ops[0].Operation)
+}
+
+func TestClientCore_SaveRecordBinaryAndUpload_Offline_QueuesTransfer(t *testing.T) {
+	core, _, store := newTestCore(t)
+
+	rec := &models.Record{
+		Type:           models.RecordTypeBinary,
+		Name:           "offline-file",
+		Payload:        models.BinaryPayload{},
+		PayloadVersion: 1,
+	}
+
+	result, err := core.SaveRecord(context.Background(), rec)
+	require.NoError(t, err)
+	assert.Negative(t, result.ID)
+
+	err = core.UploadBinary(context.Background(), result.ID, []byte("offline-data"), 4)
+	require.NoError(t, err)
+
+	transfer, ok := store.Transfers().GetByRecord(result.ID)
+	require.True(t, ok)
+	assert.Equal(t, cache.TransferUpload, transfer.Type)
+	assert.Equal(t, cache.TransferStatusPaused, transfer.Status)
+	assert.Equal(t, []byte("offline-data"), transfer.Data)
 }
 
 func TestClientCore_DeleteRecord_Offline(t *testing.T) {
@@ -321,6 +348,113 @@ func TestClientCore_FlushPending_RetryOnError(t *testing.T) {
 	assert.Equal(t, 1, store.Pending().Len())
 }
 
+func TestClientCore_SyncNow_OfflineBinaryCreateUploadsAfterCreate(t *testing.T) {
+	core, transport, store := newTestCore(t)
+
+	rec := &models.Record{
+		Type:           models.RecordTypeBinary,
+		Name:           "queued-binary",
+		Payload:        models.BinaryPayload{},
+		PayloadVersion: 1,
+	}
+	result, err := core.SaveRecord(context.Background(), rec)
+	require.NoError(t, err)
+	require.NoError(t, core.UploadBinary(context.Background(), result.ID, []byte("payload-data"), 4))
+
+	loginHelper(t, core)
+
+	var createdRecord *models.Record
+	transport.CreateRecordFunc = func(ctx context.Context, record *models.Record) (*models.Record, error) {
+		createdRecord = &models.Record{}
+		*createdRecord = *record
+		server := *record
+		server.ID = 42
+		server.Revision = 1
+		return &server, nil
+	}
+
+	var uploadedRecordID int64
+	var uploadedChunks []int64
+	transport.CreateUploadSessionFunc = func(ctx context.Context, recordID, totalChunks, chunkSize, totalSize, keyVersion int64) (int64, error) {
+		uploadedRecordID = recordID
+		return 100, nil
+	}
+	transport.UploadChunkFunc = func(ctx context.Context, uploadID, chunkIndex int64, data []byte) error {
+		uploadedChunks = append(uploadedChunks, chunkIndex)
+		return nil
+	}
+	transport.PullFunc = func(ctx context.Context, sinceRevision int64, deviceID string, limit int32) (*apiclient.PullResult, error) {
+		return &apiclient.PullResult{NextRevision: 1}, nil
+	}
+
+	err = core.SyncNow(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, createdRecord)
+	assert.Negative(t, createdRecord.ID)
+	assert.Equal(t, int64(42), uploadedRecordID)
+	assert.Equal(t, []int64{0, 1, 2}, uploadedChunks)
+	assert.Equal(t, 0, store.Pending().Len())
+	_, ok := store.Transfers().GetByRecord(42)
+	assert.False(t, ok)
+	serverRec, ok := store.Records().Get(42)
+	require.True(t, ok)
+	assert.Equal(t, "queued-binary", serverRec.Name)
+}
+
+func TestClientCore_SyncNow_OfflineBinaryUpdateUploadsTransfer(t *testing.T) {
+	core, transport, store := newTestCore(t)
+
+	store.Records().Put(&models.Record{
+		ID:             10,
+		Type:           models.RecordTypeBinary,
+		Name:           "existing",
+		Payload:        models.BinaryPayload{},
+		PayloadVersion: 2,
+		Revision:       1,
+	})
+
+	updated, err := core.SaveRecord(context.Background(), &models.Record{
+		ID:             10,
+		Type:           models.RecordTypeBinary,
+		Name:           "existing",
+		Payload:        models.BinaryPayload{},
+		PayloadVersion: 2,
+		Revision:       1,
+	})
+	require.NoError(t, err)
+	require.Equal(t, int64(10), updated.ID)
+	require.NoError(t, core.UploadBinary(context.Background(), 10, []byte("updated-binary"), 6))
+
+	loginHelper(t, core)
+
+	transport.UpdateRecordFunc = func(ctx context.Context, record *models.Record) (*models.Record, error) {
+		server := *record
+		server.Revision = 2
+		return &server, nil
+	}
+	var createUploadCalls int
+	var uploadedRecordID int64
+	transport.CreateUploadSessionFunc = func(ctx context.Context, recordID, totalChunks, chunkSize, totalSize, keyVersion int64) (int64, error) {
+		createUploadCalls++
+		uploadedRecordID = recordID
+		return 200, nil
+	}
+	transport.UploadChunkFunc = func(ctx context.Context, uploadID, chunkIndex int64, data []byte) error {
+		return nil
+	}
+	transport.PullFunc = func(ctx context.Context, sinceRevision int64, deviceID string, limit int32) (*apiclient.PullResult, error) {
+		return &apiclient.PullResult{NextRevision: 2}, nil
+	}
+
+	err = core.SyncNow(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 1, createUploadCalls)
+	assert.Equal(t, int64(10), uploadedRecordID)
+	assert.Equal(t, 0, store.Pending().Len())
+	_, ok := store.Transfers().GetByRecord(10)
+	assert.False(t, ok)
+}
+
 // --- Upload/Download ---
 
 func TestClientCore_UploadBinary(t *testing.T) {
@@ -379,11 +513,16 @@ func TestClientCore_DownloadBinary(t *testing.T) {
 }
 
 func TestClientCore_UploadBinary_Offline(t *testing.T) {
-	core, _, _ := newTestCore(t)
+	core, _, store := newTestCore(t)
 	// Не логинимся
 
 	err := core.UploadBinary(context.Background(), 10, []byte("data"), 100)
-	assert.Error(t, err)
+	require.NoError(t, err)
+
+	transfer, ok := store.Transfers().GetByRecord(10)
+	require.True(t, ok)
+	assert.Equal(t, cache.TransferStatusPaused, transfer.Status)
+	assert.Equal(t, []byte("data"), transfer.Data)
 }
 
 func TestClientCore_DownloadBinary_Offline(t *testing.T) {
@@ -670,10 +809,10 @@ func TestClientCore_FlushPending_UpdateOperation(t *testing.T) {
 		RecordID:  5,
 		Operation: cache.OperationUpdate,
 		Record: &models.Record{
-			ID:      5,
-			Name:    "update-me",
-			Type:    models.RecordTypeText,
-			Payload: models.TextPayload{Content: "updated"},
+			ID:       5,
+			Name:     "update-me",
+			Type:     models.RecordTypeText,
+			Payload:  models.TextPayload{Content: "updated"},
 			Revision: 1,
 		},
 	})
@@ -718,9 +857,10 @@ func TestClientCore_FlushPending_DeleteOperation(t *testing.T) {
 	})
 
 	deleted := false
-	transport.DeleteRecordFunc = func(ctx context.Context, id int64) error {
+	transport.DeleteRecordFunc = func(ctx context.Context, id int64, deviceID string) error {
 		deleted = true
 		assert.Equal(t, int64(7), id)
+		assert.Equal(t, "test-device", deviceID)
 		return nil
 	}
 
@@ -780,7 +920,8 @@ func TestClientCore_FlushPending_DeleteError_Requeues(t *testing.T) {
 		},
 	})
 
-	transport.DeleteRecordFunc = func(ctx context.Context, id int64) error {
+	transport.DeleteRecordFunc = func(ctx context.Context, id int64, deviceID string) error {
+		assert.Equal(t, "test-device", deviceID)
 		return fmt.Errorf("forbidden")
 	}
 

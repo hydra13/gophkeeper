@@ -21,7 +21,7 @@ type Transport interface {
 	GetRecord(ctx context.Context, id int64) (*models.Record, error)
 	ListRecords(ctx context.Context, recordType models.RecordType, includeDeleted bool) ([]models.Record, error)
 	UpdateRecord(ctx context.Context, record *models.Record) (*models.Record, error)
-	DeleteRecord(ctx context.Context, id int64) error
+	DeleteRecord(ctx context.Context, id int64, deviceID string) error
 
 	// Sync
 	Pull(ctx context.Context, sinceRevision int64, deviceID string, limit int32) (*PullResult, error)
@@ -42,29 +42,29 @@ type Transport interface {
 
 // PullResult — результат pull-операции синхронизации.
 type PullResult struct {
-	Records       []models.Record
-	HasMore       bool
-	NextRevision  int64
-	Conflicts     []SyncConflictInfo
+	Records      []models.Record
+	HasMore      bool
+	NextRevision int64
+	Conflicts    []SyncConflictInfo
 }
 
 // SyncConflictInfo — информация о конфликте синхронизации.
 type SyncConflictInfo struct {
-	ID              int64
-	RecordID        int64
-	LocalRevision   int64
-	ServerRevision  int64
-	Resolved        bool
-	Resolution      string
-	LocalRecord     *models.Record
-	ServerRecord    *models.Record
+	ID             int64
+	RecordID       int64
+	LocalRevision  int64
+	ServerRevision int64
+	Resolved       bool
+	Resolution     string
+	LocalRecord    *models.Record
+	ServerRecord   *models.Record
 }
 
 // PendingChange — локальное изменение для отправки на сервер.
 type PendingChange struct {
-	Record        *models.Record
-	Deleted       bool
-	BaseRevision  int64
+	Record       *models.Record
+	Deleted      bool
+	BaseRevision int64
 }
 
 // PushResult — результат push-операции.
@@ -82,18 +82,18 @@ type AcceptedChange struct {
 
 // UploadStatus — статус upload-сессии.
 type UploadStatus struct {
-	UploadID        int64
-	Status          string
-	TotalChunks     int64
-	ReceivedChunks  int64
-	MissingChunks   []int64
+	UploadID       int64
+	Status         string
+	TotalChunks    int64
+	ReceivedChunks int64
+	MissingChunks  []int64
 }
 
 // DownloadStatus — статус download-сессии.
 type DownloadStatus struct {
-	DownloadID       int64
-	Status           string
-	TotalChunks      int64
-	ConfirmedChunks  int64
-	RemainingChunks  []int64
+	DownloadID      int64
+	Status          string
+	TotalChunks     int64
+	ConfirmedChunks int64
+	RemainingChunks []int64
 }

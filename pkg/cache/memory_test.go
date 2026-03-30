@@ -145,6 +145,12 @@ func TestFileStore_TransferState(t *testing.T) {
 	ts.Save(tr)
 	active = ts.ListActive()
 	assert.Len(t, active, 0)
+	assert.Len(t, ts.ListPending(), 0)
+
+	// Save paused
+	tr.Status = TransferStatusPaused
+	ts.Save(tr)
+	assert.Len(t, ts.ListPending(), 1)
 
 	// Delete
 	ts.Delete(1)

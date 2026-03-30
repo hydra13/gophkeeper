@@ -141,6 +141,9 @@ type TransferState interface {
 	// ListActive возвращает все активные передачи.
 	ListActive() []Transfer
 
+	// ListPending возвращает все незавершённые передачи (active или paused).
+	ListPending() []Transfer
+
 	// Clear очищает все передачи.
 	Clear()
 }

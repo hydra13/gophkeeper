@@ -234,6 +234,19 @@ func TestCLIRunAddBinary(t *testing.T) {
 	ctx := context.Background()
 	_ = env.core.Login(ctx, "user@example.com", "test-password")
 
+	var savedRecord *models.Record
+	env.transport.CreateRecordFunc = func(ctx context.Context, rec *models.Record) (*models.Record, error) {
+		savedRecord = rec
+		return &models.Record{
+			ID:             1,
+			Type:           rec.Type,
+			Name:           rec.Name,
+			Payload:        rec.Payload,
+			PayloadVersion: rec.PayloadVersion,
+			Revision:       1,
+		}, nil
+	}
+
 	// Create a temp file for binary upload
 	tmpFile := filepath.Join(t.TempDir(), "test.bin")
 	if err := os.WriteFile(tmpFile, []byte("binary content"), 0644); err != nil {
@@ -251,6 +264,12 @@ func TestCLIRunAddBinary(t *testing.T) {
 	}
 	if !strings.Contains(env.stdout.String(), "added:") {
 		t.Fatalf("expected 'added:' in stdout, got: %s", env.stdout.String())
+	}
+	if savedRecord == nil {
+		t.Fatal("expected CreateRecord to be called")
+	}
+	if savedRecord.PayloadVersion != 1 {
+		t.Fatalf("expected payload version 1, got %d", savedRecord.PayloadVersion)
 	}
 }
 
@@ -323,7 +342,7 @@ func TestCLIRunGet(t *testing.T) {
 
 	env.captureOutput(func() {
 		defer func() { recover() }()
-		runGet([]string{"42"})
+		runGet([]string{"id", "42"})
 	})
 
 	if env.lastFatal() != nil {
@@ -335,6 +354,37 @@ func TestCLIRunGet(t *testing.T) {
 	}
 	if !strings.Contains(out, "ID:       42") {
 		t.Fatalf("expected 'ID:       42' in stdout, got: %s", out)
+	}
+}
+
+func TestCLIRunGetByName(t *testing.T) {
+	env := setupTestEnv(t)
+	ctx := context.Background()
+	_ = env.core.Login(ctx, "user@example.com", "test-password")
+
+	_, err := env.core.SaveRecord(ctx, &models.Record{
+		Type:    models.RecordTypeText,
+		Name:    "secret-text",
+		Payload: models.TextPayload{Content: "234"},
+	})
+	if err != nil {
+		t.Fatalf("save record: %v", err)
+	}
+
+	env.captureOutput(func() {
+		defer func() { recover() }()
+		runGet([]string{"name", "secret-text"})
+	})
+
+	if env.lastFatal() != nil {
+		t.Fatalf("unexpected fatal: %v", env.lastFatal())
+	}
+	out := env.stdout.String()
+	if !strings.Contains(out, "Name:     secret-text") {
+		t.Fatalf("expected record name in stdout, got: %s", out)
+	}
+	if !strings.Contains(out, "Content:  234") {
+		t.Fatalf("expected record content in stdout, got: %s", out)
 	}
 }
 
@@ -363,7 +413,7 @@ func TestCLIRunGetBinary(t *testing.T) {
 
 	env.captureOutput(func() {
 		defer func() { recover() }()
-		runGet([]string{"10", outPath})
+		runGet([]string{"id", "10", outPath})
 	})
 
 	if env.lastFatal() != nil {
@@ -398,8 +448,44 @@ func TestCLIRunUpdate(t *testing.T) {
 
 	env.captureOutput(func() {
 		defer func() { recover() }()
-		// update <id> <name> — prompts for payload via readLine/readPassword
-		runUpdate([]string{"5", "new-name"})
+		// update id <id> <name> — prompts for payload via readLine/readPassword
+		runUpdate([]string{"id", "5", "new-name"})
+	})
+
+	if env.lastFatal() != nil {
+		t.Fatalf("unexpected fatal: %v", env.lastFatal())
+	}
+	if !strings.Contains(env.stdout.String(), "updated:") {
+		t.Fatalf("expected 'updated:' in stdout, got: %s", env.stdout.String())
+	}
+}
+
+func TestCLIRunUpdateByName(t *testing.T) {
+	env := setupTestEnv(t)
+	ctx := context.Background()
+	_ = env.core.Login(ctx, "user@example.com", "test-password")
+
+	env.store.Records().Put(&models.Record{
+		ID:       7,
+		Type:     models.RecordTypeText,
+		Name:     "old-name",
+		Payload:  models.TextPayload{Content: "before"},
+		Revision: 1,
+	})
+
+	env.transport.GetRecordFunc = func(ctx context.Context, id int64) (*models.Record, error) {
+		return &models.Record{
+			ID:       id,
+			Type:     models.RecordTypeText,
+			Name:     "old-name",
+			Payload:  models.TextPayload{Content: "before"},
+			Revision: 1,
+		}, nil
+	}
+
+	env.captureOutput(func() {
+		defer func() { recover() }()
+		runUpdate([]string{"name", "old-name", "new-name", "after"})
 	})
 
 	if env.lastFatal() != nil {
@@ -417,11 +503,25 @@ func TestCLIRunUpdateBinary(t *testing.T) {
 
 	env.transport.GetRecordFunc = func(ctx context.Context, id int64) (*models.Record, error) {
 		return &models.Record{
-			ID:       id,
-			Type:     models.RecordTypeBinary,
-			Name:     "old-name",
-			Payload:  models.BinaryPayload{},
-			Revision: 1,
+			ID:             id,
+			Type:           models.RecordTypeBinary,
+			Name:           "old-name",
+			Payload:        models.BinaryPayload{},
+			PayloadVersion: 1,
+			Revision:       1,
+		}, nil
+	}
+
+	var updatedRecord *models.Record
+	env.transport.UpdateRecordFunc = func(ctx context.Context, rec *models.Record) (*models.Record, error) {
+		updatedRecord = rec
+		return &models.Record{
+			ID:             rec.ID,
+			Type:           rec.Type,
+			Name:           rec.Name,
+			Payload:        rec.Payload,
+			PayloadVersion: rec.PayloadVersion,
+			Revision:       rec.Revision + 1,
 		}, nil
 	}
 
@@ -432,7 +532,7 @@ func TestCLIRunUpdateBinary(t *testing.T) {
 
 	env.captureOutput(func() {
 		defer func() { recover() }()
-		runUpdate([]string{"5", "new-name", tmpFile})
+		runUpdate([]string{"id", "5", "new-name", tmpFile})
 	})
 
 	if env.lastFatal() != nil {
@@ -440,6 +540,12 @@ func TestCLIRunUpdateBinary(t *testing.T) {
 	}
 	if !strings.Contains(env.stdout.String(), "updated:") {
 		t.Fatalf("expected 'updated:' in stdout, got: %s", env.stdout.String())
+	}
+	if updatedRecord == nil {
+		t.Fatal("expected UpdateRecord to be called")
+	}
+	if updatedRecord.PayloadVersion != 2 {
+		t.Fatalf("expected payload version 2, got %d", updatedRecord.PayloadVersion)
 	}
 }
 
@@ -450,7 +556,32 @@ func TestCLIRunDelete(t *testing.T) {
 
 	env.captureOutput(func() {
 		defer func() { recover() }()
-		runDelete([]string{"1"})
+		runDelete([]string{"id", "1"})
+	})
+
+	if env.lastFatal() != nil {
+		t.Fatalf("unexpected fatal: %v", env.lastFatal())
+	}
+	if !strings.Contains(env.stdout.String(), "deleted") {
+		t.Fatalf("expected 'deleted' in stdout, got: %s", env.stdout.String())
+	}
+}
+
+func TestCLIRunDeleteByName(t *testing.T) {
+	env := setupTestEnv(t)
+	ctx := context.Background()
+	_ = env.core.Login(ctx, "user@example.com", "test-password")
+
+	env.store.Records().Put(&models.Record{
+		ID:      9,
+		Type:    models.RecordTypeText,
+		Name:    "delete-me",
+		Payload: models.TextPayload{Content: "content"},
+	})
+
+	env.captureOutput(func() {
+		defer func() { recover() }()
+		runDelete([]string{"name", "delete-me"})
 	})
 
 	if env.lastFatal() != nil {
@@ -498,12 +629,56 @@ func TestCLIRunRegisterError(t *testing.T) {
 	}
 }
 
+func TestCLIRunGetInvalidSelector(t *testing.T) {
+	env := setupTestEnv(t)
+
+	env.captureOutput(func() {
+		defer func() { recover() }()
+		runGet([]string{"unknown", "value"})
+	})
+
+	if env.lastFatal() == nil {
+		t.Fatal("expected fatal error for invalid selector")
+	}
+}
+
+func TestCLIRunGetAmbiguousName(t *testing.T) {
+	env := setupTestEnv(t)
+	ctx := context.Background()
+	_ = env.core.Login(ctx, "user@example.com", "test-password")
+
+	env.store.Records().Put(&models.Record{
+		ID:      101,
+		Type:    models.RecordTypeText,
+		Name:    "duplicate-name",
+		Payload: models.TextPayload{Content: "value-1"},
+	})
+	env.store.Records().Put(&models.Record{
+		ID:      102,
+		Type:    models.RecordTypeText,
+		Name:    "duplicate-name",
+		Payload: models.TextPayload{Content: "value-2"},
+	})
+
+	env.captureOutput(func() {
+		defer func() { recover() }()
+		runGet([]string{"name", "duplicate-name"})
+	})
+
+	if env.lastFatal() == nil {
+		t.Fatal("expected fatal error for ambiguous record name")
+	}
+	if !strings.Contains(env.lastFatal().Error(), "ambiguous") {
+		t.Fatalf("expected ambiguous name error, got: %v", env.lastFatal())
+	}
+}
+
 func TestCLIRunGetInvalidID(t *testing.T) {
 	env := setupTestEnv(t)
 
 	env.captureOutput(func() {
 		defer func() { recover() }()
-		runGet([]string{"not-a-number"})
+		runGet([]string{"id", "not-a-number"})
 	})
 
 	if env.lastFatal() == nil {
@@ -516,7 +691,7 @@ func TestCLIRunDeleteInvalidID(t *testing.T) {
 
 	env.captureOutput(func() {
 		defer func() { recover() }()
-		runDelete([]string{"abc"})
+		runDelete([]string{"id", "abc"})
 	})
 
 	if env.lastFatal() == nil {
@@ -936,7 +1111,7 @@ func TestCLIRunUpdateMetadata(t *testing.T) {
 
 	env.captureOutput(func() {
 		defer func() { recover() }()
-		runUpdate([]string{"5", "new-name", "new content", "--metadata", "new meta"})
+		runUpdate([]string{"id", "5", "new-name", "new content", "--metadata", "new meta"})
 	})
 
 	if env.lastFatal() != nil {
@@ -978,7 +1153,7 @@ func TestCLIRunUpdateClearMetadata(t *testing.T) {
 
 	env.captureOutput(func() {
 		defer func() { recover() }()
-		runUpdate([]string{"5", "new-name", "new content", "--metadata", ""})
+		runUpdate([]string{"id", "5", "new-name", "new content", "--metadata", ""})
 	})
 
 	if env.lastFatal() != nil {
@@ -1020,7 +1195,7 @@ func TestCLIRunUpdatePreservesMetadataWithoutFlag(t *testing.T) {
 
 	env.captureOutput(func() {
 		defer func() { recover() }()
-		runUpdate([]string{"5", "new-name", "new content"})
+		runUpdate([]string{"id", "5", "new-name", "new content"})
 	})
 
 	if env.lastFatal() != nil {
@@ -1049,7 +1224,7 @@ func TestCLIRunGetWithMetadata(t *testing.T) {
 
 	env.captureOutput(func() {
 		defer func() { recover() }()
-		runGet([]string{"42"})
+		runGet([]string{"id", "42"})
 	})
 
 	if env.lastFatal() != nil {
@@ -1156,8 +1331,8 @@ func TestCLIRunUpdateMetadataOnly(t *testing.T) {
 
 	env.captureOutput(func() {
 		defer func() { recover() }()
-		// update <id> <name> --metadata <text> — no data, no payload change
-		runUpdate([]string{"5", "old-name", "--metadata", "new meta only"})
+		// update id <id> <name> --metadata <text> — no data, no payload change
+		runUpdate([]string{"id", "5", "old-name", "--metadata", "new meta only"})
 	})
 
 	if env.lastFatal() != nil {
@@ -1207,8 +1382,8 @@ func TestCLIRunUpdateMetadataOnlyBinary(t *testing.T) {
 
 	env.captureOutput(func() {
 		defer func() { recover() }()
-		// update <id> <name> --metadata <text> — no file path, binary payload preserved
-		runUpdate([]string{"5", "old-name", "--metadata", "binary meta"})
+		// update id <id> <name> --metadata <text> — no file path, binary payload preserved
+		runUpdate([]string{"id", "5", "old-name", "--metadata", "binary meta"})
 	})
 
 	if env.lastFatal() != nil {
@@ -1258,8 +1433,8 @@ func TestCLIRunUpdateClearMetadataOnly(t *testing.T) {
 
 	env.captureOutput(func() {
 		defer func() { recover() }()
-		// update <id> <name> --metadata "" — clear metadata, no payload change
-		runUpdate([]string{"5", "old-name", "--metadata", ""})
+		// update id <id> <name> --metadata "" — clear metadata, no payload change
+		runUpdate([]string{"id", "5", "old-name", "--metadata", ""})
 	})
 
 	if env.lastFatal() != nil {

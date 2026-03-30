@@ -159,15 +159,15 @@ func (s *e2eSyncRepo) UpdateConflict(conflict *models.SyncConflict) error {
 // ---------------------------------------------------------------------------
 
 type e2eTestEnv struct {
-	lis       *bufconn.Listener
-	server    *grpc.Server
-	conn      *grpc.ClientConn
-	repo      *e2eRecordRepo
-	syncRepo  *e2eSyncRepo
-	client    *e2eTransportClient
-	core      *clientcore.ClientCore
-	store     cache.Store
-	cleanup   func()
+	lis      *bufconn.Listener
+	server   *grpc.Server
+	conn     *grpc.ClientConn
+	repo     *e2eRecordRepo
+	syncRepo *e2eSyncRepo
+	client   *e2eTransportClient
+	core     *clientcore.ClientCore
+	store    cache.Store
+	cleanup  func()
 }
 
 func setupE2E(t *testing.T) *e2eTestEnv {
@@ -384,10 +384,10 @@ func (c *e2eTransportClient) UpdateRecord(ctx context.Context, record *models.Re
 	return pbToDomain(resp.Record), nil
 }
 
-func (c *e2eTransportClient) DeleteRecord(ctx context.Context, id int64) error {
+func (c *e2eTransportClient) DeleteRecord(ctx context.Context, id int64, deviceID string) error {
 	_, err := c.dataClient.DeleteRecord(c.authCtx(ctx), &pbv1.DeleteRecordRequest{
 		Id:       id,
-		DeviceId: "e2e-test-device",
+		DeviceId: deviceID,
 	})
 	if err != nil {
 		return fmt.Errorf("delete record: %w", err)
@@ -982,15 +982,15 @@ func TestMetadataE2E_AllRecordTypes(t *testing.T) {
 	ctx := context.Background()
 
 	tests := []struct {
-		name    string
-		rec     *models.Record
-		meta    string
+		name string
+		rec  *models.Record
+		meta string
 	}{
 		{
 			name: "login with metadata",
 			rec: &models.Record{
 				Type: models.RecordTypeLogin, Name: "login1",
-				Payload: models.LoginPayload{Login: "u", Password: "p"},
+				Payload:  models.LoginPayload{Login: "u", Password: "p"},
 				DeviceID: "e2e-test-device",
 			},
 			meta: "login metadata",
@@ -999,7 +999,7 @@ func TestMetadataE2E_AllRecordTypes(t *testing.T) {
 			name: "text with metadata",
 			rec: &models.Record{
 				Type: models.RecordTypeText, Name: "text1",
-				Payload: models.TextPayload{Content: "hello"},
+				Payload:  models.TextPayload{Content: "hello"},
 				DeviceID: "e2e-test-device",
 			},
 			meta: "text metadata",
@@ -1008,7 +1008,7 @@ func TestMetadataE2E_AllRecordTypes(t *testing.T) {
 			name: "card with metadata",
 			rec: &models.Record{
 				Type: models.RecordTypeCard, Name: "card1",
-				Payload: models.CardPayload{Number: "4111", HolderName: "Test", ExpiryDate: "12/30", CVV: "123"},
+				Payload:  models.CardPayload{Number: "4111", HolderName: "Test", ExpiryDate: "12/30", CVV: "123"},
 				DeviceID: "e2e-test-device",
 			},
 			meta: "card metadata",
@@ -1017,7 +1017,7 @@ func TestMetadataE2E_AllRecordTypes(t *testing.T) {
 			name: "binary with metadata",
 			rec: &models.Record{
 				Type: models.RecordTypeBinary, Name: "bin1",
-				Payload: models.BinaryPayload{},
+				Payload:  models.BinaryPayload{},
 				DeviceID: "e2e-test-device",
 			},
 			meta: "binary metadata",

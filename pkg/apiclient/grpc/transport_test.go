@@ -82,9 +82,9 @@ func (m *mockDataServiceClient) DeleteRecord(ctx context.Context, in *pbv1.Delet
 // --- SyncServiceClient mock ---
 
 type mockSyncServiceClient struct {
-	pullFn           func(ctx context.Context, in *pbv1.PullRequest, opts ...grpc.CallOption) (*pbv1.PullResponse, error)
-	pushFn           func(ctx context.Context, in *pbv1.PushRequest, opts ...grpc.CallOption) (*pbv1.PushResponse, error)
-	getConflictsFn   func(ctx context.Context, in *pbv1.GetConflictsRequest, opts ...grpc.CallOption) (*pbv1.GetConflictsResponse, error)
+	pullFn            func(ctx context.Context, in *pbv1.PullRequest, opts ...grpc.CallOption) (*pbv1.PullResponse, error)
+	pushFn            func(ctx context.Context, in *pbv1.PushRequest, opts ...grpc.CallOption) (*pbv1.PushResponse, error)
+	getConflictsFn    func(ctx context.Context, in *pbv1.GetConflictsRequest, opts ...grpc.CallOption) (*pbv1.GetConflictsResponse, error)
 	resolveConflictFn func(ctx context.Context, in *pbv1.ResolveConflictRequest, opts ...grpc.CallOption) (*pbv1.ResolveConflictResponse, error)
 }
 
@@ -107,13 +107,13 @@ func (m *mockSyncServiceClient) ResolveConflict(ctx context.Context, in *pbv1.Re
 // --- UploadsServiceClient mock ---
 
 type mockUploadsServiceClient struct {
-	createUploadSessionFn  func(ctx context.Context, in *pbv1.CreateUploadSessionRequest, opts ...grpc.CallOption) (*pbv1.CreateUploadSessionResponse, error)
-	uploadChunkFn          func(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[pbv1.UploadChunkRequest, pbv1.UploadChunkResponse], error)
-	getUploadStatusFn      func(ctx context.Context, in *pbv1.GetUploadStatusRequest, opts ...grpc.CallOption) (*pbv1.GetUploadStatusResponse, error)
+	createUploadSessionFn   func(ctx context.Context, in *pbv1.CreateUploadSessionRequest, opts ...grpc.CallOption) (*pbv1.CreateUploadSessionResponse, error)
+	uploadChunkFn           func(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[pbv1.UploadChunkRequest, pbv1.UploadChunkResponse], error)
+	getUploadStatusFn       func(ctx context.Context, in *pbv1.GetUploadStatusRequest, opts ...grpc.CallOption) (*pbv1.GetUploadStatusResponse, error)
 	createDownloadSessionFn func(ctx context.Context, in *pbv1.CreateDownloadSessionRequest, opts ...grpc.CallOption) (*pbv1.CreateDownloadSessionResponse, error)
-	downloadChunkFn        func(ctx context.Context, in *pbv1.DownloadChunkRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[pbv1.DownloadChunkResponse], error)
-	confirmChunkFn         func(ctx context.Context, in *pbv1.ConfirmChunkRequest, opts ...grpc.CallOption) (*pbv1.ConfirmChunkResponse, error)
-	getDownloadStatusFn    func(ctx context.Context, in *pbv1.GetDownloadStatusRequest, opts ...grpc.CallOption) (*pbv1.GetDownloadStatusResponse, error)
+	downloadChunkFn         func(ctx context.Context, in *pbv1.DownloadChunkRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[pbv1.DownloadChunkResponse], error)
+	confirmChunkFn          func(ctx context.Context, in *pbv1.ConfirmChunkRequest, opts ...grpc.CallOption) (*pbv1.ConfirmChunkResponse, error)
+	getDownloadStatusFn     func(ctx context.Context, in *pbv1.GetDownloadStatusRequest, opts ...grpc.CallOption) (*pbv1.GetDownloadStatusResponse, error)
 }
 
 func (m *mockUploadsServiceClient) CreateUploadSession(ctx context.Context, in *pbv1.CreateUploadSessionRequest, opts ...grpc.CallOption) (*pbv1.CreateUploadSessionResponse, error) {
@@ -159,12 +159,12 @@ func (m *mockUploadStream) CloseAndRecv() (*pbv1.UploadChunkResponse, error) {
 	return m.closeAndRecvFn()
 }
 
-func (m *mockUploadStream) Header() (metadata.MD, error)         { return nil, nil }
-func (m *mockUploadStream) Trailer() metadata.MD                  { return nil }
-func (m *mockUploadStream) CloseSend() error                      { return nil }
-func (m *mockUploadStream) Context() context.Context              { return context.Background() }
-func (m *mockUploadStream) SendMsg(msg interface{}) error         { return nil }
-func (m *mockUploadStream) RecvMsg(msg interface{}) error         { return nil }
+func (m *mockUploadStream) Header() (metadata.MD, error)  { return nil, nil }
+func (m *mockUploadStream) Trailer() metadata.MD          { return nil }
+func (m *mockUploadStream) CloseSend() error              { return nil }
+func (m *mockUploadStream) Context() context.Context      { return context.Background() }
+func (m *mockUploadStream) SendMsg(msg interface{}) error { return nil }
+func (m *mockUploadStream) RecvMsg(msg interface{}) error { return nil }
 
 type mockDownloadStream struct {
 	recvFn func() (*pbv1.DownloadChunkResponse, error)
@@ -174,21 +174,21 @@ func (m *mockDownloadStream) Recv() (*pbv1.DownloadChunkResponse, error) {
 	return m.recvFn()
 }
 
-func (m *mockDownloadStream) Header() (metadata.MD, error)         { return nil, nil }
-func (m *mockDownloadStream) Trailer() metadata.MD                  { return nil }
-func (m *mockDownloadStream) CloseSend() error                      { return nil }
-func (m *mockDownloadStream) Context() context.Context              { return context.Background() }
-func (m *mockDownloadStream) SendMsg(msg interface{}) error         { return nil }
-func (m *mockDownloadStream) RecvMsg(msg interface{}) error         { return nil }
+func (m *mockDownloadStream) Header() (metadata.MD, error)  { return nil, nil }
+func (m *mockDownloadStream) Trailer() metadata.MD          { return nil }
+func (m *mockDownloadStream) CloseSend() error              { return nil }
+func (m *mockDownloadStream) Context() context.Context      { return context.Background() }
+func (m *mockDownloadStream) SendMsg(msg interface{}) error { return nil }
+func (m *mockDownloadStream) RecvMsg(msg interface{}) error { return nil }
 
 // ---------------------------------------------------------------------------
 // Test helpers
 // ---------------------------------------------------------------------------
 
 type testClients struct {
-	auth  *mockAuthServiceClient
-	data  *mockDataServiceClient
-	sync  *mockSyncServiceClient
+	auth   *mockAuthServiceClient
+	data   *mockDataServiceClient
+	sync   *mockSyncServiceClient
 	upload *mockUploadsServiceClient
 }
 
@@ -539,7 +539,7 @@ func TestUpdateRecord_Login(t *testing.T) {
 		assert.Equal(t, "updated", req.Name)
 		return &pbv1.UpdateRecordResponse{
 			Record: &pbv1.Record{Id: 10, Name: "updated", Revision: 2,
-				Type: pbv1.RecordType_RECORD_TYPE_LOGIN,
+				Type:    pbv1.RecordType_RECORD_TYPE_LOGIN,
 				Payload: &pbv1.Record_Login{Login: &pbv1.LoginPayload{Login: "new", Password: "newp"}}},
 		}, nil
 	}
@@ -627,10 +627,11 @@ func TestDeleteRecord_Success(t *testing.T) {
 	c, mocks := newTestClient("token")
 	mocks.data.deleteRecordFn = func(_ context.Context, req *pbv1.DeleteRecordRequest, _ ...grpc.CallOption) (*pbv1.DeleteRecordResponse, error) {
 		assert.Equal(t, int64(77), req.Id)
+		assert.Equal(t, "dev-1", req.DeviceId)
 		return &pbv1.DeleteRecordResponse{}, nil
 	}
 
-	err := c.DeleteRecord(context.Background(), 77)
+	err := c.DeleteRecord(context.Background(), 77, "dev-1")
 	require.NoError(t, err)
 }
 
@@ -641,7 +642,7 @@ func TestDeleteRecord_Error(t *testing.T) {
 		return nil, fmt.Errorf("not found")
 	}
 
-	err := c.DeleteRecord(context.Background(), 999)
+	err := c.DeleteRecord(context.Background(), 999, "dev-1")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "grpc delete record")
 }

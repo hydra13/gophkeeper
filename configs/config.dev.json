@@ -13,7 +13,7 @@
     "token_duration": 86400000000000
   },
   "crypto": {
-    "master_key": "dev-master-key-32-bytes-long-0000"
+    "master_key": "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
   },
   "blob": {
     "provider": "s3",

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/hydra13/gophkeeper/internal/models"
@@ -42,14 +43,10 @@ func (r *Runner) RunList(args []string) {
 }
 
 func (r *Runner) RunGet(args []string) {
-	if len(args) < 1 {
-		fmt.Fprintln(r.deps.Stderr, "Usage: gophkeeper-cli get <id> [output-path]")
+	if len(args) < 2 {
+		fmt.Fprintln(r.deps.Stderr, "Usage: gophkeeper-cli get name <name> [output-path]")
+		fmt.Fprintln(r.deps.Stderr, "   or: gophkeeper-cli get id <id> [output-path]")
 		os.Exit(1)
-	}
-
-	id, err := strconv.ParseInt(args[0], 10, 64)
-	if err != nil {
-		r.fatal(fmt.Errorf("invalid id: %w", err))
 	}
 
 	core, cleanup, err := r.newCore()
@@ -61,17 +58,17 @@ func (r *Runner) RunGet(args []string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
+	id, outputPath, err := r.resolveGetTarget(ctx, core, args)
+	if err != nil {
+		r.fatal(err)
+	}
+
 	rec, err := core.GetRecord(ctx, id)
 	if err != nil {
 		r.fatal(err)
 	}
 
 	if rec.Type == models.RecordTypeBinary {
-		outputPath := ""
-		if len(args) > 1 {
-			outputPath = args[1]
-		}
-
 		data, err := core.DownloadBinary(ctx, id, 64*1024)
 		if err != nil {
 			r.fatal(fmt.Errorf("download binary: %w", err))
@@ -80,7 +77,7 @@ func (r *Runner) RunGet(args []string) {
 		if outputPath == "" {
 			PrintRecord(r.deps.Stdout, rec)
 			fmt.Fprintf(r.deps.Stdout, "Data size: %d bytes\n", len(data))
-			fmt.Fprintln(r.deps.Stdout, "Use: gophkeeper-cli get <id> <output-path> to save to file")
+			fmt.Fprintln(r.deps.Stdout, "Use: gophkeeper-cli get id <id> <output-path> to save to file")
 			return
 		}
 
@@ -92,6 +89,69 @@ func (r *Runner) RunGet(args []string) {
 	}
 
 	PrintRecord(r.deps.Stdout, rec)
+}
+
+func (r *Runner) resolveGetTarget(ctx context.Context, core interface {
+	ListRecords(context.Context, models.RecordType) ([]models.Record, error)
+}, args []string) (int64, string, error) {
+	id, err := r.resolveRecordSelector(ctx, core, args[0], args[1])
+	if err != nil {
+		return 0, "", err
+	}
+
+	outputPath := ""
+	if len(args) > 2 {
+		outputPath = args[2]
+	}
+
+	return id, outputPath, nil
+}
+
+func (r *Runner) resolveRecordSelector(ctx context.Context, core interface {
+	ListRecords(context.Context, models.RecordType) ([]models.Record, error)
+}, selector, value string) (int64, error) {
+	selector = strings.ToLower(strings.TrimSpace(selector))
+
+	switch selector {
+	case "id":
+		id, err := strconv.ParseInt(value, 10, 64)
+		if err != nil {
+			return 0, fmt.Errorf("invalid id: %w", err)
+		}
+		return id, nil
+	case "name":
+		return r.resolveRecordIDByName(ctx, core, value)
+	default:
+		return 0, fmt.Errorf("unknown selector %q; use 'name' or 'id'", selector)
+	}
+}
+
+func (r *Runner) resolveRecordIDByName(ctx context.Context, core interface {
+	ListRecords(context.Context, models.RecordType) ([]models.Record, error)
+}, raw string) (int64, error) {
+	records, err := core.ListRecords(ctx, "")
+	if err != nil {
+		return 0, fmt.Errorf("resolve record %q by name: %w", raw, err)
+	}
+
+	var matches []models.Record
+	for _, rec := range records {
+		if rec.IsDeleted() {
+			continue
+		}
+		if strings.EqualFold(rec.Name, raw) {
+			matches = append(matches, rec)
+		}
+	}
+
+	switch len(matches) {
+	case 1:
+		return matches[0].ID, nil
+	case 0:
+		return 0, fmt.Errorf("record %q not found; use 'list' to inspect available names and ids", raw)
+	default:
+		return 0, fmt.Errorf("record name %q is ambiguous; use 'id' selector instead", raw)
+	}
 }
 
 func (r *Runner) RunAdd(args []string) {
@@ -137,6 +197,9 @@ func (r *Runner) RunAdd(args []string) {
 		Payload:  payload,
 		Metadata: metadata,
 	}
+	if recordType == models.RecordTypeBinary {
+		rec.PayloadVersion = 1
+	}
 
 	core, cleanup, err := r.newCore()
 	if err != nil {
@@ -164,16 +227,12 @@ func (r *Runner) RunAdd(args []string) {
 func (r *Runner) RunUpdate(args []string) {
 	metadata, metadataFound, args := ExtractMetadata(args)
 
-	if len(args) < 2 {
-		fmt.Fprintln(r.deps.Stderr, "Usage: gophkeeper-cli update <id> <name> [data] [--metadata <text>]")
+	if len(args) < 3 {
+		fmt.Fprintln(r.deps.Stderr, "Usage: gophkeeper-cli update name <name> <new-name> [data] [--metadata <text>]")
+		fmt.Fprintln(r.deps.Stderr, "   or: gophkeeper-cli update id <id> <new-name> [data] [--metadata <text>]")
 		fmt.Fprintln(r.deps.Stderr, "  binary: data=file-path")
 		fmt.Fprintln(r.deps.Stderr, "  --metadata \"\" to clear metadata")
 		os.Exit(1)
-	}
-
-	id, err := strconv.ParseInt(args[0], 10, 64)
-	if err != nil {
-		r.fatal(fmt.Errorf("invalid id: %w", err))
 	}
 
 	core, cleanup, err := r.newCore()
@@ -185,12 +244,17 @@ func (r *Runner) RunUpdate(args []string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
+	id, err := r.resolveRecordSelector(ctx, core, args[0], args[1])
+	if err != nil {
+		r.fatal(err)
+	}
+
 	existing, err := core.GetRecord(ctx, id)
 	if err != nil {
 		r.fatal(err)
 	}
 
-	existing.Name = args[1]
+	existing.Name = args[2]
 
 	if metadataFound {
 		existing.Metadata = metadata
@@ -198,14 +262,19 @@ func (r *Runner) RunUpdate(args []string) {
 
 	var fileData []byte
 
-	if len(args) > 2 {
+	if len(args) > 3 {
 		if existing.Type == models.RecordTypeBinary {
-			fileData, err = os.ReadFile(args[2])
+			fileData, err = os.ReadFile(args[3])
 			if err != nil {
-				r.fatal(fmt.Errorf("read file %s: %w", args[2], err))
+				r.fatal(fmt.Errorf("read file %s: %w", args[3], err))
+			}
+			if existing.PayloadVersion <= 0 {
+				existing.PayloadVersion = 1
+			} else {
+				existing.PayloadVersion++
 			}
 		} else {
-			existing.Payload = r.BuildPayload(existing.Type, args[2])
+			existing.Payload = r.BuildPayload(existing.Type, args[3])
 		}
 	} else if !metadataFound {
 		if existing.Type == models.RecordTypeBinary {
@@ -213,6 +282,11 @@ func (r *Runner) RunUpdate(args []string) {
 			fileData, err = os.ReadFile(filePath)
 			if err != nil {
 				r.fatal(fmt.Errorf("read file %s: %w", filePath, err))
+			}
+			if existing.PayloadVersion <= 0 {
+				existing.PayloadVersion = 1
+			} else {
+				existing.PayloadVersion++
 			}
 		} else {
 			existing.Payload = r.promptPayload(existing.Type)
@@ -234,14 +308,10 @@ func (r *Runner) RunUpdate(args []string) {
 }
 
 func (r *Runner) RunDelete(args []string) {
-	if len(args) < 1 {
-		fmt.Fprintln(r.deps.Stderr, "Usage: gophkeeper-cli delete <id>")
+	if len(args) < 2 {
+		fmt.Fprintln(r.deps.Stderr, "Usage: gophkeeper-cli delete name <name>")
+		fmt.Fprintln(r.deps.Stderr, "   or: gophkeeper-cli delete id <id>")
 		os.Exit(1)
-	}
-
-	id, err := strconv.ParseInt(args[0], 10, 64)
-	if err != nil {
-		r.fatal(fmt.Errorf("invalid id: %w", err))
 	}
 
 	core, cleanup, err := r.newCore()
@@ -252,6 +322,11 @@ func (r *Runner) RunDelete(args []string) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+
+	id, err := r.resolveRecordSelector(ctx, core, args[0], args[1])
+	if err != nil {
+		r.fatal(err)
+	}
 
 	if err := core.DeleteRecord(ctx, id); err != nil {
 		r.fatal(err)
