@@ -1414,6 +1414,94 @@ func TestPrintRecordShortWithoutMetadata(t *testing.T) {
 	}
 }
 
+// --- TLS/defaults unit tests ---
+
+func TestDefaultServerAddr(t *testing.T) {
+	t.Run("default value", func(t *testing.T) {
+		// Ensure GK_GRPC_ADDRESS is not set
+		t.Setenv("GK_GRPC_ADDRESS", "")
+		got := defaultServerAddr()
+		if got != "localhost:9090" {
+			t.Fatalf("expected 'localhost:9090', got %q", got)
+		}
+	})
+
+	t.Run("env override", func(t *testing.T) {
+		t.Setenv("GK_GRPC_ADDRESS", "myhost:1234")
+		got := defaultServerAddr()
+		if got != "myhost:1234" {
+			t.Fatalf("expected 'myhost:1234', got %q", got)
+		}
+	})
+}
+
+func TestDefaultTLSCertFile(t *testing.T) {
+	t.Run("env override", func(t *testing.T) {
+		t.Setenv("GK_TLS_CERT_FILE", "/custom/cert.pem")
+		got := defaultTLSCertFile()
+		if got != "/custom/cert.pem" {
+			t.Fatalf("expected '/custom/cert.pem', got %q", got)
+		}
+	})
+
+	t.Run("no env, no dev cert returns empty", func(t *testing.T) {
+		t.Setenv("GK_TLS_CERT_FILE", "")
+		origDir, _ := os.Getwd()
+		tmpDir := t.TempDir()
+		if err := os.Chdir(tmpDir); err != nil {
+			t.Fatalf("chdir: %v", err)
+		}
+		t.Cleanup(func() { os.Chdir(origDir) })
+
+		got := defaultTLSCertFile()
+		if got != "" {
+			t.Fatalf("expected empty string when no cert found, got %q", got)
+		}
+	})
+
+	t.Run("no env, dev cert exists returns dev path", func(t *testing.T) {
+		t.Setenv("GK_TLS_CERT_FILE", "")
+		// Create configs/certs/dev.crt in a temp dir to simulate project root
+		origDir, _ := os.Getwd()
+		tmpDir := t.TempDir()
+		certDir := filepath.Join(tmpDir, "configs", "certs")
+		if err := os.MkdirAll(certDir, 0755); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(certDir, "dev.crt"), []byte("fake"), 0644); err != nil {
+			t.Fatalf("write cert: %v", err)
+		}
+		if err := os.Chdir(tmpDir); err != nil {
+			t.Fatalf("chdir: %v", err)
+		}
+		t.Cleanup(func() { os.Chdir(origDir) })
+
+		got := defaultTLSCertFile()
+		if got != "configs/certs/dev.crt" {
+			t.Fatalf("expected 'configs/certs/dev.crt', got %q", got)
+		}
+	})
+}
+
+func TestDefaultNewCoreNoCertError(t *testing.T) {
+	t.Setenv("GK_TLS_CERT_FILE", "")
+	// Ensure we are in a dir without configs/certs/dev.crt
+	origDir, _ := os.Getwd()
+	tmpDir := t.TempDir()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	t.Cleanup(func() { os.Chdir(origDir) })
+
+	_, _, err := defaultNewCore()
+	if err == nil {
+		t.Fatal("expected error when no TLS certificate is available")
+	}
+	if !strings.Contains(err.Error(), "TLS certificate is required") {
+		t.Fatalf("expected error about TLS certificate, got: %v", err)
+	}
+}
+
 func TestCLIRunListWithMetadata(t *testing.T) {
 	env := setupTestEnv(t)
 	ctx := context.Background()

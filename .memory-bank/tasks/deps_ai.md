@@ -247,11 +247,11 @@ tasks:
   - id: task_23
     title: "Повторная валидация соответствия MVP и release readiness"
     file: ".memory-bank/tasks/task_23.md"
-    status: "pending"
+    status: "completed"
     phase: 12
     parallel_group: 16
     mvp: true
     depends_on: [task_19, task_20, task_21, task_22]
     blocks: []
-    notes: "Финализирует remediation-цикл: обновляет validation/release-readiness и подтверждает, что исправления действительно закрыли найденные расхождения."
+    notes: "Повторная валидация 2026-03-30 завершена: validation.md и release-readiness.md синхронизированы с кодом и воспроизводимыми проверками, TLS/defaults подтверждены unit-тестами, metadata/fail-fast/coverage подтверждены повторным прогоном, все критерии приёмки выполнены."
 ```
