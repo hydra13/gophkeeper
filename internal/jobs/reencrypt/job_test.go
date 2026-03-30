@@ -55,7 +55,14 @@ func (m *mockRepo) UpdateRecord(record *models.Record) error {
 	if m.updateErr != nil {
 		return m.updateErr
 	}
-	m.updatedRecords = append(m.updatedRecords, record)
+	recordCopy := *record
+	m.updatedRecords = append(m.updatedRecords, &recordCopy)
+	for i := range m.records {
+		if m.records[i].ID == record.ID {
+			m.records[i] = recordCopy
+			break
+		}
+	}
 	return nil
 }
 

@@ -11,11 +11,25 @@
 | `**/pbv1/`                     | Сгенерированный protobuf-код             |
 | `**_grpc.pb.go`, `**.pb.go`   | Сгенерированные protobuf-файлы          |
 
-Никакие другие пакеты не исключаются. В частности:
-- `cmd/server` и `cmd/client/cli` (точки входа) **входят** в метрику.
-- `internal/migrations` **входит** в метрику.
-- `pkg/buildinfo` **входит** в метрику.
-- `internal/repositories/database` **входит** в метрику.
+Для корректного учёта всех пакетов (включая `internal/jobs/reencrypt`) используется флаг `-coverpkg` с полным списком пакетов. Это гарантирует, что пакеты, тестируемые из того же пакета (internal test package), попадают в профиль покрытия.
+
+### Пакеты с нулевым числом executable statements
+
+Следующие пакеты не содержат исполняемого кода (только объявления интерфейсов, embed-директивы или TODO-заглушки) и не влияют на процент покрытия:
+
+| Пакет | Содержимое |
+|---|---|
+| `internal/repositories/inmemory` | Пустая TODO-заглушка |
+| `internal/services/data` | Пустой интерфейс (TODO) |
+| `internal/services/validation` | Пустой интерфейс (TODO) |
+| `pkg/apiclient/http` | Заглушка post-MVP |
+| `migrations/` | Только `embed.FS` |
+
+Эти пакеты включаются в `-coverpkg`, но не содержат statements для покрытия.
+
+### Тестовые пакеты
+
+Пакеты `tests/` и `tests/e2e/` содержат интеграционные и e2e-тесты. Они не входят в метрику покрытия (не имеют собственного production-кода).
 
 ## Порог
 
@@ -26,10 +40,11 @@
 Команда `make cover-check` воспроизводит ту же логику подсчёта, что и CI (`.github/workflows/ci.yml`, job `test`).
 
 Обе среды:
-1. Запускают `go test -race -coverprofile=coverage.out` по всем пакетам (исключая proto/pbv1).
-2. Фильтруют coverage.out, убирая mocks и сгенерированные protobuf-файлы.
-3. Считают `go tool cover -func=` по отфильтрованному профилю.
-4. Проверяют total >= 70%.
+1. Формируют список пакетов через `go list ./...` (исключая proto/pbv1).
+2. Запускают `go test -race -coverprofile=coverage.out -coverpkg=<all-pkgs>` по всем пакетам.
+3. Фильтруют coverage.out, убирая mocks и сгенерированные protobuf-файлы.
+4. Считают `go tool cover -func=` по отфильтрованному профилю.
+5. Проверяют total >= 70%.
 
 ## Быстрая проверка
 
@@ -40,7 +55,3 @@ make cover-check
 # Или через отдельный скрипт
 ./scripts/verify-coverage.sh
 ```
-
-## Фактический результат
-
-По состоянию на итерацию iter_7: **~75%** покрытия (1240+ тестов, 67 пакетов).

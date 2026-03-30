@@ -81,12 +81,15 @@ graph TD
         T20["<b>task_20</b><br/>TLS и quick start"]
         T21["<b>task_21</b><br/>Fail-fast bootstrap"]
     end
+    class P11 completed
+    class T19 completed
+    class T20 completed
+    class T21 completed
 
     subgraph P12["Phase 12 — Повторная валидация"]
         T22["<b>task_22</b><br/>Покрытие 70%"]
         T23["<b>task_23</b><br/>Release readiness re-check"]
     end
-    class P12 completed
     class T22 completed
 
     %% Phase 1
@@ -219,6 +222,6 @@ task_1 → task_3 → task_9 → task_10 → task_11 → task_12 → task_14 →
 | 9 | <span style="background-color: lightgreen;">task_15</span> |
 | 10 | <span style="background-color: lightgreen;">task_16</span> |
 | 11 | <span style="background-color: lightgreen;">task_17</span>, <span style="background-color: lightgreen;">task_18</span> |
-| 12 | task_19, task_20, task_21 |
-| 13 | <span style="background-color: lightgreen;">task_22</span> |
+| 12 | <span style="background-color: lightgreen;">task_19</span>, <span style="background-color: lightgreen;">task_20</span>, <span style="background-color: lightgreen;">task_21</span> |
+| 13 | task_22 |
 | 14 | task_23 |

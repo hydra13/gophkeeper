@@ -236,13 +236,13 @@ tasks:
   - id: task_22
     title: "Подтвердить и обеспечить покрытие тестами не ниже 70% по всей системе"
     file: ".memory-bank/tasks/task_22.md"
-    status: "pending"
+    status: "completed"
     phase: 12
     parallel_group: 15
     mvp: true
     depends_on: [task_17, task_19, task_20, task_21]
     blocks: [task_23]
-    notes: "Делает coverage gate доказуемым: единая метрика, честный подсчёт по системе и подтверждённый порог >= 70%."
+    notes: "Повторная валидация 2026-03-30 пройдена: замечания закрыты, все 7 критериев приёмки выполнены; единая coverage-метрика зафиксирована в policy/CI/Makefile, итоговое покрытие подтверждено на уровне 75.3%, недоказанные утверждения из release readiness устранены."
 
   - id: task_23
     title: "Повторная валидация соответствия MVP и release readiness"

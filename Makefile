@@ -7,7 +7,7 @@ lint:
 	golangci-lint run
 
 test:
-	go test -v -race -coverprofile=coverage.out $$(go list ./... | grep -v '/pbv1' | grep -v 'proto/v1')
+	go test -v -race -coverprofile=coverage.out -coverpkg="$$(go list ./... | grep -v '/pbv1' | grep -v 'proto/v1' | tr '\n' ',' | sed 's/,$$//')" $$(go list ./... | grep -v '/pbv1' | grep -v 'proto/v1')
 
 cover: test
 	go tool cover -html=coverage.out

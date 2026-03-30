@@ -5,7 +5,8 @@ set -euo pipefail
 
 echo "==> Running tests with coverage..."
 PACKAGES=$(go list ./... | grep -v '/pbv1' | grep -v 'proto/v1')
-go test -race -coverprofile=coverage.out $PACKAGES
+COVERPKGS=$(echo $PACKAGES | tr ' ' ',')
+go test -race -coverprofile=coverage.out -coverpkg="$COVERPKGS" $PACKAGES
 
 echo "==> Filtering coverage profile..."
 grep -ve '/mocks/' -e '\.pb\.go' -e '/proto/v1/' -e '/pbv1/' coverage.out > coverage_filtered.out
