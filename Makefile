@@ -1,5 +1,9 @@
 .PHONY: fmt lint test cover cover-check proto proto-check build build-server build-client build-client-cli build-client-tui build-client-desktop clean dev-up dev-down dev-reset test-storage-integration
 
+PROTO_SRC := rpc/proto/v1/*.proto
+PROTO_OUT := internal/rpc/pbv1
+MODULE := github.com/hydra13/gophkeeper
+
 fmt:
 	goimports -w .
 
@@ -24,15 +28,41 @@ cover-check: test
 	echo "PASS: coverage $${COVERAGE}% meets 70% threshold"
 
 proto:
-	protoc --go_out=. --go_opt=module=github.com/hydra13/gophkeeper \
-	       --go-grpc_out=. --go-grpc_opt=module=github.com/hydra13/gophkeeper \
-	       rpc/proto/v1/*.proto
+	@mkdir -p $(PROTO_OUT)
+	@find $(PROTO_OUT) -maxdepth 1 -name '*.pb.go' -delete
+	protoc -I . \
+	       --go_out=. --go_opt=module=$(MODULE),paths=import \
+	       --go-grpc_out=. --go-grpc_opt=module=$(MODULE),paths=import \
+	       $(PROTO_SRC)
+	@test -f $(PROTO_OUT)/auth.pb.go
+	@test -f $(PROTO_OUT)/auth_grpc.pb.go
+	@test -f $(PROTO_OUT)/data.pb.go
+	@test -f $(PROTO_OUT)/health.pb.go
+	@test -f $(PROTO_OUT)/health_grpc.pb.go
+	@test -f $(PROTO_OUT)/shared.pb.go
+	@test -f $(PROTO_OUT)/sync.pb.go
+	@test -f $(PROTO_OUT)/sync_grpc.pb.go
+	@test -f $(PROTO_OUT)/uploads.pb.go
+	@test -f $(PROTO_OUT)/uploads_grpc.pb.go
 
 proto-check:
 	@echo "==> Checking proto compilation..."
-	@protoc --go_out=. --go_opt=module=github.com/hydra13/gophkeeper \
-	        --go-grpc_out=. --go-grpc_opt=module=github.com/hydra13/gophkeeper \
-	        rpc/proto/v1/*.proto && echo "Proto compilation OK"
+	@mkdir -p $(PROTO_OUT)
+	@protoc -I . \
+	        --go_out=. --go_opt=module=$(MODULE),paths=import \
+	        --go-grpc_out=. --go-grpc_opt=module=$(MODULE),paths=import \
+	        $(PROTO_SRC)
+	@test -f $(PROTO_OUT)/auth.pb.go
+	@test -f $(PROTO_OUT)/auth_grpc.pb.go
+	@test -f $(PROTO_OUT)/data.pb.go
+	@test -f $(PROTO_OUT)/health.pb.go
+	@test -f $(PROTO_OUT)/health_grpc.pb.go
+	@test -f $(PROTO_OUT)/shared.pb.go
+	@test -f $(PROTO_OUT)/sync.pb.go
+	@test -f $(PROTO_OUT)/sync_grpc.pb.go
+	@test -f $(PROTO_OUT)/uploads.pb.go
+	@test -f $(PROTO_OUT)/uploads_grpc.pb.go
+	@echo "Proto compilation OK"
 
 build-server:
 	go build -o bin/server ./cmd/server
