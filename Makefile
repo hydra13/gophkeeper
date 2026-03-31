@@ -77,7 +77,7 @@ build-client-desktop:
 	cd cmd/client/desktop/frontend && npm install && npm run build
 	env CGO_LDFLAGS="-framework UniformTypeIdentifiers $$CGO_LDFLAGS" go build -tags production -o bin/client-desktop ./cmd/client/desktop
 
-build-client: build-client-cli build-client-tui
+build-client: build-client-cli build-client-tui build-client-desktop
 
 build: build-server build-client
 
