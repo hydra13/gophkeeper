@@ -20,12 +20,12 @@ import (
 	"github.com/hydra13/gophkeeper/internal/api/auth_register_v1_post"
 	"github.com/hydra13/gophkeeper/internal/api/health_v1_get"
 	"github.com/hydra13/gophkeeper/internal/api/records_by_id_binary_v1_get"
-	"github.com/hydra13/gophkeeper/internal/api/records_by_id_v1_delete"
-	"github.com/hydra13/gophkeeper/internal/api/records_by_id_v1_get"
-	"github.com/hydra13/gophkeeper/internal/api/records_by_id_v1_put"
-	recordscommon "github.com/hydra13/gophkeeper/internal/api/records_common"
-	"github.com/hydra13/gophkeeper/internal/api/records_v1_get"
-	"github.com/hydra13/gophkeeper/internal/api/records_v1_post"
+	recordsByIdV1Delete "github.com/hydra13/gophkeeper/internal/api/records_by_id_v1_delete"
+	recordsByIdV1Get "github.com/hydra13/gophkeeper/internal/api/records_by_id_v1_get"
+	recordsByIdV1Put "github.com/hydra13/gophkeeper/internal/api/records_by_id_v1_put"
+	recordsCommon "github.com/hydra13/gophkeeper/internal/api/records_common"
+	recordsV1Get "github.com/hydra13/gophkeeper/internal/api/records_v1_get"
+	recordsV1Post "github.com/hydra13/gophkeeper/internal/api/records_v1_post"
 	"github.com/hydra13/gophkeeper/internal/api/sync_pull_v1_post"
 	"github.com/hydra13/gophkeeper/internal/api/sync_push_v1_post"
 	"github.com/hydra13/gophkeeper/internal/api/uploads_by_id_chunks_v1_get"
@@ -74,9 +74,9 @@ type AppDeps struct {
 	// UploadService реализует загрузку и скачивание бинарных данных.
 	UploadService interface {
 		CreateSession(userID, recordID, totalChunks, chunkSize, totalSize, keyVersion int64) (int64, error)
-		GetUploadStatus(uploadID int64) (*uploads_by_id_v1_get.UploadStatusResponse, error)
+		GetUploadStatus(uploadID int64) (*models.UploadStatusResponse, error)
 		UploadChunk(uploadID, chunkIndex int64, data []byte) (received, total int64, completed bool, missing []int64, err error)
-		DownloadChunk(uploadID, chunkIndex int64) (*uploads_by_id_chunks_v1_get.ChunkDownloadResponse, error)
+		DownloadChunk(uploadID, chunkIndex int64) (*models.ChunkDownloadResponse, error)
 		GetUploadSessionByID(uploadID int64) (*models.UploadSession, error)
 		CreateDownloadSession(userID, recordID int64) (*models.DownloadSession, error)
 		DownloadChunkByID(downloadID, chunkIndex int64) (*models.Chunk, error)
@@ -222,11 +222,11 @@ func buildHTTPServer(cfg *config.Config, log zerolog.Logger, limiter *middleware
 	authRefreshHandler := auth_refresh_v1_post.NewHandler(authService, log)
 	authLogoutHandler := auth_logout_v1_post.NewHandler(authService, log)
 
-	recordsPostHandler := recordsv1post.NewHandler(recordService)
-	recordsGetHandler := recordsv1get.NewHandler(recordService)
-	recordGetHandler := recordsbyidv1get.NewHandler(recordService)
-	recordPutHandler := recordsbyidv1put.NewHandler(recordService)
-	recordDeleteHandler := recordsbyidv1delete.NewHandler(recordService)
+	recordsPostHandler := recordsV1Post.NewHandler(recordService)
+	recordsGetHandler := recordsV1Get.NewHandler(recordService)
+	recordGetHandler := recordsByIdV1Get.NewHandler(recordService)
+	recordPutHandler := recordsByIdV1Put.NewHandler(recordService)
+	recordDeleteHandler := recordsByIdV1Delete.NewHandler(recordService)
 	recordBinaryHandler := records_by_id_binary_v1_get.NewHandler(recordService, uploadService)
 
 	syncPushHandler := sync_push_v1_post.NewHandler(syncService)
@@ -372,11 +372,6 @@ func isPublicPath(path string) bool {
 	return strings.HasPrefix(path, "/api/v1/auth/")
 }
 
-// healthChecker always reports healthy. This is safe because the fail-fast
-// bootstrap in cmd/server guarantees that all persistence dependencies
-// (database connection, migrations, services) are fully initialized before
-// the HTTP server starts accepting requests. If any critical dependency
-// fails, the process exits with a diagnostic message and never reaches Run.
 type healthChecker struct{}
 
 func (h *healthChecker) Health() error {
@@ -461,7 +456,7 @@ func (s *stubUploadsService) CreateSession(userID, recordID, totalChunks, chunkS
 	return 0, errors.New("uploads service not implemented")
 }
 
-func (s *stubUploadsService) GetUploadStatus(uploadID int64) (*uploads_by_id_v1_get.UploadStatusResponse, error) {
+func (s *stubUploadsService) GetUploadStatus(uploadID int64) (*models.UploadStatusResponse, error) {
 	return nil, errors.New("uploads service not implemented")
 }
 
@@ -469,7 +464,7 @@ func (s *stubUploadsService) UploadChunk(uploadID, chunkIndex int64, data []byte
 	return 0, 0, false, nil, errors.New("uploads service not implemented")
 }
 
-func (s *stubUploadsService) DownloadChunk(uploadID, chunkIndex int64) (*uploads_by_id_chunks_v1_get.ChunkDownloadResponse, error) {
+func (s *stubUploadsService) DownloadChunk(uploadID, chunkIndex int64) (*models.ChunkDownloadResponse, error) {
 	return nil, errors.New("uploads service not implemented")
 }
 
@@ -527,11 +522,11 @@ func (a *syncUseCaseAdapter) ResolveConflict(userID int64, conflictID int64, res
 	return a.svc.ResolveConflict(userID, conflictID, resolution)
 }
 
-func recordToDTO(r *models.Record) recordscommon.RecordDTO {
+func recordToDTO(r *models.Record) recordsCommon.RecordDTO {
 	if r == nil {
-		return recordscommon.RecordDTO{}
+		return recordsCommon.RecordDTO{}
 	}
-	dto := recordscommon.RecordDTO{
+	dto := recordsCommon.RecordDTO{
 		ID:             r.ID,
 		UserID:         r.UserID,
 		Type:           string(r.Type),
@@ -551,13 +546,13 @@ func recordToDTO(r *models.Record) recordscommon.RecordDTO {
 
 	switch p := r.Payload.(type) {
 	case models.LoginPayload:
-		dto.Payload = recordscommon.LoginPayloadDTO{Login: p.Login, Password: p.Password}
+		dto.Payload = recordsCommon.LoginPayloadDTO{Login: p.Login, Password: p.Password}
 	case models.TextPayload:
-		dto.Payload = recordscommon.TextPayloadDTO{Content: p.Content}
+		dto.Payload = recordsCommon.TextPayloadDTO{Content: p.Content}
 	case models.BinaryPayload:
-		dto.Payload = recordscommon.BinaryPayloadDTO{}
+		dto.Payload = recordsCommon.BinaryPayloadDTO{}
 	case models.CardPayload:
-		dto.Payload = recordscommon.CardPayloadDTO{
+		dto.Payload = recordsCommon.CardPayloadDTO{
 			Number: p.Number, HolderName: p.HolderName,
 			ExpiryDate: p.ExpiryDate, CVV: p.CVV,
 		}

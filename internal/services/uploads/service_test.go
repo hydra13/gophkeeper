@@ -7,8 +7,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/hydra13/gophkeeper/internal/api/uploads_by_id_chunks_v1_get"
-	"github.com/hydra13/gophkeeper/internal/api/uploads_by_id_v1_get"
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
@@ -21,12 +19,12 @@ type memUploadRepo struct {
 	chunks   map[int64][]models.Chunk // key = uploadID
 	nextID   int64
 	// optional overrides for error injection
-	createSessionErr           error
-	getSessionErr              error
-	getCompletedByRecordIDErr  error
-	updateSessionErr           error
-	saveChunkErr               error
-	getChunksErr               error
+	createSessionErr          error
+	getSessionErr             error
+	getCompletedByRecordIDErr error
+	updateSessionErr          error
+	saveChunkErr              error
+	getChunksErr              error
 }
 
 func newMemUploadRepo() *memUploadRepo {
@@ -865,6 +863,6 @@ func TestResumeUploadПослеОбрыва(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 var (
-	_ *uploads_by_id_v1_get.UploadStatusResponse  = nil
-	_ *uploads_by_id_chunks_v1_get.ChunkDownloadResponse = nil
+	_ *models.UploadStatusResponse  = nil
+	_ *models.ChunkDownloadResponse = nil
 )

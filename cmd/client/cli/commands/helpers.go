@@ -9,18 +9,22 @@ import (
 	"github.com/hydra13/gophkeeper/pkg/clientui"
 )
 
+// ExtractMetadata извлекает флаг --metadata из аргументов команды.
 func ExtractMetadata(args []string) (metadata string, found bool, rest []string) {
 	return clientui.ExtractMetadata(args)
 }
 
+// ParseRecordType преобразует строковое имя типа записи в RecordType.
 func ParseRecordType(s string) (models.RecordType, error) {
 	return clientui.ParseRecordType(s)
 }
 
+// PrintRecord печатает полное представление записи.
 func PrintRecord(w io.Writer, rec *models.Record) {
 	clientui.PrintRecord(w, rec)
 }
 
+// PrintRecordShort печатает краткое представление записи для списков.
 func PrintRecordShort(w io.Writer, rec models.Record) {
 	clientui.PrintRecordShort(w, rec)
 }
@@ -53,6 +57,7 @@ func (r *Runner) promptPayload(recordType models.RecordType) models.RecordPayloa
 	}
 }
 
+// BuildPayload собирает payload записи из аргумента команды или интерактивного ввода.
 func (r *Runner) BuildPayload(recordType models.RecordType, data string) models.RecordPayload {
 	switch recordType {
 	case models.RecordTypeLogin:

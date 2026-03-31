@@ -2,6 +2,7 @@ package commands
 
 import "fmt"
 
+// PrintUsage печатает справку по доступным командам CLI.
 func (r *Runner) PrintUsage() {
 	fmt.Fprintln(r.deps.Stderr, "Usage: gophkeeper-cli <command> [args]")
 	fmt.Fprintln(r.deps.Stderr, "")

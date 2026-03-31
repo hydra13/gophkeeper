@@ -1,6 +1,8 @@
 // Package sync_pull_v1_post реализует HTTP-ручку получения изменений синхронизации.
 //
 // POST /api/v1/sync/pull
+//
+//go:generate minimock -i .SyncPuller -o mocks -s _mock.go -g
 package sync_pull_v1_post
 
 import (

@@ -6,8 +6,6 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/hydra13/gophkeeper/internal/api/uploads_by_id_chunks_v1_get"
-	"github.com/hydra13/gophkeeper/internal/api/uploads_by_id_v1_get"
 	"github.com/hydra13/gophkeeper/internal/models"
 	"github.com/hydra13/gophkeeper/internal/repositories"
 )
@@ -65,12 +63,12 @@ func (s *Service) CreateSession(userID, recordID, totalChunks, chunkSize, totalS
 }
 
 // GetUploadStatus возвращает статус upload-сессии по ID.
-func (s *Service) GetUploadStatus(uploadID int64) (*uploads_by_id_v1_get.UploadStatusResponse, error) {
+func (s *Service) GetUploadStatus(uploadID int64) (*models.UploadStatusResponse, error) {
 	session, err := s.repo.GetUploadSession(uploadID)
 	if err != nil {
 		return nil, fmt.Errorf("get upload session: %w", err)
 	}
-	return &uploads_by_id_v1_get.UploadStatusResponse{
+	return &models.UploadStatusResponse{
 		UploadID:       session.ID,
 		RecordID:       session.RecordID,
 		Status:         string(session.Status),
@@ -110,7 +108,7 @@ func (s *Service) UploadChunk(uploadID, chunkIndex int64, data []byte) (received
 }
 
 // DownloadChunk возвращает данные чанка для скачивания по upload-сессии.
-func (s *Service) DownloadChunk(uploadID, chunkIndex int64) (*uploads_by_id_chunks_v1_get.ChunkDownloadResponse, error) {
+func (s *Service) DownloadChunk(uploadID, chunkIndex int64) (*models.ChunkDownloadResponse, error) {
 	session, err := s.repo.GetUploadSession(uploadID)
 	if err != nil {
 		return nil, fmt.Errorf("get upload session: %w", err)
@@ -140,11 +138,11 @@ func (s *Service) DownloadChunk(uploadID, chunkIndex int64) (*uploads_by_id_chun
 		return nil, fmt.Errorf("chunk %d not found for upload %d", chunkIndex, uploadID)
 	}
 
-	return &uploads_by_id_chunks_v1_get.ChunkDownloadResponse{
-		UploadID:   uploadID,
-		ChunkIndex: chunkIndex,
-		RecordID:   session.RecordID,
-		Data:       targetChunk.Data,
+	return &models.ChunkDownloadResponse{
+		UploadID:    uploadID,
+		ChunkIndex:  chunkIndex,
+		RecordID:    session.RecordID,
+		Data:        targetChunk.Data,
 		TotalChunks: session.TotalChunks,
 	}, nil
 }
@@ -163,13 +161,13 @@ func (s *Service) CreateDownloadSession(userID, recordID int64) (*models.Downloa
 
 	downloadID := s.downloadSeq.Add(1)
 	download := &models.DownloadSession{
-		ID:                 downloadID,
-		RecordID:           recordID,
-		UserID:             userID,
-		Status:             models.DownloadStatusActive,
-		TotalChunks:        session.TotalChunks,
-		ConfirmedChunks:    0,
-		ConfirmedChunkSet:  make(map[int64]bool),
+		ID:                downloadID,
+		RecordID:          recordID,
+		UserID:            userID,
+		Status:            models.DownloadStatusActive,
+		TotalChunks:       session.TotalChunks,
+		ConfirmedChunks:   0,
+		ConfirmedChunkSet: make(map[int64]bool),
 	}
 
 	s.downloadSessions.Store(downloadID, download)

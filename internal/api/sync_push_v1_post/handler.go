@@ -1,6 +1,8 @@
 // Package sync_push_v1_post реализует HTTP-ручку отправки локальных изменений на сервер.
 //
 // POST /api/v1/sync/push
+//
+//go:generate minimock -i .SyncPusher -o mocks -s _mock.go -g
 package sync_push_v1_post
 
 import (

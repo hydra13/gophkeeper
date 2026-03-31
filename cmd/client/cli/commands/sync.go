@@ -6,6 +6,7 @@ import (
 	"time"
 )
 
+// RunSync запускает принудительную синхронизацию с сервером.
 func (r *Runner) RunSync() {
 	core, cleanup, err := r.newCore()
 	if err != nil {

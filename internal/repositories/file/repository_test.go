@@ -9,17 +9,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// --- helpers ---
-
-// newTestRepo creates a Repository backed by a temp directory.
+// newTestRepo создает Repository использующий temp dir.
 func newTestRepo(t *testing.T) *Repository {
 	t.Helper()
 	repo, err := New(t.TempDir())
 	require.NoError(t, err)
 	return repo
 }
-
-// --- New ---
 
 func TestNew_EmptyBasePath(t *testing.T) {
 	t.Parallel()
@@ -54,8 +50,6 @@ func TestNew_CreatesDirectory(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, info.IsDir())
 }
-
-// --- Save ---
 
 func TestSave_NormalRoundtrip(t *testing.T) {
 	t.Parallel()
@@ -154,8 +148,6 @@ func TestSave_ParentTraversalMiddleRejected(t *testing.T) {
 	require.Contains(t, err.Error(), "invalid blob path")
 }
 
-// --- Read ---
-
 func TestRead_NonExistentFile(t *testing.T) {
 	t.Parallel()
 
@@ -184,8 +176,6 @@ func TestRead_ParentTraversalRejected(t *testing.T) {
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "invalid blob path")
 }
-
-// --- Delete ---
 
 func TestDelete_ExistingFile(t *testing.T) {
 	t.Parallel()
@@ -229,8 +219,6 @@ func TestDelete_ParentTraversalRejected(t *testing.T) {
 	require.Contains(t, err.Error(), "invalid blob path")
 }
 
-// --- Exists ---
-
 func TestExists_ExistingFile(t *testing.T) {
 	t.Parallel()
 
@@ -271,8 +259,6 @@ func TestExists_ParentTraversalRejected(t *testing.T) {
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "invalid blob path")
 }
-
-// --- resolvePath ---
 
 func TestResolvePath_RelativePathOK(t *testing.T) {
 	t.Parallel()

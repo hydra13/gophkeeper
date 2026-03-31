@@ -7,31 +7,45 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gojuno/minimock/v3"
+	"github.com/stretchr/testify/assert"
+
+	"github.com/hydra13/gophkeeper/internal/api/records_by_id_v1_get/mocks"
 	"github.com/hydra13/gophkeeper/internal/middlewares"
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
 func TestHandler_Handle(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	loginPayload := models.LoginPayload{Login: "user", Password: "pass"}
 
 	tests := []struct {
-		name        string
-		recordID    string
-		userID      int64
-		serviceErr  error
-		serviceResp *models.Record
-		wantCode    int
+		name      string
+		recordID  string
+		userID    int64
+		setupMock func(mc *minimock.Controller) RecordService
+		wantCode  int
 	}{
 		{
 			name:     "success",
 			recordID: "1",
 			userID:   1,
-			serviceResp: &models.Record{
-				ID: 1, UserID: 1, Type: models.RecordTypeLogin,
-				Name: "Test", Revision: 1, DeviceID: "dev-1",
-				KeyVersion: 1, Payload: loginPayload,
-				CreatedAt: now, UpdatedAt: now,
+			setupMock: func(mc *minimock.Controller) RecordService {
+				return mocks.NewRecordServiceMock(mc).
+					GetRecordMock.Expect(int64(1)).Return(&models.Record{
+					ID:         1,
+					UserID:     1,
+					Type:       models.RecordTypeLogin,
+					Name:       "Test",
+					Revision:   1,
+					DeviceID:   "dev-1",
+					KeyVersion: 1,
+					Payload:    loginPayload,
+					CreatedAt:  now,
+					UpdatedAt:  now,
+				}, nil)
 			},
 			wantCode: http.StatusOK,
 		},
@@ -39,39 +53,59 @@ func TestHandler_Handle(t *testing.T) {
 			name:     "unauthorized",
 			recordID: "1",
 			userID:   0,
+			setupMock: func(mc *minimock.Controller) RecordService {
+				return mocks.NewRecordServiceMock(mc)
+			},
 			wantCode: http.StatusUnauthorized,
 		},
 		{
 			name:     "invalid record id",
 			recordID: "abc",
 			userID:   1,
+			setupMock: func(mc *minimock.Controller) RecordService {
+				return mocks.NewRecordServiceMock(mc)
+			},
 			wantCode: http.StatusBadRequest,
 		},
 		{
-			name:       "record not found",
-			recordID:   "999",
-			userID:     1,
-			serviceErr: models.ErrRecordNotFound,
-			wantCode:   http.StatusNotFound,
+			name:     "record not found",
+			recordID: "999",
+			userID:   1,
+			setupMock: func(mc *minimock.Controller) RecordService {
+				return mocks.NewRecordServiceMock(mc).
+					GetRecordMock.Expect(int64(999)).Return(nil, models.ErrRecordNotFound)
+			},
+			wantCode: http.StatusNotFound,
 		},
 		{
-			name:     "access denied - wrong user",
+			name:     "access denied",
 			recordID: "1",
 			userID:   2,
-			serviceResp: &models.Record{
-				ID: 1, UserID: 1, Type: models.RecordTypeLogin,
-				Name: "Test", DeviceID: "dev-1",
-				KeyVersion: 1, Payload: loginPayload,
-				CreatedAt: now, UpdatedAt: now,
+			setupMock: func(mc *minimock.Controller) RecordService {
+				return mocks.NewRecordServiceMock(mc).
+					GetRecordMock.Expect(int64(1)).Return(&models.Record{
+					ID:         1,
+					UserID:     1,
+					Type:       models.RecordTypeLogin,
+					Name:       "Test",
+					DeviceID:   "dev-1",
+					KeyVersion: 1,
+					Payload:    loginPayload,
+					CreatedAt:  now,
+					UpdatedAt:  now,
+				}, nil)
 			},
 			wantCode: http.StatusForbidden,
 		},
 		{
-			name:       "internal error",
-			recordID:   "1",
-			userID:     1,
-			serviceErr: errors.New("db error"),
-			wantCode:   http.StatusInternalServerError,
+			name:     "internal error",
+			recordID: "1",
+			userID:   1,
+			setupMock: func(mc *minimock.Controller) RecordService {
+				return mocks.NewRecordServiceMock(mc).
+					GetRecordMock.Expect(int64(1)).Return(nil, errors.New("db error"))
+			},
+			wantCode: http.StatusInternalServerError,
 		},
 	}
 
@@ -79,34 +113,19 @@ func TestHandler_Handle(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			mock := &recordServiceMock{
-				record: tt.serviceResp,
-				err:    tt.serviceErr,
-			}
-			handler := NewHandler(mock)
+			mc := minimock.NewController(t)
+			handler := NewHandler(tt.setupMock(mc))
 
 			req := httptest.NewRequest(http.MethodGet, "/api/v1/records/{id}", nil)
 			req.SetPathValue("id", tt.recordID)
 			if tt.userID > 0 {
-				ctx := middlewares.ContextWithUserID(req.Context(), tt.userID)
-				req = req.WithContext(ctx)
+				req = req.WithContext(middlewares.ContextWithUserID(req.Context(), tt.userID))
 			}
 
 			rec := httptest.NewRecorder()
 			handler.Handle(rec, req)
 
-			if rec.Code != tt.wantCode {
-				t.Errorf("got status %d, want %d; body: %s", rec.Code, tt.wantCode, rec.Body.String())
-			}
+			assert.Equal(t, tt.wantCode, rec.Code, rec.Body.String())
 		})
 	}
-}
-
-type recordServiceMock struct {
-	record *models.Record
-	err    error
-}
-
-func (m *recordServiceMock) GetRecord(id int64) (*models.Record, error) {
-	return m.record, m.err
 }

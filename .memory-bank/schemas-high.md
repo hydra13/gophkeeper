@@ -3,10 +3,15 @@
 Ниже несколько Mermaid-представлений одной и той же верхнеуровневой архитектуры.
 Во всех вариантах отражены:
 
-- клиенты: `CLI`, `TUI`, `Desktop`
+- клиенты: `CLI`, `TUI`, `Desktop`, `Web`
 - `Server`
 - `PostgreSQL`
 - `S3-compatible Blob Storage` / `MinIO`
+
+Дополнительно учтено текущее различие клиентских путей:
+
+- `CLI`, `TUI`, `Desktop` показаны как native-клиенты
+- `Web` показан как browser-клиент с `HTTP/REST` API, `localStorage`-сессией и browser `File/Blob` flow для binary-операций
 
 ## Вариант 1. Контекстная схема
 
@@ -18,6 +23,7 @@ flowchart LR
         CLI["CLI Client"]
         TUI["TUI Client"]
         Desktop["Desktop Client"]
+        Web["Web Client"]
     end
 
     Server["GophKeeper Server"]
@@ -27,6 +33,7 @@ flowchart LR
     CLI -->|"TLS / gRPC"| Server
     TUI -->|"TLS / gRPC"| Server
     Desktop -->|"TLS / gRPC"| Server
+    Web -->|"HTTPS / REST"| Server
 
     Server -->|"metadata, users, sessions,\nrecord revisions"| DB
     Server -->|"binary payloads,\nchunk upload/download"| S3
@@ -38,21 +45,27 @@ flowchart LR
 
 ```mermaid
 flowchart TB
-    subgraph ClientApps["Client Applications"]
+    subgraph NativeApps["Native Clients"]
         CLI["CLI"]
         TUI["TUI"]
         Desktop["Desktop"]
     end
 
-    subgraph ClientShared["Shared Client Layer"]
+    subgraph NativeShared["Shared Native Client Layer"]
         Core["ClientCore"]
         Cache["Local Cache"]
+    end
+
+    subgraph WebApp["Web Client"]
+        Web["React/Vite App"]
+        WebSession["localStorage Session"]
+        BrowserIO["Browser File/Blob Flow"]
     end
 
     subgraph ServerApp["Server"]
         API["HTTP / gRPC Transport"]
         Services["Business Services"]
-        Repos["Repositories / Storage Adapters"]
+        Repos["Repositories<br />Storage Adapters"]
     end
 
     DB[("PostgreSQL")]
@@ -64,11 +77,15 @@ flowchart TB
 
     Core <--> Cache
     Core -->|"TLS / gRPC"| API
+    Web <--> WebSession
+    Web -->|"HTTPS / REST"| API
+    Web <--> BrowserIO
 
     API --> Services
     Services --> Repos
     Repos --> DB
     Repos --> S3
+    BrowserIO -. upload/download .-> API
 ```
 
 ## Вариант 3. Потоки данных по типам
@@ -81,14 +98,18 @@ flowchart LR
         CLI["CLI"]
         TUI["TUI"]
         Desktop["Desktop"]
+        Web["Web"]
     end
 
     Server["GophKeeper Server"]
     DB[("PostgreSQL")]
     S3[("S3 / MinIO")]
 
-    Clients -->|"auth, CRUD, sync,\nrecord metadata"| Server
-    Clients -->|"binary upload/download\nvia chunk API"| Server
+    CLI -->|"auth, CRUD, sync\nvia gRPC"| Server
+    TUI -->|"auth, CRUD, sync\nvia gRPC"| Server
+    Desktop -->|"auth, CRUD, sync\nvia gRPC"| Server
+    Web -->|"auth, CRUD, sync\nvia HTTP/REST"| Server
+    Web -->|"binary upload/download\nvia browser File/Blob + HTTP"| Server
 
     Server -->|"users, sessions,\nrecords, revisions,\nkey versions"| DB
     Server -->|"encrypted binary blobs"| S3
@@ -104,7 +125,9 @@ flowchart TB
         CLI["CLI Binary"]
         TUI["TUI Binary"]
         Desktop["Desktop App"]
-        Cache["Local Cache Files"]
+        Web["Browser Tab"]
+        Cache["Native Local Cache Files"]
+        WebSession["localStorage Session"]
     end
 
     subgraph BackendHost["Backend Environment"]
@@ -116,10 +139,12 @@ flowchart TB
     CLI -.-> Cache
     TUI -.-> Cache
     Desktop -.-> Cache
+    Web -.-> WebSession
 
     CLI -->|"TLS / gRPC"| Server
     TUI -->|"TLS / gRPC"| Server
     Desktop -->|"TLS / gRPC"| Server
+    Web -->|"HTTPS / REST"| Server
 
     Server --> DB
     Server --> S3
@@ -134,6 +159,7 @@ flowchart LR
     CLI["CLI"]
     TUI["TUI"]
     Desktop["Desktop"]
+    Web["Web"]
     Server["Server"]
     DB[("PostgreSQL")]
     S3[("S3 / MinIO")]
@@ -141,6 +167,7 @@ flowchart LR
     CLI --> Server
     TUI --> Server
     Desktop --> Server
+    Web --> Server
     Server --> DB
     Server --> S3
 ```

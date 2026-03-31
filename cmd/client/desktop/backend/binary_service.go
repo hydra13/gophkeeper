@@ -11,6 +11,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
+// BinaryService работает с выбором и сохранением бинарных вложений.
 type BinaryService struct {
 	core *clientcore.ClientCore
 
@@ -18,16 +19,19 @@ type BinaryService struct {
 	runtimeCtx context.Context
 }
 
+// NewBinaryService создает сервис для выбора, загрузки и сохранения бинарных данных.
 func NewBinaryService(core *clientcore.ClientCore) *BinaryService {
 	return &BinaryService{core: core}
 }
 
+// SetRuntimeContext сохраняет runtime context Wails для вызова системных диалогов.
 func (s *BinaryService) SetRuntimeContext(ctx context.Context) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.runtimeCtx = ctx
 }
 
+// PickFileForUpload открывает диалог выбора файла для загрузки.
 func (s *BinaryService) PickFileForUpload() (string, error) {
 	ctx, err := s.context()
 	if err != nil {
@@ -43,6 +47,7 @@ func (s *BinaryService) PickFileForUpload() (string, error) {
 	return path, nil
 }
 
+// SaveBinaryAs запрашивает путь сохранения и выгружает туда бинарные данные записи.
 func (s *BinaryService) SaveBinaryAs(recordID int64) (string, error) {
 	ctx, err := s.context()
 	if err != nil {
@@ -62,6 +67,7 @@ func (s *BinaryService) SaveBinaryAs(recordID int64) (string, error) {
 	return s.DownloadBinary(recordID, path)
 }
 
+// DownloadBinary загружает бинарные данные записи и сохраняет их по указанному пути.
 func (s *BinaryService) DownloadBinary(recordID int64, savePath string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()

@@ -6,74 +6,74 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/gojuno/minimock/v3"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/hydra13/gophkeeper/internal/api/health_v1_get/mocks"
 )
 
-type mockHealthChecker struct {
-	healthFunc func() error
-}
+func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
 
-func (m *mockHealthChecker) Health() error {
-	return m.healthFunc()
-}
-
-func TestHealthHandler_OK(t *testing.T) {
-	mock := &mockHealthChecker{
-		healthFunc: func() error { return nil },
+	tests := []struct {
+		name       string
+		method     string
+		setupMock  func(mc *minimock.Controller) HealthChecker
+		wantCode   int
+		wantStatus string
+	}{
+		{
+			name:   "ok",
+			method: http.MethodGet,
+			setupMock: func(mc *minimock.Controller) HealthChecker {
+				return mocks.NewHealthCheckerMock(mc).
+					HealthMock.Return(nil)
+			},
+			wantCode:   http.StatusOK,
+			wantStatus: "ok",
+		},
+		{
+			name:   "error",
+			method: http.MethodGet,
+			setupMock: func(mc *minimock.Controller) HealthChecker {
+				return mocks.NewHealthCheckerMock(mc).
+					HealthMock.Return(errors.New("db unavailable"))
+			},
+			wantCode:   http.StatusOK,
+			wantStatus: "error",
+		},
+		{
+			name:   "method not allowed",
+			method: http.MethodPost,
+			setupMock: func(mc *minimock.Controller) HealthChecker {
+				return mocks.NewHealthCheckerMock(mc)
+			},
+			wantCode: http.StatusMethodNotAllowed,
+		},
 	}
 
-	h := NewHandler(mock)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/health", nil)
-	w := httptest.NewRecorder()
+			mc := minimock.NewController(t)
+			handler := NewHandler(tt.setupMock(mc))
 
-	h.ServeHTTP(w, req)
+			req := httptest.NewRequest(tt.method, "/api/v1/health", nil)
+			rec := httptest.NewRecorder()
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected status 200, got %d", w.Code)
-	}
+			handler.ServeHTTP(rec, req)
 
-	var resp Response
-	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
-		t.Fatalf("failed to decode response: %v", err)
-	}
-	if resp.Status != "ok" {
-		t.Fatalf("expected status 'ok', got %s", resp.Status)
-	}
-}
+			require.Equal(t, tt.wantCode, rec.Code)
+			if tt.wantStatus == "" {
+				return
+			}
 
-func TestHealthHandler_Error(t *testing.T) {
-	mock := &mockHealthChecker{
-		healthFunc: func() error { return errors.New("db unavailable") },
-	}
-
-	h := NewHandler(mock)
-
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/health", nil)
-	w := httptest.NewRecorder()
-
-	h.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected status 200, got %d", w.Code)
-	}
-
-	var resp Response
-	json.NewDecoder(w.Body).Decode(&resp)
-	if resp.Status != "error" {
-		t.Fatalf("expected status 'error', got %s", resp.Status)
-	}
-}
-
-func TestHealthHandler_MethodNotAllowed(t *testing.T) {
-	mock := &mockHealthChecker{}
-	h := NewHandler(mock)
-
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/health", nil)
-	w := httptest.NewRecorder()
-
-	h.ServeHTTP(w, req)
-
-	if w.Code != http.StatusMethodNotAllowed {
-		t.Fatalf("expected status 405, got %d", w.Code)
+			var resp Response
+			require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
+			assert.Equal(t, tt.wantStatus, resp.Status)
+		})
 	}
 }

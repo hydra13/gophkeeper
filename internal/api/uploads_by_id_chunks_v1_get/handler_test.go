@@ -5,20 +5,22 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/hydra13/gophkeeper/internal/models"
 )
 
 type mockChunkDownloader struct {
-	downloadChunkFunc func(uploadID, chunkIndex int64) (*ChunkDownloadResponse, error)
+	downloadChunkFunc func(uploadID, chunkIndex int64) (*models.ChunkDownloadResponse, error)
 }
 
-func (m *mockChunkDownloader) DownloadChunk(uploadID, chunkIndex int64) (*ChunkDownloadResponse, error) {
+func (m *mockChunkDownloader) DownloadChunk(uploadID, chunkIndex int64) (*models.ChunkDownloadResponse, error) {
 	return m.downloadChunkFunc(uploadID, chunkIndex)
 }
 
 func TestChunkDownloadHandler_Success(t *testing.T) {
 	mock := &mockChunkDownloader{
-		downloadChunkFunc: func(uploadID, chunkIndex int64) (*ChunkDownloadResponse, error) {
-			return &ChunkDownloadResponse{
+		downloadChunkFunc: func(uploadID, chunkIndex int64) (*models.ChunkDownloadResponse, error) {
+			return &models.ChunkDownloadResponse{
 				UploadID:        uploadID,
 				DownloadID:      10,
 				RecordID:        7,
@@ -87,7 +89,7 @@ func TestChunkDownloadHandler_NegativeChunkIndex(t *testing.T) {
 
 func TestChunkDownloadHandler_NotFound(t *testing.T) {
 	mock := &mockChunkDownloader{
-		downloadChunkFunc: func(uploadID, chunkIndex int64) (*ChunkDownloadResponse, error) {
+		downloadChunkFunc: func(uploadID, chunkIndex int64) (*models.ChunkDownloadResponse, error) {
 			return nil, errors.New("download session not found")
 		},
 	}
@@ -105,7 +107,7 @@ func TestChunkDownloadHandler_NotFound(t *testing.T) {
 
 func TestChunkDownloadHandler_Completed(t *testing.T) {
 	mock := &mockChunkDownloader{
-		downloadChunkFunc: func(uploadID, chunkIndex int64) (*ChunkDownloadResponse, error) {
+		downloadChunkFunc: func(uploadID, chunkIndex int64) (*models.ChunkDownloadResponse, error) {
 			return nil, errors.New("download session already completed")
 		},
 	}
@@ -123,7 +125,7 @@ func TestChunkDownloadHandler_Completed(t *testing.T) {
 
 func TestChunkDownloadHandler_Aborted(t *testing.T) {
 	mock := &mockChunkDownloader{
-		downloadChunkFunc: func(uploadID, chunkIndex int64) (*ChunkDownloadResponse, error) {
+		downloadChunkFunc: func(uploadID, chunkIndex int64) (*models.ChunkDownloadResponse, error) {
 			return nil, errors.New("download session is aborted")
 		},
 	}
@@ -141,7 +143,7 @@ func TestChunkDownloadHandler_Aborted(t *testing.T) {
 
 func TestChunkDownloadHandler_NotActive(t *testing.T) {
 	mock := &mockChunkDownloader{
-		downloadChunkFunc: func(uploadID, chunkIndex int64) (*ChunkDownloadResponse, error) {
+		downloadChunkFunc: func(uploadID, chunkIndex int64) (*models.ChunkDownloadResponse, error) {
 			return nil, errors.New("download session is not active")
 		},
 	}
@@ -159,7 +161,7 @@ func TestChunkDownloadHandler_NotActive(t *testing.T) {
 
 func TestChunkDownloadHandler_UploadNotPending(t *testing.T) {
 	mock := &mockChunkDownloader{
-		downloadChunkFunc: func(uploadID, chunkIndex int64) (*ChunkDownloadResponse, error) {
+		downloadChunkFunc: func(uploadID, chunkIndex int64) (*models.ChunkDownloadResponse, error) {
 			return nil, errors.New("upload session is not pending")
 		},
 	}
@@ -177,7 +179,7 @@ func TestChunkDownloadHandler_UploadNotPending(t *testing.T) {
 
 func TestChunkDownloadHandler_ChunkOutOfRange(t *testing.T) {
 	mock := &mockChunkDownloader{
-		downloadChunkFunc: func(uploadID, chunkIndex int64) (*ChunkDownloadResponse, error) {
+		downloadChunkFunc: func(uploadID, chunkIndex int64) (*models.ChunkDownloadResponse, error) {
 			return nil, errors.New("chunk index out of range")
 		},
 	}
@@ -195,7 +197,7 @@ func TestChunkDownloadHandler_ChunkOutOfRange(t *testing.T) {
 
 func TestChunkDownloadHandler_ChunkAlreadyConfirmed(t *testing.T) {
 	mock := &mockChunkDownloader{
-		downloadChunkFunc: func(uploadID, chunkIndex int64) (*ChunkDownloadResponse, error) {
+		downloadChunkFunc: func(uploadID, chunkIndex int64) (*models.ChunkDownloadResponse, error) {
 			return nil, errors.New("chunk already confirmed by client")
 		},
 	}
@@ -213,7 +215,7 @@ func TestChunkDownloadHandler_ChunkAlreadyConfirmed(t *testing.T) {
 
 func TestChunkDownloadHandler_ChunkOutOfOrder(t *testing.T) {
 	mock := &mockChunkDownloader{
-		downloadChunkFunc: func(uploadID, chunkIndex int64) (*ChunkDownloadResponse, error) {
+		downloadChunkFunc: func(uploadID, chunkIndex int64) (*models.ChunkDownloadResponse, error) {
 			return nil, errors.New("chunk order violated")
 		},
 	}
@@ -231,7 +233,7 @@ func TestChunkDownloadHandler_ChunkOutOfOrder(t *testing.T) {
 
 func TestChunkDownloadHandler_UploadSessionNotFound(t *testing.T) {
 	mock := &mockChunkDownloader{
-		downloadChunkFunc: func(uploadID, chunkIndex int64) (*ChunkDownloadResponse, error) {
+		downloadChunkFunc: func(uploadID, chunkIndex int64) (*models.ChunkDownloadResponse, error) {
 			return nil, errors.New("upload session not found")
 		},
 	}
@@ -249,7 +251,7 @@ func TestChunkDownloadHandler_UploadSessionNotFound(t *testing.T) {
 
 func TestChunkDownloadHandler_ChunkNotFound(t *testing.T) {
 	mock := &mockChunkDownloader{
-		downloadChunkFunc: func(uploadID, chunkIndex int64) (*ChunkDownloadResponse, error) {
+		downloadChunkFunc: func(uploadID, chunkIndex int64) (*models.ChunkDownloadResponse, error) {
 			return nil, errors.New("chunk 0 not found for upload 1")
 		},
 	}
@@ -267,7 +269,7 @@ func TestChunkDownloadHandler_ChunkNotFound(t *testing.T) {
 
 func TestChunkDownloadHandler_InternalError(t *testing.T) {
 	mock := &mockChunkDownloader{
-		downloadChunkFunc: func(uploadID, chunkIndex int64) (*ChunkDownloadResponse, error) {
+		downloadChunkFunc: func(uploadID, chunkIndex int64) (*models.ChunkDownloadResponse, error) {
 			return nil, errors.New("something unexpected")
 		},
 	}

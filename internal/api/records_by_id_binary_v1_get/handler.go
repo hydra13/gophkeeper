@@ -1,6 +1,9 @@
 // Package records_by_id_binary_v1_get реализует HTTP-ручку скачивания бинарной записи.
 //
 // GET /api/v1/records/{id}/binary
+//
+//go:generate minimock -i .RecordService -o mocks -s _mock.go -g
+//go:generate minimock -i .UploadService -o mocks -s _mock.go -g
 package records_by_id_binary_v1_get
 
 import (

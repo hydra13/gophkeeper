@@ -11,6 +11,7 @@ import (
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
+// RunList выводит список записей с необязательной фильтрацией по типу.
 func (r *Runner) RunList(args []string) {
 	core, cleanup, err := r.newCore()
 	if err != nil {
@@ -42,6 +43,7 @@ func (r *Runner) RunList(args []string) {
 	}
 }
 
+// RunGet выводит запись по имени или ID, а для бинарных данных может сохранить файл на диск.
 func (r *Runner) RunGet(args []string) {
 	if len(args) < 2 {
 		fmt.Fprintln(r.deps.Stderr, "Usage: gophkeeper-cli get name <name> [output-path]")
@@ -154,6 +156,7 @@ func (r *Runner) resolveRecordIDByName(ctx context.Context, core interface {
 	}
 }
 
+// RunAdd создает новую запись указанного типа.
 func (r *Runner) RunAdd(args []string) {
 	metadata, _, args := ExtractMetadata(args)
 
@@ -224,6 +227,7 @@ func (r *Runner) RunAdd(args []string) {
 	fmt.Fprintf(r.deps.Stdout, "added: id=%d rev=%d\n", result.ID, result.Revision)
 }
 
+// RunUpdate обновляет запись, найденную по имени или ID.
 func (r *Runner) RunUpdate(args []string) {
 	metadata, metadataFound, args := ExtractMetadata(args)
 
@@ -307,6 +311,7 @@ func (r *Runner) RunUpdate(args []string) {
 	fmt.Fprintf(r.deps.Stdout, "updated: id=%d rev=%d\n", result.ID, result.Revision)
 }
 
+// RunDelete удаляет запись, найденную по имени или ID.
 func (r *Runner) RunDelete(args []string) {
 	if len(args) < 2 {
 		fmt.Fprintln(r.deps.Stderr, "Usage: gophkeeper-cli delete name <name>")

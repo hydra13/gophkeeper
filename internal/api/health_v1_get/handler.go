@@ -3,6 +3,8 @@
 // GET /api/v1/health
 //
 // Returns service health status. Used by load balancers and monitoring systems.
+//
+//go:generate minimock -i .HealthChecker -o mocks -s _mock.go -g
 package health_v1_get
 
 import (

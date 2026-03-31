@@ -1,6 +1,8 @@
 // Package uploads_by_id_chunks_v1_post реализует HTTP-ручку загрузки чанка.
 //
 // POST /api/v1/uploads/{id}/chunks
+//
+//go:generate minimock -i .ChunkUploader -o mocks -s _mock.go -g
 package uploads_by_id_chunks_v1_post
 
 import (

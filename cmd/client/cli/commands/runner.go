@@ -7,6 +7,7 @@ import (
 	"github.com/hydra13/gophkeeper/pkg/clientcore"
 )
 
+// Dependencies описывает внешние зависимости Runner.
 type Dependencies struct {
 	NewCore      func() (*clientcore.ClientCore, func(), error)
 	Fatal        func(error)
@@ -16,10 +17,12 @@ type Dependencies struct {
 	Stderr       io.Writer
 }
 
+// Runner выполняет команды CLI-клиента.
 type Runner struct {
 	deps Dependencies
 }
 
+// New создает Runner и подставляет стандартные stdout и stderr при необходимости.
 func New(deps Dependencies) *Runner {
 	if deps.Stdout == nil {
 		deps.Stdout = os.Stdout

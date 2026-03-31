@@ -1,6 +1,8 @@
 // Package uploads_v1_post реализует HTTP-ручку создания сессии загрузки.
 //
 // POST /api/v1/uploads
+//
+//go:generate minimock -i .UploadCreator -o mocks -s _mock.go -g
 package uploads_v1_post
 
 import (

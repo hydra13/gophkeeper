@@ -11,8 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// --- loadFromFile ---
-
 func TestLoadFromFile_ValidJSON(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "config.json")
@@ -76,8 +74,6 @@ func TestLoadFromFile_InvalidJSON(t *testing.T) {
 	require.Error(t, err)
 }
 
-// --- envStr ---
-
 func TestEnvStr(t *testing.T) {
 	t.Run("sets value when env is present", func(t *testing.T) {
 		t.Setenv("TEST_ENV_STR", "hello")
@@ -99,8 +95,6 @@ func TestEnvStr(t *testing.T) {
 		require.Equal(t, "original", s)
 	})
 }
-
-// --- envDuration ---
 
 func TestEnvDuration(t *testing.T) {
 	t.Run("parses valid duration", func(t *testing.T) {
@@ -125,8 +119,6 @@ func TestEnvDuration(t *testing.T) {
 	})
 }
 
-// --- envBool ---
-
 func TestEnvBool(t *testing.T) {
 	t.Run("parses true", func(t *testing.T) {
 		t.Setenv("TEST_ENV_BOOL", "true")
@@ -149,8 +141,6 @@ func TestEnvBool(t *testing.T) {
 		require.True(t, b) // unchanged
 	})
 }
-
-// --- envInt64 ---
 
 func TestEnvInt64(t *testing.T) {
 	t.Run("parses valid integer", func(t *testing.T) {
@@ -175,8 +165,6 @@ func TestEnvInt64(t *testing.T) {
 	})
 }
 
-// --- applyEnv ---
-
 func TestApplyEnv(t *testing.T) {
 	t.Setenv("GK_SERVER_ADDRESS", ":9999")
 	t.Setenv("GK_DATABASE_DSN", "postgres://env:pass@localhost/db")
@@ -191,8 +179,6 @@ func TestApplyEnv(t *testing.T) {
 	require.Equal(t, 2*time.Hour, cfg.Auth.TokenDuration)
 	require.Equal(t, int64(2048), cfg.Upload.MaxFileSize)
 }
-
-// --- resolveConfigPath ---
 
 func TestResolveConfigPath_FromEnv(t *testing.T) {
 	t.Setenv("GK_CONFIG", "/custom/path.json")
@@ -224,8 +210,6 @@ func TestResolveConfigPath_EmptyWhenNothingSet(t *testing.T) {
 	require.Equal(t, "", path)
 }
 
-// --- argValue ---
-
 func TestArgValue(t *testing.T) {
 	origArgs := os.Args
 	defer func() { os.Args = origArgs }()
@@ -245,8 +229,6 @@ func TestArgValue(t *testing.T) {
 		require.Equal(t, "", argValue("-config"))
 	})
 }
-
-// --- Load (integration) ---
 
 // writeValidConfig writes a minimal valid config JSON that will pass Validate.
 // It creates real TLS cert/key files so Validate's os.Stat checks pass.
@@ -480,8 +462,6 @@ func TestLoad_TLSFilesNotFound(t *testing.T) {
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "tls_cert_file not found")
 }
-
-// --- applyFlags ---
 
 func TestApplyFlags_AllFlags(t *testing.T) {
 	origArgs := os.Args

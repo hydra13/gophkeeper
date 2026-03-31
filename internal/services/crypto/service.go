@@ -26,7 +26,7 @@ type KeyProvider interface {
 	KeyForDecrypt(version int64) ([]byte, error)
 }
 
-// CryptoService интерфейс шифрования
+// CryptoService описывает операции шифрования и расшифровки данных.
 type CryptoService interface {
 	Encrypt(data []byte, keyVersion int64) ([]byte, error)
 	Decrypt(data []byte, keyVersion int64) ([]byte, error)

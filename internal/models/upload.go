@@ -228,3 +228,35 @@ func (d *DownloadSession) RemainingChunks() []int64 {
 	}
 	return remaining
 }
+
+// UploadStatusResponse — DTO ответа статуса upload-сессии.
+type UploadStatusResponse struct {
+	// UploadID — идентификатор upload-сессии.
+	UploadID int64 `json:"upload_id"`
+	// RecordID — ссылка на запись.
+	RecordID int64 `json:"record_id"`
+	// Status — текущее состояние загрузки (pending, completed, aborted).
+	Status string `json:"status"`
+	// TotalChunks — общее количество чанков.
+	TotalChunks int64 `json:"total_chunks"`
+	// ReceivedChunks — количество принятых чанков.
+	ReceivedChunks int64 `json:"received_chunks"`
+	// MissingChunks — индексы ещё не принятых чанков (для resume загрузки).
+	MissingChunks []int64 `json:"missing_chunks,omitempty"`
+}
+
+// DownloadResponse — DTO ответа для статуса download-сессии.
+type DownloadResponse struct {
+	// DownloadID — идентификатор download-сессии.
+	DownloadID int64 `json:"download_id"`
+	// RecordID — ссылка на запись.
+	RecordID int64 `json:"record_id"`
+	// Status — текущее состояние скачивания (active, completed, aborted).
+	Status string `json:"status"`
+	// TotalChunks — общее количество чанков.
+	TotalChunks int64 `json:"total_chunks"`
+	// ConfirmedChunks — количество подтверждённых клиентом чанков.
+	ConfirmedChunks int64 `json:"confirmed_chunks"`
+	// RemainingChunks — индексы чанков, ещё не подтверждённых клиентом (для resume скачивания).
+	RemainingChunks []int64 `json:"remaining_chunks,omitempty"`
+}

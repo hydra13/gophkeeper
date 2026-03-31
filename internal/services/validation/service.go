@@ -1,6 +1,6 @@
 package validation
 
-// ValidationService интерфейс валидации
+// ValidationService проверяет корректность входных данных.
 type ValidationService interface {
 	Validate(data interface{}) error
 }

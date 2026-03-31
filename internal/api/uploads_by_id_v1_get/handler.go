@@ -1,6 +1,8 @@
 // Package uploads_by_id_v1_get реализует HTTP-ручку получения статуса upload-сессии.
 //
 // GET /api/v1/uploads/{id}
+//
+//go:generate minimock -i .UploadStatusGetter -o mocks -s _mock.go -g
 package uploads_by_id_v1_get
 
 import (
@@ -8,44 +10,14 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/hydra13/gophkeeper/internal/models"
 )
-
-// UploadStatusResponse — DTO ответа статуса upload-сессии.
-type UploadStatusResponse struct {
-	// UploadID — идентификатор upload-сессии.
-	UploadID int64 `json:"upload_id"`
-	// RecordID — ссылка на запись.
-	RecordID int64 `json:"record_id"`
-	// Status — текущее состояние загрузки (pending, completed, aborted).
-	Status string `json:"status"`
-	// TotalChunks — общее количество чанков.
-	TotalChunks int64 `json:"total_chunks"`
-	// ReceivedChunks — количество принятых чанков.
-	ReceivedChunks int64 `json:"received_chunks"`
-	// MissingChunks — индексы ещё не принятых чанков (для resume загрузки).
-	MissingChunks []int64 `json:"missing_chunks,omitempty"`
-}
-
-// DownloadResponse — DTO ответа для статуса download-сессии.
-type DownloadResponse struct {
-	// DownloadID — идентификатор download-сессии.
-	DownloadID int64 `json:"download_id"`
-	// RecordID — ссылка на запись.
-	RecordID int64 `json:"record_id"`
-	// Status — текущее состояние скачивания (active, completed, aborted).
-	Status string `json:"status"`
-	// TotalChunks — общее количество чанков.
-	TotalChunks int64 `json:"total_chunks"`
-	// ConfirmedChunks — количество подтверждённых клиентом чанков.
-	ConfirmedChunks int64 `json:"confirmed_chunks"`
-	// RemainingChunks — индексы чанков, ещё не подтверждённых клиентом (для resume скачивания).
-	RemainingChunks []int64 `json:"remaining_chunks,omitempty"`
-}
 
 // UploadStatusGetter — интерфейс сервиса получения статуса upload-сессии.
 type UploadStatusGetter interface {
 	// GetUploadStatus возвращает статус upload-сессии по ID.
-	GetUploadStatus(uploadID int64) (*UploadStatusResponse, error)
+	GetUploadStatus(uploadID int64) (*models.UploadStatusResponse, error)
 }
 
 // Handler обрабатывает GET /api/v1/uploads/{id}.
@@ -82,7 +54,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+	}
 }
 
 // extractUploadID извлекает upload_id из URL path /api/v1/uploads/{id}.

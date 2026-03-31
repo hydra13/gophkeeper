@@ -7,206 +7,207 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/gojuno/minimock/v3"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/hydra13/gophkeeper/internal/api/uploads_v1_post/mocks"
 )
 
-type mockUploadCreator struct {
-	createSessionFunc func(userID, recordID, totalChunks, chunkSize, totalSize, keyVersion int64) (int64, error)
-}
+func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
 
-func (m *mockUploadCreator) CreateSession(userID, recordID, totalChunks, chunkSize, totalSize, keyVersion int64) (int64, error) {
-	return m.createSessionFunc(userID, recordID, totalChunks, chunkSize, totalSize, keyVersion)
-}
-
-func TestUploadsCreateHandler_Success(t *testing.T) {
-	mock := &mockUploadCreator{
-		createSessionFunc: func(userID, recordID, totalChunks, chunkSize, totalSize, keyVersion int64) (int64, error) {
-			if keyVersion != 7 {
-				t.Fatalf("expected key_version 7, got %d", keyVersion)
-			}
-			return 42, nil
-		},
-	}
-
-	h := NewHandler(mock)
-
-	body, _ := json.Marshal(Request{
+	validRequest := Request{
 		UserID:      1,
 		RecordID:    10,
 		TotalChunks: 4,
 		ChunkSize:   1024,
 		TotalSize:   4096,
 		KeyVersion:  7,
-	})
-
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/uploads", bytes.NewReader(body))
-	w := httptest.NewRecorder()
-
-	h.ServeHTTP(w, req)
-
-	if w.Code != http.StatusCreated {
-		t.Fatalf("expected status 201, got %d", w.Code)
 	}
 
-	var resp Response
-	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
-		t.Fatalf("failed to decode response: %v", err)
-	}
-	if resp.UploadID != 42 {
-		t.Fatalf("expected upload_id 42, got %d", resp.UploadID)
-	}
-	if resp.Status != "pending" {
-		t.Fatalf("expected status 'pending', got %s", resp.Status)
-	}
-}
-
-func TestUploadsCreateHandler_MethodNotAllowed(t *testing.T) {
-	mock := &mockUploadCreator{}
-	h := NewHandler(mock)
-
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/uploads", nil)
-	w := httptest.NewRecorder()
-
-	h.ServeHTTP(w, req)
-
-	if w.Code != http.StatusMethodNotAllowed {
-		t.Fatalf("expected status 405, got %d", w.Code)
-	}
-}
-
-func TestUploadsCreateHandler_InvalidBody(t *testing.T) {
-	mock := &mockUploadCreator{}
-	h := NewHandler(mock)
-
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/uploads", bytes.NewReader([]byte("invalid")))
-	w := httptest.NewRecorder()
-
-	h.ServeHTTP(w, req)
-
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("expected status 400, got %d", w.Code)
-	}
-}
-
-func TestUploadsCreateHandler_InvalidUserID(t *testing.T) {
-	mock := &mockUploadCreator{}
-	h := NewHandler(mock)
-
-	body, _ := json.Marshal(Request{UserID: 0, RecordID: 1, TotalChunks: 2, ChunkSize: 1024, TotalSize: 2048})
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/uploads", bytes.NewReader(body))
-	w := httptest.NewRecorder()
-
-	h.ServeHTTP(w, req)
-
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("expected status 400, got %d", w.Code)
-	}
-}
-
-func TestUploadsCreateHandler_InvalidRecordID(t *testing.T) {
-	mock := &mockUploadCreator{}
-	h := NewHandler(mock)
-
-	body, _ := json.Marshal(Request{UserID: 1, RecordID: 0, TotalChunks: 2, ChunkSize: 1024, TotalSize: 2048})
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/uploads", bytes.NewReader(body))
-	w := httptest.NewRecorder()
-
-	h.ServeHTTP(w, req)
-
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("expected status 400 for invalid record_id, got %d", w.Code)
-	}
-}
-
-func TestUploadsCreateHandler_InvalidTotalChunks(t *testing.T) {
-	mock := &mockUploadCreator{}
-	h := NewHandler(mock)
-
-	body, _ := json.Marshal(Request{UserID: 1, RecordID: 1, TotalChunks: 0, ChunkSize: 1024, TotalSize: 2048})
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/uploads", bytes.NewReader(body))
-	w := httptest.NewRecorder()
-
-	h.ServeHTTP(w, req)
-
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("expected status 400 for invalid total_chunks, got %d", w.Code)
-	}
-}
-
-func TestUploadsCreateHandler_InvalidChunkSize(t *testing.T) {
-	mock := &mockUploadCreator{}
-	h := NewHandler(mock)
-
-	body, _ := json.Marshal(Request{UserID: 1, RecordID: 1, TotalChunks: 2, ChunkSize: 0, TotalSize: 2048})
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/uploads", bytes.NewReader(body))
-	w := httptest.NewRecorder()
-
-	h.ServeHTTP(w, req)
-
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("expected status 400 for invalid chunk_size, got %d", w.Code)
-	}
-}
-
-func TestUploadsCreateHandler_InvalidTotalSize(t *testing.T) {
-	mock := &mockUploadCreator{}
-	h := NewHandler(mock)
-
-	body, _ := json.Marshal(Request{UserID: 1, RecordID: 1, TotalChunks: 2, ChunkSize: 1024, TotalSize: 0})
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/uploads", bytes.NewReader(body))
-	w := httptest.NewRecorder()
-
-	h.ServeHTTP(w, req)
-
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("expected status 400 for invalid total_size, got %d", w.Code)
-	}
-}
-
-func TestUploadsCreateHandler_InvalidKeyVersion(t *testing.T) {
-	mock := &mockUploadCreator{}
-	h := NewHandler(mock)
-
-	body, _ := json.Marshal(Request{
-		UserID:      1,
-		RecordID:    1,
-		TotalChunks: 2,
-		ChunkSize:   1024,
-		TotalSize:   2048,
-		KeyVersion:  0,
-	})
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/uploads", bytes.NewReader(body))
-	w := httptest.NewRecorder()
-
-	h.ServeHTTP(w, req)
-
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("expected status 400 for invalid key_version, got %d", w.Code)
-	}
-}
-
-func TestUploadsCreateHandler_ServiceError(t *testing.T) {
-	mock := &mockUploadCreator{
-		createSessionFunc: func(userID, recordID, totalChunks, chunkSize, totalSize, keyVersion int64) (int64, error) {
-			return 0, errors.New("db unavailable")
+	tests := []struct {
+		name       string
+		method     string
+		body       interface{}
+		setupMock  func(mc *minimock.Controller) UploadCreator
+		wantCode   int
+		wantUpload int64
+	}{
+		{
+			name:   "success",
+			method: http.MethodPost,
+			body:   validRequest,
+			setupMock: func(mc *minimock.Controller) UploadCreator {
+				return mocks.NewUploadCreatorMock(mc).
+					CreateSessionMock.Expect(int64(1), int64(10), int64(4), int64(1024), int64(4096), int64(7)).
+					Return(int64(42), nil)
+			},
+			wantCode:   http.StatusCreated,
+			wantUpload: 42,
+		},
+		{
+			name:   "method not allowed",
+			method: http.MethodGet,
+			setupMock: func(mc *minimock.Controller) UploadCreator {
+				return mocks.NewUploadCreatorMock(mc)
+			},
+			wantCode: http.StatusMethodNotAllowed,
+		},
+		{
+			name:   "invalid body",
+			method: http.MethodPost,
+			body:   "invalid",
+			setupMock: func(mc *minimock.Controller) UploadCreator {
+				return mocks.NewUploadCreatorMock(mc)
+			},
+			wantCode: http.StatusBadRequest,
+		},
+		{
+			name:   "invalid user id",
+			method: http.MethodPost,
+			body: Request{
+				UserID:      0,
+				RecordID:    10,
+				TotalChunks: 4,
+				ChunkSize:   1024,
+				TotalSize:   4096,
+				KeyVersion:  7,
+			},
+			setupMock: func(mc *minimock.Controller) UploadCreator {
+				return mocks.NewUploadCreatorMock(mc)
+			},
+			wantCode: http.StatusBadRequest,
+		},
+		{
+			name:   "invalid record id",
+			method: http.MethodPost,
+			body: Request{
+				UserID:      1,
+				RecordID:    0,
+				TotalChunks: 4,
+				ChunkSize:   1024,
+				TotalSize:   4096,
+				KeyVersion:  7,
+			},
+			setupMock: func(mc *minimock.Controller) UploadCreator {
+				return mocks.NewUploadCreatorMock(mc)
+			},
+			wantCode: http.StatusBadRequest,
+		},
+		{
+			name:   "invalid total chunks",
+			method: http.MethodPost,
+			body: Request{
+				UserID:      1,
+				RecordID:    10,
+				TotalChunks: 0,
+				ChunkSize:   1024,
+				TotalSize:   4096,
+				KeyVersion:  7,
+			},
+			setupMock: func(mc *minimock.Controller) UploadCreator {
+				return mocks.NewUploadCreatorMock(mc)
+			},
+			wantCode: http.StatusBadRequest,
+		},
+		{
+			name:   "invalid chunk size",
+			method: http.MethodPost,
+			body: Request{
+				UserID:      1,
+				RecordID:    10,
+				TotalChunks: 4,
+				ChunkSize:   0,
+				TotalSize:   4096,
+				KeyVersion:  7,
+			},
+			setupMock: func(mc *minimock.Controller) UploadCreator {
+				return mocks.NewUploadCreatorMock(mc)
+			},
+			wantCode: http.StatusBadRequest,
+		},
+		{
+			name:   "invalid total size",
+			method: http.MethodPost,
+			body: Request{
+				UserID:      1,
+				RecordID:    10,
+				TotalChunks: 4,
+				ChunkSize:   1024,
+				TotalSize:   0,
+				KeyVersion:  7,
+			},
+			setupMock: func(mc *minimock.Controller) UploadCreator {
+				return mocks.NewUploadCreatorMock(mc)
+			},
+			wantCode: http.StatusBadRequest,
+		},
+		{
+			name:   "invalid key version",
+			method: http.MethodPost,
+			body: Request{
+				UserID:      1,
+				RecordID:    10,
+				TotalChunks: 4,
+				ChunkSize:   1024,
+				TotalSize:   4096,
+				KeyVersion:  0,
+			},
+			setupMock: func(mc *minimock.Controller) UploadCreator {
+				return mocks.NewUploadCreatorMock(mc)
+			},
+			wantCode: http.StatusBadRequest,
+		},
+		{
+			name:   "service error",
+			method: http.MethodPost,
+			body: Request{
+				UserID:      1,
+				RecordID:    10,
+				TotalChunks: 4,
+				ChunkSize:   1024,
+				TotalSize:   4096,
+				KeyVersion:  7,
+			},
+			setupMock: func(mc *minimock.Controller) UploadCreator {
+				return mocks.NewUploadCreatorMock(mc).
+					CreateSessionMock.Expect(int64(1), int64(10), int64(4), int64(1024), int64(4096), int64(7)).
+					Return(int64(0), errors.New("db unavailable"))
+			},
+			wantCode: http.StatusInternalServerError,
 		},
 	}
 
-	h := NewHandler(mock)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	body, _ := json.Marshal(Request{
-		UserID:      1,
-		RecordID:    1,
-		TotalChunks: 2,
-		ChunkSize:   1024,
-		TotalSize:   2048,
-		KeyVersion:  1,
-	})
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/uploads", bytes.NewReader(body))
-	w := httptest.NewRecorder()
+			mc := minimock.NewController(t)
+			handler := NewHandler(tt.setupMock(mc))
 
-	h.ServeHTTP(w, req)
+			var bodyBytes []byte
+			if str, ok := tt.body.(string); ok {
+				bodyBytes = []byte(str)
+			} else if tt.body != nil {
+				bodyBytes, _ = json.Marshal(tt.body)
+			}
 
-	if w.Code != http.StatusInternalServerError {
-		t.Fatalf("expected status 500, got %d", w.Code)
+			req := httptest.NewRequest(tt.method, "/api/v1/uploads", bytes.NewReader(bodyBytes))
+			rec := httptest.NewRecorder()
+
+			handler.ServeHTTP(rec, req)
+
+			require.Equal(t, tt.wantCode, rec.Code, rec.Body.String())
+			if tt.wantCode != http.StatusCreated {
+				return
+			}
+
+			var resp Response
+			require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
+			assert.Equal(t, tt.wantUpload, resp.UploadID)
+			assert.Equal(t, "pending", resp.Status)
+		})
 	}
 }

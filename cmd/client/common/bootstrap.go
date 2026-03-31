@@ -11,7 +11,7 @@ import (
 	clientcore "github.com/hydra13/gophkeeper/pkg/clientcore"
 )
 
-// NewCore creates a shared client core for CLI and TUI frontends.
+// NewCore создает общее клиентское ядро и функцию очистки ресурсов.
 func NewCore() (*clientcore.ClientCore, func(), error) {
 	ctx := context.Background()
 	addr := DefaultServerAddr()
@@ -48,6 +48,7 @@ func NewCore() (*clientcore.ClientCore, func(), error) {
 	return core, cleanup, nil
 }
 
+// DefaultCacheDir возвращает путь к каталогу локального клиентского кеша.
 func DefaultCacheDir() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -56,6 +57,7 @@ func DefaultCacheDir() string {
 	return filepath.Join(home, ".gophkeeper", "cache")
 }
 
+// DefaultServerAddr возвращает адрес gRPC-сервера из окружения или значение по умолчанию.
 func DefaultServerAddr() string {
 	if v := os.Getenv("GK_GRPC_ADDRESS"); v != "" {
 		return v
@@ -63,6 +65,7 @@ func DefaultServerAddr() string {
 	return "localhost:9090"
 }
 
+// DefaultTLSCertFile возвращает путь к TLS-сертификату клиента.
 func DefaultTLSCertFile() string {
 	if v := os.Getenv("GK_TLS_CERT_FILE"); v != "" {
 		return v
@@ -73,6 +76,7 @@ func DefaultTLSCertFile() string {
 	return ""
 }
 
+// Hostname возвращает имя текущего хоста для формирования device ID.
 func Hostname() string {
 	name, err := os.Hostname()
 	if err != nil {

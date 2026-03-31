@@ -6,140 +6,139 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/gojuno/minimock/v3"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/hydra13/gophkeeper/internal/api/uploads_by_id_v1_get/mocks"
+	"github.com/hydra13/gophkeeper/internal/models"
 )
 
-type mockUploadStatusGetter struct {
-	getUploadStatusFunc func(uploadID int64) (*UploadStatusResponse, error)
-}
+func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
 
-func (m *mockUploadStatusGetter) GetUploadStatus(uploadID int64) (*UploadStatusResponse, error) {
-	return m.getUploadStatusFunc(uploadID)
-}
-
-func TestUploadStatusHandler_Success(t *testing.T) {
-	mock := &mockUploadStatusGetter{
-		getUploadStatusFunc: func(uploadID int64) (*UploadStatusResponse, error) {
-			return &UploadStatusResponse{
+	tests := []struct {
+		name      string
+		method    string
+		path      string
+		setupMock func(mc *minimock.Controller) UploadStatusGetter
+		wantCode  int
+		wantResp  *models.UploadStatusResponse
+	}{
+		{
+			name:   "success",
+			method: http.MethodGet,
+			path:   "/api/v1/uploads/1",
+			setupMock: func(mc *minimock.Controller) UploadStatusGetter {
+				return mocks.NewUploadStatusGetterMock(mc).
+					GetUploadStatusMock.
+					Expect(int64(1)).
+					Return(
+						&models.UploadStatusResponse{
+							UploadID:       1,
+							RecordID:       10,
+							Status:         "pending",
+							TotalChunks:    4,
+							ReceivedChunks: 2,
+							MissingChunks:  []int64{2, 3},
+						}, nil)
+			},
+			wantCode: http.StatusOK,
+			wantResp: &models.UploadStatusResponse{
 				UploadID:       1,
 				RecordID:       10,
 				Status:         "pending",
 				TotalChunks:    4,
 				ReceivedChunks: 2,
 				MissingChunks:  []int64{2, 3},
-			}, nil
+			},
+		},
+		{
+			name:   "method not allowed",
+			method: http.MethodPost,
+			path:   "/api/v1/uploads/1",
+			setupMock: func(mc *minimock.Controller) UploadStatusGetter {
+				return mocks.NewUploadStatusGetterMock(mc)
+			},
+			wantCode: http.StatusMethodNotAllowed,
+		},
+		{
+			name:   "invalid upload id",
+			method: http.MethodGet,
+			path:   "/api/v1/uploads/invalid",
+			setupMock: func(mc *minimock.Controller) UploadStatusGetter {
+				return mocks.NewUploadStatusGetterMock(mc)
+			},
+			wantCode: http.StatusBadRequest,
+		},
+		{
+			name:   "not found",
+			method: http.MethodGet,
+			path:   "/api/v1/uploads/99",
+			setupMock: func(mc *minimock.Controller) UploadStatusGetter {
+				return mocks.NewUploadStatusGetterMock(mc).
+					GetUploadStatusMock.Expect(int64(99)).Return(nil, errors.New("upload session not found"))
+			},
+			wantCode: http.StatusNotFound,
+		},
+		{
+			name:   "service error",
+			method: http.MethodGet,
+			path:   "/api/v1/uploads/1",
+			setupMock: func(mc *minimock.Controller) UploadStatusGetter {
+				return mocks.NewUploadStatusGetterMock(mc).
+					GetUploadStatusMock.Expect(int64(1)).Return(nil, errors.New("unexpected error"))
+			},
+			wantCode: http.StatusInternalServerError,
 		},
 	}
 
-	h := NewHandler(mock)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/uploads/1", nil)
-	w := httptest.NewRecorder()
+			mc := minimock.NewController(t)
+			handler := NewHandler(tt.setupMock(mc))
 
-	h.ServeHTTP(w, req)
+			req := httptest.NewRequest(tt.method, tt.path, nil)
+			rec := httptest.NewRecorder()
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected status 200, got %d", w.Code)
-	}
+			handler.ServeHTTP(rec, req)
 
-	var resp UploadStatusResponse
-	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
-		t.Fatalf("failed to decode response: %v", err)
-	}
-	if resp.UploadID != 1 {
-		t.Fatalf("expected upload_id 1, got %d", resp.UploadID)
-	}
-	if resp.Status != "pending" {
-		t.Fatalf("expected status 'pending', got %s", resp.Status)
-	}
-	if len(resp.MissingChunks) != 2 {
-		t.Fatalf("expected 2 missing chunks, got %d", len(resp.MissingChunks))
+			require.Equal(t, tt.wantCode, rec.Code, rec.Body.String())
+			if tt.wantResp == nil {
+				return
+			}
+
+			var resp models.UploadStatusResponse
+			require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
+			assert.Equal(t, *tt.wantResp, resp)
+		})
 	}
 }
 
-func TestUploadStatusHandler_MethodNotAllowed(t *testing.T) {
-	mock := &mockUploadStatusGetter{}
-	h := NewHandler(mock)
+func TestHandler_ExtractUploadID(t *testing.T) {
+	t.Parallel()
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/uploads/1", nil)
-	w := httptest.NewRecorder()
-
-	h.ServeHTTP(w, req)
-
-	if w.Code != http.StatusMethodNotAllowed {
-		t.Fatalf("expected status 405, got %d", w.Code)
-	}
-}
-
-func TestUploadStatusHandler_InvalidUploadID(t *testing.T) {
-	mock := &mockUploadStatusGetter{}
-	h := NewHandler(mock)
-
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/uploads/invalid", nil)
-	w := httptest.NewRecorder()
-
-	h.ServeHTTP(w, req)
-
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("expected status 400, got %d", w.Code)
-	}
-}
-
-func TestUploadStatusHandler_NotFound(t *testing.T) {
-	mock := &mockUploadStatusGetter{
-		getUploadStatusFunc: func(uploadID int64) (*UploadStatusResponse, error) {
-			return nil, errors.New("upload session not found")
-		},
-	}
-
-	h := NewHandler(mock)
-
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/uploads/99", nil)
-	w := httptest.NewRecorder()
-
-	h.ServeHTTP(w, req)
-
-	if w.Code != http.StatusNotFound {
-		t.Fatalf("expected status 404, got %d", w.Code)
-	}
-}
-
-func TestUploadStatusHandler_ServiceError(t *testing.T) {
-	mock := &mockUploadStatusGetter{
-		getUploadStatusFunc: func(uploadID int64) (*UploadStatusResponse, error) {
-			return nil, errors.New("unexpected error")
-		},
-	}
-
-	h := NewHandler(mock)
-
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/uploads/1", nil)
-	w := httptest.NewRecorder()
-
-	h.ServeHTTP(w, req)
-
-	if w.Code != http.StatusInternalServerError {
-		t.Fatalf("expected status 500, got %d", w.Code)
-	}
-}
-
-func TestExtractUploadID(t *testing.T) {
 	tests := []struct {
 		path    string
 		want    int64
 		wantErr bool
 	}{
-		{"/api/v1/uploads/42", 42, false},
-		{"/api/v1/uploads/1", 1, false},
-		{"/api/v1/uploads/abc", 0, true},
-		{"/api/v1/uploads", 0, true},
+		{path: "/api/v1/uploads/42", want: 42},
+		{path: "/api/v1/uploads/1", want: 1},
+		{path: "/api/v1/uploads/abc", wantErr: true},
+		{path: "/api/v1/uploads", wantErr: true},
 	}
+
 	for _, tt := range tests {
 		got, err := extractUploadID(tt.path)
-		if (err != nil) != tt.wantErr {
-			t.Errorf("extractUploadID(%q) error = %v, wantErr %v", tt.path, err, tt.wantErr)
+		if tt.wantErr {
+			require.Error(t, err)
+			continue
 		}
-		if got != tt.want {
-			t.Errorf("extractUploadID(%q) = %d, want %d", tt.path, got, tt.want)
-		}
+		require.NoError(t, err)
+		assert.Equal(t, tt.want, got)
 	}
 }

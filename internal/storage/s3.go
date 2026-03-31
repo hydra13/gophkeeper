@@ -30,6 +30,7 @@ type S3Blob struct {
 	bucket string
 }
 
+// NewS3Blob создаёт S3Blob и проверяет доступность указанного bucket.
 func NewS3Blob(cfg config.BlobStorageConfig) (*S3Blob, error) {
 	if cfg.Endpoint == "" {
 		return nil, errors.New("s3 endpoint is required")
@@ -87,6 +88,7 @@ func (p staticCredentialsProvider) Retrieve(context.Context) (aws.Credentials, e
 	}, nil
 }
 
+// Save сохраняет объект в bucket по нормализованному ключу.
 func (s *S3Blob) Save(path string, data []byte) error {
 	key, err := normalizeBlobPath(path)
 	if err != nil {
@@ -104,6 +106,7 @@ func (s *S3Blob) Save(path string, data []byte) error {
 	return nil
 }
 
+// Read читает объект из bucket по нормализованному ключу.
 func (s *S3Blob) Read(path string) ([]byte, error) {
 	key, err := normalizeBlobPath(path)
 	if err != nil {
@@ -129,6 +132,7 @@ func (s *S3Blob) Read(path string) ([]byte, error) {
 	return data, nil
 }
 
+// Delete удаляет объект из bucket по нормализованному ключу.
 func (s *S3Blob) Delete(path string) error {
 	key, err := normalizeBlobPath(path)
 	if err != nil {
@@ -145,6 +149,7 @@ func (s *S3Blob) Delete(path string) error {
 	return nil
 }
 
+// Exists проверяет наличие объекта в bucket по нормализованному ключу.
 func (s *S3Blob) Exists(path string) (bool, error) {
 	key, err := normalizeBlobPath(path)
 	if err != nil {

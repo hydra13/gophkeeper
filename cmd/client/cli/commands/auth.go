@@ -6,6 +6,7 @@ import (
 	"time"
 )
 
+// RunRegister выполняет регистрацию пользователя.
 func (r *Runner) RunRegister(args []string) {
 	var email string
 
@@ -32,6 +33,7 @@ func (r *Runner) RunRegister(args []string) {
 	fmt.Fprintln(r.deps.Stdout, "registered successfully")
 }
 
+// RunLogin выполняет вход пользователя.
 func (r *Runner) RunLogin(args []string) {
 	var email string
 
@@ -58,6 +60,7 @@ func (r *Runner) RunLogin(args []string) {
 	fmt.Fprintln(r.deps.Stdout, "logged in successfully")
 }
 
+// RunLogout завершает текущую пользовательскую сессию.
 func (r *Runner) RunLogout() {
 	core, cleanup, err := r.newCore()
 	if err != nil {

@@ -17,11 +17,55 @@
 - PostgreSQL для хранения, S3-compatible blob-хранилище для бинарных данных
 
 **Не входит в MVP (вынесено в backlog):**
-- Web-клиент
 - OTP/TOTP
 - Импорт/экспорт данных
 
 ## Архитектура
+
+```mermaid
+flowchart TB
+    subgraph NativeApps["Native Clients"]
+        CLI["CLI"]
+        TUI["TUI"]
+        Desktop["Desktop"]
+    end
+
+    subgraph NativeShared["Shared Native Client Layer"]
+        Core["ClientCore"]
+        Cache["Local Cache"]
+    end
+
+    subgraph WebApp["Web Client"]
+        Web["React/Vite App"]
+        WebSession["localStorage Session"]
+        BrowserIO["Browser File/Blob Flow"]
+    end
+
+    subgraph ServerApp["Server"]
+        API["HTTP / gRPC Transport"]
+        Services["Business Services"]
+        Repos["Repositories<br />Storage Adapters"]
+    end
+
+    DB[("PostgreSQL")]
+    S3[("S3 / MinIO")]
+
+    CLI --> Core
+    TUI --> Core
+    Desktop --> Core
+
+    Core <--> Cache
+    Core -->|"TLS / gRPC"| API
+    Web <--> WebSession
+    Web -->|"HTTPS / REST"| API
+    Web <--> BrowserIO
+
+    API --> Services
+    Services --> Repos
+    Repos --> DB
+    Repos --> S3
+    BrowserIO -. upload/download .-> API
+```
 
 ```
 cmd/
@@ -42,11 +86,11 @@ internal/
   storage/          — blob-хранилище (local, S3-compatible)
   migrations/       — applying goose-миграций
 pkg/
+  apiclient/        — транспортный слой клиента (gRPC; HTTP — заглушка, post-MVP)
+  buildinfo/        — версия и дата сборки
+  cache/            — клиентское локальное хранилище состояния
   clientcore/       — use-case слой клиента (офлайн, pending-ops, sync)
   clientui/         — общие helper-функции для CLI/TUI
-  apiclient/        — транспортный слой клиента (gRPC; HTTP — заглушка, post-MVP)
-  cache/            — клиентское локальное хранилище состояния
-  buildinfo/        — версия и дата сборки
 migrations/         — SQL-миграции (goose, встроены в бинарник)
 configs/            — примеры конфигурации и dev-сертификаты
 ```
