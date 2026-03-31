@@ -3,10 +3,10 @@ import type { RecordDetails } from "../../shared/types";
 
 type Props = {
   record: RecordDetails | null;
-  onSaveBinary: (recordId: number) => Promise<void>;
+  onDownloadBinary: (record: RecordDetails) => Promise<void>;
 };
 
-export function RecordDetailsPane({ record, onSaveBinary }: Props) {
+export function RecordDetailsPane({ record, onDownloadBinary }: Props) {
   if (!record) {
     return (
       <Card className="panel-card">
@@ -32,20 +32,16 @@ export function RecordDetailsPane({ record, onSaveBinary }: Props) {
           {record.metadata || <Typography.Text type="secondary">None</Typography.Text>}
         </Descriptions.Item>
         <Descriptions.Item label="Device">{record.deviceId || "unknown"}</Descriptions.Item>
-        <Descriptions.Item label="Created">
-          {record.createdAt || "unknown"}
-        </Descriptions.Item>
-        <Descriptions.Item label="Updated">
-          {record.updatedAt || "unknown"}
-        </Descriptions.Item>
+        <Descriptions.Item label="Created">{record.createdAt || "unknown"}</Descriptions.Item>
+        <Descriptions.Item label="Updated">{record.updatedAt || "unknown"}</Descriptions.Item>
+
         {record.type === "login" ? (
           <>
             <Descriptions.Item label="Login">{record.payload.login}</Descriptions.Item>
-            <Descriptions.Item label="Password">
-              {record.payload.password}
-            </Descriptions.Item>
+            <Descriptions.Item label="Password">{record.payload.password}</Descriptions.Item>
           </>
         ) : null}
+
         {record.type === "text" ? (
           <Descriptions.Item label="Content">
             <Typography.Paragraph style={{ whiteSpace: "pre-wrap", marginBottom: 0 }}>
@@ -53,6 +49,7 @@ export function RecordDetailsPane({ record, onSaveBinary }: Props) {
             </Typography.Paragraph>
           </Descriptions.Item>
         ) : null}
+
         {record.type === "card" ? (
           <>
             <Descriptions.Item label="Number">{record.payload.number}</Descriptions.Item>
@@ -61,16 +58,14 @@ export function RecordDetailsPane({ record, onSaveBinary }: Props) {
             <Descriptions.Item label="CVV">{record.payload.cvv}</Descriptions.Item>
           </>
         ) : null}
+
         {record.type === "binary" ? (
           <>
             <Descriptions.Item label="Payload version">
               {record.payloadVersion}
             </Descriptions.Item>
-            <Descriptions.Item label="Binary size">
-              {record.payload.binarySize} bytes
-            </Descriptions.Item>
             <Descriptions.Item label="Actions">
-              <Button onClick={() => void onSaveBinary(record.id)}>Save file...</Button>
+              <Button onClick={() => void onDownloadBinary(record)}>Download file</Button>
             </Descriptions.Item>
           </>
         ) : null}

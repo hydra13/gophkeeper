@@ -35,7 +35,6 @@ type RecordListItem struct {
 	Metadata        string           `json:"metadata"`
 	MetadataPreview string           `json:"metadataPreview"`
 	Revision        int64            `json:"revision"`
-	Deleted         bool             `json:"deleted"`
 	PayloadVersion  int64            `json:"payloadVersion"`
 	Payload         RecordPayloadDTO `json:"payload"`
 }
@@ -46,7 +45,6 @@ type RecordDetails struct {
 	Name           string           `json:"name"`
 	Metadata       string           `json:"metadata"`
 	Revision       int64            `json:"revision"`
-	Deleted        bool             `json:"deleted"`
 	DeviceID       string           `json:"deviceId"`
 	KeyVersion     int64            `json:"keyVersion"`
 	PayloadVersion int64            `json:"payloadVersion"`

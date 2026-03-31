@@ -42,3 +42,5 @@ configs/config.local.json
 *.sqlite
 *.log
 .minio/
+cmd/client/web/node_modules/
+cmd/client/web/dist/

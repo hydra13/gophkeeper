@@ -1,6 +1,6 @@
 # gophkeeper
 
-Менеджер паролей GophKeeper — серверное хранилище секретов с CLI-, TUI- и desktop-клиентами.
+Менеджер паролей GophKeeper — серверное хранилище секретов с CLI-, TUI-, desktop- и web-клиентами.
 
 ## MVP scope
 
@@ -8,6 +8,7 @@
 - Сервер (`cmd/server`) — HTTP REST + gRPC API, TLS-only
 - CLI-клиент (`cmd/client/cli`) — командный интерфейс
 - TUI-клиент (`cmd/client/tui`) — интерактивный терминальный интерфейс на `tview`
+- Web-клиент (`cmd/client/web`) — браузерный интерфейс на `React + TypeScript + Vite + Ant Design`
 - Типы записей: логин/пароль, текст, бинарные данные, банковские карты
 - Server-side шифрование (AES-256-GCM, envelope encryption с data keys)
 - Ротация ключей и фоновое перешифрование данных
@@ -194,6 +195,24 @@ env CGO_LDFLAGS="-framework UniformTypeIdentifiers $CGO_LDFLAGS" \
 ```bash
 make build-client-desktop
 ./bin/client-desktop
+```
+
+### 7. Запуск web-клиента
+
+Web-клиент работает как отдельное Vite-приложение в [`cmd/client/web`](/Users/rasabirov/sources/_my/gophkeeper/cmd/client/web) и по умолчанию ходит в сервер через proxy на `https://localhost:8080`.
+
+Для локальной разработки:
+
+```bash
+make dev-client-web
+```
+
+После запуска открой адрес `http://localhost:34116`.
+
+Production-сборка web-клиента:
+
+```bash
+make build-client-web
 ```
 
 Важно: `Wails` требует специальные build tags. Поэтому direct-сборка и direct-запуск должны идти с `-tags production`, например:

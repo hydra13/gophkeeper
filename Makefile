@@ -1,4 +1,4 @@
-.PHONY: fmt lint test cover cover-check proto proto-check build build-server build-client build-client-cli build-client-tui build-client-desktop clean dev-up dev-down dev-reset test-storage-integration
+.PHONY: fmt lint test cover cover-check proto proto-check build build-server build-client build-client-cli build-client-tui build-client-desktop build-client-web dev-client-web clean dev-up dev-down dev-reset test-storage-integration
 
 PROTO_SRC := rpc/proto/v1/*.proto
 PROTO_OUT := internal/rpc/pbv1
@@ -77,7 +77,13 @@ build-client-desktop:
 	cd cmd/client/desktop/frontend && npm install && npm run build
 	env CGO_LDFLAGS="-framework UniformTypeIdentifiers $$CGO_LDFLAGS" go build -tags production -o bin/client-desktop ./cmd/client/desktop
 
-build-client: build-client-cli build-client-tui build-client-desktop
+build-client-web:
+	cd cmd/client/web && npm install && npm run build
+
+dev-client-web:
+	cd cmd/client/web && npm install && npm run dev
+
+build-client: build-client-cli build-client-tui build-client-desktop build-client-web
 
 build: build-server build-client
 

@@ -84,8 +84,19 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "total_size must be positive", http.StatusBadRequest)
 		return
 	}
+	if req.KeyVersion <= 0 {
+		http.Error(w, "key_version must be positive", http.StatusBadRequest)
+		return
+	}
 
-	uploadID, err := h.service.CreateSession(req.UserID, req.RecordID, req.TotalChunks, req.ChunkSize, req.TotalSize, 0)
+	uploadID, err := h.service.CreateSession(
+		req.UserID,
+		req.RecordID,
+		req.TotalChunks,
+		req.ChunkSize,
+		req.TotalSize,
+		req.KeyVersion,
+	)
 	if err != nil {
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return

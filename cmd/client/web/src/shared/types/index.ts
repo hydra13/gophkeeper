@@ -4,11 +4,11 @@ export type RecordFilter = "all" | RecordType;
 export type SessionState = {
   authenticated: boolean;
   email: string;
+  userId: number;
   deviceId: string;
   appName: string;
   version: string;
   serverAddress: string;
-  cacheDir: string;
 };
 
 export type RecordPayload = {
@@ -59,9 +59,21 @@ export type RecordUpsertInput = {
   holder: string;
   expiry: string;
   cvv: string;
-  filePath: string;
+  file: File | null;
+  revision: number;
+  keyVersion: number;
+  payloadVersion: number;
 };
 
 export type SyncResult = {
   message: string;
+};
+
+export type StoredSession = {
+  accessToken: string;
+  refreshToken: string;
+  email: string;
+  userId: number;
+  deviceId: string;
+  lastSyncRevision: number;
 };

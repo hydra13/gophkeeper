@@ -20,6 +20,9 @@ func (m *mockUploadCreator) CreateSession(userID, recordID, totalChunks, chunkSi
 func TestUploadsCreateHandler_Success(t *testing.T) {
 	mock := &mockUploadCreator{
 		createSessionFunc: func(userID, recordID, totalChunks, chunkSize, totalSize, keyVersion int64) (int64, error) {
+			if keyVersion != 7 {
+				t.Fatalf("expected key_version 7, got %d", keyVersion)
+			}
 			return 42, nil
 		},
 	}
@@ -32,6 +35,7 @@ func TestUploadsCreateHandler_Success(t *testing.T) {
 		TotalChunks: 4,
 		ChunkSize:   1024,
 		TotalSize:   4096,
+		KeyVersion:  7,
 	})
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/uploads", bytes.NewReader(body))
@@ -158,6 +162,28 @@ func TestUploadsCreateHandler_InvalidTotalSize(t *testing.T) {
 	}
 }
 
+func TestUploadsCreateHandler_InvalidKeyVersion(t *testing.T) {
+	mock := &mockUploadCreator{}
+	h := NewHandler(mock)
+
+	body, _ := json.Marshal(Request{
+		UserID:      1,
+		RecordID:    1,
+		TotalChunks: 2,
+		ChunkSize:   1024,
+		TotalSize:   2048,
+		KeyVersion:  0,
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/uploads", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400 for invalid key_version, got %d", w.Code)
+	}
+}
+
 func TestUploadsCreateHandler_ServiceError(t *testing.T) {
 	mock := &mockUploadCreator{
 		createSessionFunc: func(userID, recordID, totalChunks, chunkSize, totalSize, keyVersion int64) (int64, error) {
@@ -167,7 +193,14 @@ func TestUploadsCreateHandler_ServiceError(t *testing.T) {
 
 	h := NewHandler(mock)
 
-	body, _ := json.Marshal(Request{UserID: 1, RecordID: 1, TotalChunks: 2, ChunkSize: 1024, TotalSize: 2048})
+	body, _ := json.Marshal(Request{
+		UserID:      1,
+		RecordID:    1,
+		TotalChunks: 2,
+		ChunkSize:   1024,
+		TotalSize:   2048,
+		KeyVersion:  1,
+	})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/uploads", bytes.NewReader(body))
 	w := httptest.NewRecorder()
 

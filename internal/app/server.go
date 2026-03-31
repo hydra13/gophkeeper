@@ -18,12 +18,13 @@ import (
 	"github.com/hydra13/gophkeeper/internal/api/auth_refresh_v1_post"
 	"github.com/hydra13/gophkeeper/internal/api/auth_register_v1_post"
 	"github.com/hydra13/gophkeeper/internal/api/health_v1_get"
+	"github.com/hydra13/gophkeeper/internal/api/records_by_id_binary_v1_get"
 	"github.com/hydra13/gophkeeper/internal/api/records_by_id_v1_delete"
 	"github.com/hydra13/gophkeeper/internal/api/records_by_id_v1_get"
 	"github.com/hydra13/gophkeeper/internal/api/records_by_id_v1_put"
+	recordscommon "github.com/hydra13/gophkeeper/internal/api/records_common"
 	"github.com/hydra13/gophkeeper/internal/api/records_v1_get"
 	"github.com/hydra13/gophkeeper/internal/api/records_v1_post"
-	recordscommon "github.com/hydra13/gophkeeper/internal/api/records_common"
 	"github.com/hydra13/gophkeeper/internal/api/sync_pull_v1_post"
 	"github.com/hydra13/gophkeeper/internal/api/sync_push_v1_post"
 	"github.com/hydra13/gophkeeper/internal/api/uploads_by_id_chunks_v1_get"
@@ -222,6 +223,7 @@ func buildHTTPServer(cfg *config.Config, log zerolog.Logger, limiter *middleware
 	recordGetHandler := recordsbyidv1get.NewHandler(recordService)
 	recordPutHandler := recordsbyidv1put.NewHandler(recordService)
 	recordDeleteHandler := recordsbyidv1delete.NewHandler(recordService)
+	recordBinaryHandler := records_by_id_binary_v1_get.NewHandler(recordService, uploadService)
 
 	syncPushHandler := sync_push_v1_post.NewHandler(syncService)
 	syncPullHandler := sync_pull_v1_post.NewHandler(syncService)
@@ -247,6 +249,9 @@ func buildHTTPServer(cfg *config.Config, log zerolog.Logger, limiter *middleware
 		http.MethodGet:    recordGetHandler.Handle,
 		http.MethodPut:    recordPutHandler.Handle,
 		http.MethodDelete: recordDeleteHandler.Handle,
+	}))
+	protectedMux.Handle("/api/v1/records/{id}/binary", methodRouter(map[string]func(http.ResponseWriter, *http.Request){
+		http.MethodGet: recordBinaryHandler.Handle,
 	}))
 
 	protectedMux.Handle("/api/v1/sync/push", syncPushHandler)

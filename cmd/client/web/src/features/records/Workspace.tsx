@@ -13,11 +13,11 @@ import {
 import {
   DeleteOutlined,
   DownloadOutlined,
+  EditOutlined,
   LogoutOutlined,
   PlusOutlined,
   ReloadOutlined,
   SyncOutlined,
-  EditOutlined,
 } from "@ant-design/icons";
 import type {
   RecordDetails,
@@ -26,6 +26,7 @@ import type {
   RecordUpsertInput,
   SessionState,
 } from "../../shared/types";
+import { recordFilters } from "../../shared/lib/records";
 import { RecordDetailsPane } from "./RecordDetailsPane";
 import { RecordFormModal } from "./RecordFormModal";
 
@@ -44,9 +45,7 @@ type Props = {
   onDeleteRecord: (recordId: number) => Promise<void>;
   onSync: () => Promise<void>;
   onLogout: () => Promise<void>;
-  onPickFile: () => Promise<string>;
-  onSaveBinary: (recordId: number) => Promise<void>;
-  onDownloadBinary: (recordId: number, savePath: string) => Promise<void>;
+  onDownloadBinary: (record: RecordDetails) => Promise<void>;
 };
 
 export function Workspace({
@@ -64,8 +63,7 @@ export function Workspace({
   onDeleteRecord,
   onSync,
   onLogout,
-  onPickFile,
-  onSaveBinary,
+  onDownloadBinary,
 }: Props) {
   const [modalState, setModalState] = useState<{
     open: boolean;
@@ -77,7 +75,7 @@ export function Workspace({
       <Layout.Header className="workspace-header">
         <div>
           <Typography.Title level={3} style={{ color: "#fff", margin: 0 }}>
-            GophKeeper Desktop
+            GophKeeper Web
           </Typography.Title>
           <Typography.Text style={{ color: "rgba(255,255,255,0.7)" }}>
             {session.email || "anonymous"} on {session.serverAddress}
@@ -88,11 +86,7 @@ export function Workspace({
           <Button icon={<SyncOutlined />} onClick={() => void onSync()} loading={busy}>
             Sync
           </Button>
-          <Button
-            icon={<LogoutOutlined />}
-            onClick={() => void onLogout()}
-            danger
-          >
+          <Button icon={<LogoutOutlined />} onClick={() => void onLogout()} danger>
             Logout
           </Button>
         </Space>
@@ -125,11 +119,7 @@ export function Workspace({
                   : Promise.resolve()
               }
             >
-              <Button
-                icon={<DeleteOutlined />}
-                danger
-                disabled={!selectedListRecord}
-              >
+              <Button icon={<DeleteOutlined />} danger disabled={!selectedListRecord}>
                 Delete
               </Button>
             </Popconfirm>
@@ -137,29 +127,19 @@ export function Workspace({
               icon={<DownloadOutlined />}
               disabled={selectedRecord?.type !== "binary"}
               onClick={() =>
-                selectedRecord ? onSaveBinary(selectedRecord.id) : Promise.resolve()
+                selectedRecord ? onDownloadBinary(selectedRecord) : Promise.resolve()
               }
             >
-              Save file
+              Download file
             </Button>
-            <Button
-              icon={<ReloadOutlined />}
-              onClick={() => void onRefresh()}
-              loading={busy}
-            >
+            <Button icon={<ReloadOutlined />} onClick={() => void onRefresh()} loading={busy}>
               Refresh
             </Button>
           </Space>
 
           <Segmented<RecordFilter>
             value={filter}
-            options={[
-              { label: "All", value: "all" },
-              { label: "Login", value: "login" },
-              { label: "Text", value: "text" },
-              { label: "Binary", value: "binary" },
-              { label: "Card", value: "card" },
-            ]}
+            options={recordFilters}
             onChange={(value) => onFilterChange(value)}
           />
         </div>
@@ -199,7 +179,7 @@ export function Workspace({
 
           <RecordDetailsPane
             record={selectedRecord}
-            onSaveBinary={onSaveBinary}
+            onDownloadBinary={onDownloadBinary}
           />
         </div>
       </Layout.Content>
@@ -210,7 +190,6 @@ export function Workspace({
         mode={modalState.mode}
         initialRecord={modalState.mode === "update" ? selectedRecord : null}
         onClose={() => setModalState({ open: false, mode: "create" })}
-        onPickFile={onPickFile}
         onSubmit={(input) =>
           modalState.mode === "create"
             ? onCreateRecord(input)

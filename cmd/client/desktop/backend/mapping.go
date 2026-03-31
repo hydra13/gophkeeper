@@ -15,7 +15,6 @@ func toListItem(rec models.Record) RecordListItem {
 		Metadata:        rec.Metadata,
 		MetadataPreview: clientui.MetadataPreview(rec.Metadata, 80),
 		Revision:        rec.Revision,
-		Deleted:         rec.IsDeleted(),
 		PayloadVersion:  rec.PayloadVersion,
 		Payload:         toPayloadDTO(rec.Payload),
 	}
@@ -32,7 +31,6 @@ func toRecordDetails(rec *models.Record) *RecordDetails {
 		Name:           rec.Name,
 		Metadata:       rec.Metadata,
 		Revision:       rec.Revision,
-		Deleted:        rec.IsDeleted(),
 		DeviceID:       rec.DeviceID,
 		KeyVersion:     rec.KeyVersion,
 		PayloadVersion: rec.PayloadVersion,
