@@ -1,3 +1,7 @@
+// Package recordsbyidv1delete реализует HTTP-ручку мягкого удаления записи.
+//
+// DELETE /api/v1/records/{id}
+//
 //go:generate minimock -i .RecordService -o mocks -s _mock.go -g
 package recordsbyidv1delete
 
@@ -18,8 +22,7 @@ type DeleteRecordRequest struct {
 }
 
 // DeleteRecordResponse — DTO ответа при удалении записи.
-type DeleteRecordResponse struct {
-}
+type DeleteRecordResponse struct{}
 
 // RecordService — интерфейс бизнес-логики для работы с записями.
 type RecordService interface {
@@ -37,7 +40,7 @@ func NewHandler(service RecordService) *Handler {
 	return &Handler{service: service}
 }
 
-// Handle обрабатывает запрос на удаление записи (soft delete).
+// Handle помечает запись как удалённую.
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middlewares.UserIDFromContext(r.Context())
 	if !ok || userID <= 0 {

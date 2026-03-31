@@ -1,9 +1,6 @@
-// Package sync_pull_v1_post implements the HTTP endpoint for pulling sync changes.
+// Package sync_pull_v1_post реализует HTTP-ручку получения изменений синхронизации.
 //
 // POST /api/v1/sync/pull
-//
-// Client sends its since_revision cursor and receives pending changes
-// that occurred after that revision, along with the updated cursor value.
 package sync_pull_v1_post
 
 import (
@@ -85,7 +82,7 @@ func NewHandler(service SyncPuller) *Handler {
 	return &Handler{service: service}
 }
 
-// ServeHTTP обрабатывает HTTP-запрос pull-синхронизации.
+// ServeHTTP возвращает изменения, записи и конфликты после указанной ревизии.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)

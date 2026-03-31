@@ -1,9 +1,6 @@
-// Package uploads_v1_post implements the HTTP endpoint for creating an upload session.
+// Package uploads_v1_post реализует HTTP-ручку создания сессии загрузки.
 //
 // POST /api/v1/uploads
-//
-// Client initiates a new upload session by specifying record metadata and chunk parameters.
-// Server creates an upload session in "pending" status and returns the session ID.
 package uploads_v1_post
 
 import (
@@ -51,7 +48,7 @@ func NewHandler(service UploadCreator) *Handler {
 	return &Handler{service: service}
 }
 
-// ServeHTTP обрабатывает HTTP-запрос создания upload-сессии.
+// ServeHTTP создаёт upload-сессию для последующей передачи чанков.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)

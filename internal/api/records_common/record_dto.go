@@ -1,3 +1,4 @@
+// Package recordscommon содержит общие DTO и transport-хелперы для HTTP-ручек записей.
 package recordscommon
 
 import (
@@ -6,22 +7,22 @@ import (
 
 const timeLayout = "2006-01-02T15:04:05Z"
 
-// LoginPayloadDTO — DTO для логин/пароль.
+// LoginPayloadDTO описывает payload записи с логином и паролем.
 type LoginPayloadDTO struct {
 	Login    string `json:"login"`
 	Password string `json:"password"`
 }
 
-// TextPayloadDTO — DTO для текстовых данных.
+// TextPayloadDTO описывает payload записи с произвольным текстом.
 type TextPayloadDTO struct {
 	Content string `json:"content"`
 }
 
-// BinaryPayloadDTO — DTO для бинарных данных.
-// Содержимое управляется через uploads-слой (task_13).
+// BinaryPayloadDTO описывает payload бинарной записи без содержимого файла.
+// Содержимое передаётся через uploads-слой.
 type BinaryPayloadDTO struct{}
 
-// CardPayloadDTO — DTO для данных банковской карты.
+// CardPayloadDTO описывает payload записи с данными банковской карты.
 type CardPayloadDTO struct {
 	Number     string `json:"number"`
 	HolderName string `json:"holder_name"`
@@ -29,7 +30,7 @@ type CardPayloadDTO struct {
 	CVV        string `json:"cvv"`
 }
 
-// RecordDTO — DTO записи, согласованный с gRPC контрактом.
+// RecordDTO описывает запись в transport-представлении HTTP API.
 type RecordDTO struct {
 	ID             int64       `json:"id"`
 	UserID         int64       `json:"user_id"`

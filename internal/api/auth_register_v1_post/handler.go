@@ -1,3 +1,7 @@
+// Package auth_register_v1_post реализует HTTP-ручку регистрации пользователя.
+//
+// POST /api/v1/auth/register
+//
 //go:generate minimock -i .UserService -o mocks -s _mock.go -g
 package auth_register_v1_post
 
@@ -28,7 +32,7 @@ type RegisterResponse struct {
 	UserID int64 `json:"user_id"`
 }
 
-// Handler обрабатывает HTTP-запросы на регистрацию пользователя.
+// Handler обрабатывает запросы регистрации пользователя.
 type Handler struct {
 	userService UserService
 	log         zerolog.Logger
@@ -42,7 +46,7 @@ func NewHandler(userService UserService, log zerolog.Logger) *Handler {
 	}
 }
 
-// Handle обрабатывает POST /api/v1/auth/register.
+// Handle регистрирует пользователя и возвращает его идентификатор.
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	var req RegisterRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

@@ -1,3 +1,6 @@
+// Package records_by_id_binary_v1_get реализует HTTP-ручку скачивания бинарной записи.
+//
+// GET /api/v1/records/{id}/binary
 package records_by_id_binary_v1_get
 
 import (
@@ -10,21 +13,25 @@ import (
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
+// RecordService определяет зависимости для получения записи перед скачиванием.
 type RecordService interface {
 	GetRecord(id int64) (*models.Record, error)
 }
 
+// UploadService определяет зависимости для скачивания бинарного содержимого по чанкам.
 type UploadService interface {
 	CreateDownloadSession(userID, recordID int64) (*models.DownloadSession, error)
 	DownloadChunkByID(downloadID, chunkIndex int64) (*models.Chunk, error)
 	ConfirmChunk(downloadID, chunkIndex int64) (confirmed, total int64, status models.DownloadStatus, err error)
 }
 
+// Handler собирает бинарное содержимое записи из download-сессии и отдаёт его клиенту.
 type Handler struct {
 	records RecordService
 	uploads UploadService
 }
 
+// NewHandler создаёт обработчик скачивания бинарной записи.
 func NewHandler(records RecordService, uploads UploadService) *Handler {
 	return &Handler{
 		records: records,
@@ -32,6 +39,7 @@ func NewHandler(records RecordService, uploads UploadService) *Handler {
 	}
 }
 
+// Handle скачивает все чанки бинарной записи и возвращает файл целиком.
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middlewares.UserIDFromContext(r.Context())
 	if !ok || userID <= 0 {

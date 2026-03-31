@@ -362,3 +362,15 @@ GK_TEST_DATABASE_DSN="postgres://postgres:postgres@localhost:5432/gophkeeper?ssl
 - JWT access/refresh token с ротацией refresh
 - Soft delete записей
 - Монотонный рост ревизий для обнаружения конфликтов синхронизации
+
+## Документация
+Установка godoc:
+```
+go install -v golang.org/x/tools/cmd/godoc@latest
+```
+Запуск:
+```
+godoc -http=:8080
+```
+После выполнения этой команды в корне проекта, документация будет доступна по адресу:
+http://localhost:8080/pkg/github.com/hydra13/gophkeeper/?m=all

@@ -1,3 +1,4 @@
+// Package app собирает зависимости приложения и запускает HTTP/gRPC серверы.
 package app
 
 import (
@@ -44,7 +45,7 @@ const (
 	defaultRateWindow      = time.Second
 )
 
-// AppDeps описывает зависимости приложения.
+// AppDeps описывает бизнес-зависимости, необходимые для запуска приложения.
 type AppDeps struct {
 	// AuthService реализует все auth-операции: register, login, refresh, logout, validate token.
 	AuthService interface {
@@ -55,6 +56,7 @@ type AppDeps struct {
 		ValidateToken(token string) (int64, error)
 		ValidateSession(token string) (int64, error)
 	}
+	// RecordService реализует CRUD-операции над записями.
 	RecordService interface {
 		CreateRecord(record *models.Record) error
 		ListRecords(userID int64, recordType models.RecordType, includeDeleted bool) ([]models.Record, error)
@@ -62,12 +64,14 @@ type AppDeps struct {
 		UpdateRecord(record *models.Record) error
 		DeleteRecord(id int64, deviceID string) error
 	}
+	// SyncService реализует операции синхронизации.
 	SyncService interface {
 		Push(userID int64, deviceID string, changes []sync_push_v1_post.PendingChange) ([]models.RecordRevision, []models.SyncConflict, error)
 		Pull(userID int64, deviceID string, sinceRevision int64, limit int64) ([]models.RecordRevision, []models.Record, []models.SyncConflict, error)
 		GetConflicts(userID int64) ([]models.SyncConflict, error)
 		ResolveConflict(userID int64, conflictID int64, resolution string) (*models.Record, error)
 	}
+	// UploadService реализует загрузку и скачивание бинарных данных.
 	UploadService interface {
 		CreateSession(userID, recordID, totalChunks, chunkSize, totalSize, keyVersion int64) (int64, error)
 		GetUploadStatus(uploadID int64) (*uploads_by_id_v1_get.UploadStatusResponse, error)
@@ -96,7 +100,7 @@ func (d AppDeps) validate() error {
 	}
 }
 
-// NewStubDeps возвращает набор заглушек для запуска без бизнес-реализаций.
+// NewStubDeps возвращает набор заглушек для запуска приложения без бизнес-реализаций.
 func NewStubDeps() AppDeps {
 	return AppDeps{
 		AuthService:   &stubAuthService{},
@@ -106,7 +110,7 @@ func NewStubDeps() AppDeps {
 	}
 }
 
-// Run поднимает HTTP и gRPC серверы и обеспечивает graceful shutdown.
+// Run запускает HTTP и gRPC серверы, фоновые job и выполняет graceful shutdown.
 func Run(ctx context.Context, cfg *config.Config, log zerolog.Logger, deps AppDeps) error {
 	if err := deps.validate(); err != nil {
 		return err

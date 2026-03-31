@@ -1,3 +1,7 @@
+// Package auth_refresh_v1_post реализует HTTP-ручку обновления токенов.
+//
+// POST /api/v1/auth/refresh
+//
 //go:generate minimock -i .TokenService -o mocks -s _mock.go -g
 package auth_refresh_v1_post
 
@@ -28,7 +32,7 @@ type RefreshResponse struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
-// Handler обрабатывает HTTP-запросы на обновление токена.
+// Handler обрабатывает запросы обновления токенов.
 type Handler struct {
 	tokenService TokenService
 	log          zerolog.Logger
@@ -42,7 +46,7 @@ func NewHandler(tokenService TokenService, log zerolog.Logger) *Handler {
 	}
 }
 
-// Handle обрабатывает POST /api/v1/auth/refresh.
+// Handle обновляет access и refresh токены по refresh_token.
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	var req RefreshRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

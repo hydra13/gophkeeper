@@ -22,7 +22,7 @@ type AuthUseCase interface {
 	Logout(ctx context.Context, accessToken string) error
 }
 
-// AuthService gRPC имплементация.
+// AuthService реализует gRPC-ручки аутентификации.
 type AuthService struct {
 	pbv1.UnimplementedAuthServiceServer
 	auth AuthUseCase
@@ -37,6 +37,7 @@ func NewAuthService(auth AuthUseCase, log zerolog.Logger) *AuthService {
 	}
 }
 
+// Register регистрирует пользователя по email и паролю.
 func (s *AuthService) Register(ctx context.Context, req *pbv1.RegisterRequest) (*pbv1.RegisterResponse, error) {
 	if req.Email == "" || req.Password == "" {
 		return nil, status.Error(codes.InvalidArgument, "email and password are required")
@@ -52,6 +53,7 @@ func (s *AuthService) Register(ctx context.Context, req *pbv1.RegisterRequest) (
 	return &pbv1.RegisterResponse{UserId: userID}, nil
 }
 
+// Login аутентифицирует пользователя и возвращает access и refresh токены.
 func (s *AuthService) Login(ctx context.Context, req *pbv1.LoginRequest) (*pbv1.LoginResponse, error) {
 	if req.Email == "" || req.Password == "" || req.DeviceId == "" {
 		return nil, status.Error(codes.InvalidArgument, "email, password and device_id are required")
@@ -64,6 +66,7 @@ func (s *AuthService) Login(ctx context.Context, req *pbv1.LoginRequest) (*pbv1.
 	return &pbv1.LoginResponse{AccessToken: accessToken, RefreshToken: refreshToken}, nil
 }
 
+// Refresh обновляет access и refresh токены по refresh token.
 func (s *AuthService) Refresh(ctx context.Context, req *pbv1.RefreshRequest) (*pbv1.RefreshResponse, error) {
 	if req.RefreshToken == "" {
 		return nil, status.Error(codes.InvalidArgument, "refresh_token is required")
@@ -76,6 +79,7 @@ func (s *AuthService) Refresh(ctx context.Context, req *pbv1.RefreshRequest) (*p
 	return &pbv1.RefreshResponse{AccessToken: accessToken, RefreshToken: refreshToken}, nil
 }
 
+// Logout завершает текущую сессию по access token из metadata.
 func (s *AuthService) Logout(ctx context.Context, req *pbv1.LogoutRequest) (*pbv1.LogoutResponse, error) {
 	token := extractGRPCToken(ctx)
 	if token == "" {

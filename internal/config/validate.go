@@ -6,7 +6,7 @@ import (
 	"os"
 )
 
-// Validate проверяет корректность загруженной конфигурации
+// Validate проверяет обязательные поля и согласованность загруженной конфигурации.
 func Validate(cfg *Config) error {
 	var errs []error
 

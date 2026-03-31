@@ -1,3 +1,7 @@
+// Package recordsbyidv1put реализует HTTP-ручку обновления записи.
+//
+// PUT /api/v1/records/{id}
+//
 //go:generate minimock -i .RecordService -o mocks -s _mock.go -g
 package recordsbyidv1put
 
@@ -70,7 +74,7 @@ func NewHandler(service RecordService) *Handler {
 	return &Handler{service: service}
 }
 
-// Handle обрабатывает запрос на обновление записи.
+// Handle обновляет запись по идентификатору с проверкой ревизии.
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middlewares.UserIDFromContext(r.Context())
 	if !ok || userID <= 0 {

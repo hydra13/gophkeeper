@@ -1,3 +1,7 @@
+// Package recordsv1get реализует HTTP-ручку получения списка записей.
+//
+// GET /api/v1/records
+//
 //go:generate minimock -i .RecordService -o mocks -s _mock.go -g
 package recordsv1get
 
@@ -31,7 +35,7 @@ func NewHandler(service RecordService) *Handler {
 	return &Handler{service: service}
 }
 
-// Handle обрабатывает запрос на получение списка записей.
+// Handle возвращает список записей пользователя с опциональной фильтрацией.
 // Поддерживает query-параметры: type (фильтр по типу), include_deleted (включать удалённые).
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middlewares.UserIDFromContext(r.Context())

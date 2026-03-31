@@ -1,8 +1,9 @@
+// Package config описывает конфигурацию сервиса и её загрузку.
 package config
 
 import "time"
 
-// Config — корневая структура конфигурации сервера GophKeeper.
+// Config описывает полную конфигурацию сервиса.
 type Config struct {
 	Server   ServerConfig       `json:"server"`
 	Database DatabaseConfig     `json:"database"`
@@ -12,7 +13,7 @@ type Config struct {
 	Upload   UploadLimitsConfig `json:"upload"`
 }
 
-// ServerConfig — параметры HTTP и gRPC серверов.
+// ServerConfig содержит параметры HTTP и gRPC серверов.
 type ServerConfig struct {
 	Address     string `json:"address"`
 	GRPCAddress string `json:"grpc_address"`
@@ -20,23 +21,23 @@ type ServerConfig struct {
 	TLSKeyFile  string `json:"tls_key_file"`
 }
 
-// DatabaseConfig — параметры подключения к PostgreSQL.
+// DatabaseConfig содержит параметры подключения к PostgreSQL.
 type DatabaseConfig struct {
 	DSN string `json:"dsn"`
 }
 
-// AuthConfig — параметры JWT-авторизации.
+// AuthConfig содержит параметры JWT-аутентификации.
 type AuthConfig struct {
 	JWTSecret     string        `json:"jwt_secret"`
 	TokenDuration time.Duration `json:"token_duration"`
 }
 
-// CryptoConfig — параметры криптографии (мастер-ключ для envelope encryption).
+// CryptoConfig содержит параметры криптографии и мастер-ключа.
 type CryptoConfig struct {
 	MasterKey string `json:"master_key"`
 }
 
-// BlobStorageConfig — параметры blob-хранилища для бинарных данных.
+// BlobStorageConfig содержит параметры blob-хранилища бинарных данных.
 type BlobStorageConfig struct {
 	Provider  string `json:"provider"`
 	Path      string `json:"path"`
@@ -47,7 +48,7 @@ type BlobStorageConfig struct {
 	Region    string `json:"region"`
 }
 
-// UploadLimitsConfig — ограничения на загрузку бинарных файлов.
+// UploadLimitsConfig содержит ограничения на загрузку бинарных файлов.
 type UploadLimitsConfig struct {
 	MaxFileSize  int64 `json:"max_file_size"`
 	MaxChunkSize int64 `json:"max_chunk_size"`

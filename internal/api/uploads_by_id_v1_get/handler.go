@@ -1,8 +1,6 @@
-// Package uploads_by_id_v1_get implements the HTTP endpoint for getting upload/download session status.
+// Package uploads_by_id_v1_get реализует HTTP-ручку получения статуса upload-сессии.
 //
 // GET /api/v1/uploads/{id}
-//
-// Returns upload session status including missing chunks for resume.
 package uploads_by_id_v1_get
 
 import (
@@ -28,7 +26,7 @@ type UploadStatusResponse struct {
 	MissingChunks []int64 `json:"missing_chunks,omitempty"`
 }
 
-// DownloadResponse — DTO ответа для скачивания бинарных данных.
+// DownloadResponse — DTO ответа для статуса download-сессии.
 type DownloadResponse struct {
 	// DownloadID — идентификатор download-сессии.
 	DownloadID int64 `json:"download_id"`
@@ -44,7 +42,7 @@ type DownloadResponse struct {
 	RemainingChunks []int64 `json:"remaining_chunks,omitempty"`
 }
 
-// UploadStatusGetter — интерфейс сервиса получения статуса upload/download.
+// UploadStatusGetter — интерфейс сервиса получения статуса upload-сессии.
 type UploadStatusGetter interface {
 	// GetUploadStatus возвращает статус upload-сессии по ID.
 	GetUploadStatus(uploadID int64) (*UploadStatusResponse, error)
@@ -60,7 +58,7 @@ func NewHandler(service UploadStatusGetter) *Handler {
 	return &Handler{service: service}
 }
 
-// ServeHTTP обрабатывает HTTP-запрос статуса загрузки/скачивания.
+// ServeHTTP возвращает статус upload-сессии и недостающие чанки.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)

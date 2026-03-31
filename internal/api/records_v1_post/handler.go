@@ -1,3 +1,7 @@
+// Package recordsv1post реализует HTTP-ручку создания записи.
+//
+// POST /api/v1/records
+//
 //go:generate minimock -i .RecordService -o mocks -s _mock.go -g
 package recordsv1post
 
@@ -78,7 +82,7 @@ func NewHandler(service RecordService) *Handler {
 	return &Handler{service: service}
 }
 
-// Handle обрабатывает запрос на создание записи.
+// Handle создаёт новую запись текущего пользователя.
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	var req CreateRecordRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

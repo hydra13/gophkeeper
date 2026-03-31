@@ -1,3 +1,7 @@
+// Package auth_logout_v1_post реализует HTTP-ручку завершения сессии.
+//
+// POST /api/v1/auth/logout
+//
 //go:generate minimock -i .TokenService -o mocks -s _mock.go -g
 package auth_logout_v1_post
 
@@ -12,24 +16,24 @@ import (
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
-// TokenService определяет зависимости, необходимые для logout.
+// TokenService определяет зависимости, необходимые для завершения сессии.
 type TokenService interface {
 	Logout(ctx context.Context, accessToken string) error
 }
 
-// LogoutRequest — DTO запроса на logout.
+// LogoutRequest — DTO запроса на завершение сессии.
 type LogoutRequest struct{}
 
-// LogoutResponse — DTO успешного ответа logout.
+// LogoutResponse — DTO успешного ответа завершения сессии.
 type LogoutResponse struct{}
 
-// Handler обрабатывает HTTP-запросы на logout.
+// Handler обрабатывает запросы завершения сессии.
 type Handler struct {
 	tokenService TokenService
 	log          zerolog.Logger
 }
 
-// NewHandler создаёт новый Handler для logout.
+// NewHandler создаёт новый Handler для завершения сессии.
 func NewHandler(tokenService TokenService, log zerolog.Logger) *Handler {
 	return &Handler{
 		tokenService: tokenService,
@@ -37,7 +41,7 @@ func NewHandler(tokenService TokenService, log zerolog.Logger) *Handler {
 	}
 }
 
-// Handle обрабатывает POST /api/v1/auth/logout.
+// Handle завершает текущую сессию по access token из заголовка Authorization.
 // Требует заголовок Authorization: Bearer <access_token>.
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	token := extractBearerToken(r)

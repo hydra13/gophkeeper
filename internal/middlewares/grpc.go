@@ -14,7 +14,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// UnaryLogger interceptor для логирования gRPC запросов.
+// UnaryLogger логирует unary gRPC-запросы.
 func UnaryLogger(log zerolog.Logger) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		start := time.Now()
@@ -28,7 +28,7 @@ func UnaryLogger(log zerolog.Logger) grpc.UnaryServerInterceptor {
 	}
 }
 
-// StreamLogger interceptor для логирования gRPC стримов.
+// StreamLogger логирует gRPC-стримы.
 func StreamLogger(log zerolog.Logger) grpc.StreamServerInterceptor {
 	return func(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		start := time.Now()
@@ -42,7 +42,7 @@ func StreamLogger(log zerolog.Logger) grpc.StreamServerInterceptor {
 	}
 }
 
-// UnaryRateLimit interceptor для ограничения частоты запросов.
+// UnaryRateLimit ограничивает частоту unary gRPC-запросов.
 func UnaryRateLimit(limiter *RateLimiter) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		if !limiter.Allow() {
@@ -52,7 +52,7 @@ func UnaryRateLimit(limiter *RateLimiter) grpc.UnaryServerInterceptor {
 	}
 }
 
-// StreamRateLimit interceptor для ограничения частоты запросов.
+// StreamRateLimit ограничивает частоту gRPC-стримов.
 func StreamRateLimit(limiter *RateLimiter) grpc.StreamServerInterceptor {
 	return func(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		if !limiter.Allow() {
@@ -62,7 +62,7 @@ func StreamRateLimit(limiter *RateLimiter) grpc.StreamServerInterceptor {
 	}
 }
 
-// UnaryAuth interceptor для проверки access-токена.
+// UnaryAuth проверяет access token для unary gRPC-запросов.
 func UnaryAuth(validator TokenValidator, allowMethods map[string]struct{}) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		if _, ok := allowMethods[info.FullMethod]; ok {
@@ -81,7 +81,7 @@ func UnaryAuth(validator TokenValidator, allowMethods map[string]struct{}) grpc.
 	}
 }
 
-// StreamAuth interceptor для проверки access-токена.
+// StreamAuth проверяет access token для gRPC-стримов.
 func StreamAuth(validator TokenValidator, allowMethods map[string]struct{}) grpc.StreamServerInterceptor {
 	return func(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		if _, ok := allowMethods[info.FullMethod]; ok {
@@ -110,7 +110,7 @@ func (w *wrappedStream) Context() context.Context {
 	return w.ctx
 }
 
-// RequireTLS interceptor для проверки TLS соединения.
+// RequireTLS запрещает unary gRPC-вызовы без TLS.
 func RequireTLS() grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		if !hasTLS(ctx) {
@@ -120,7 +120,7 @@ func RequireTLS() grpc.UnaryServerInterceptor {
 	}
 }
 
-// RequireTLSStream interceptor для проверки TLS соединения.
+// RequireTLSStream запрещает gRPC-стримы без TLS.
 func RequireTLSStream() grpc.StreamServerInterceptor {
 	return func(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		if !hasTLS(stream.Context()) {

@@ -24,7 +24,7 @@ type RecordUseCase interface {
 	DeleteRecord(id int64, deviceID string) error
 }
 
-// DataService gRPC имплементация CRUD операций над записями.
+// DataService реализует gRPC CRUD-ручки для записей.
 type DataService struct {
 	pbv1.UnimplementedDataServiceServer
 	records RecordUseCase
@@ -39,6 +39,7 @@ func NewDataService(records RecordUseCase, log zerolog.Logger) *DataService {
 	}
 }
 
+// CreateRecord создаёт запись текущего пользователя.
 func (s *DataService) CreateRecord(ctx context.Context, req *pbv1.CreateRecordRequest) (*pbv1.CreateRecordResponse, error) {
 	userID, err := userIDFromContext(ctx)
 	if err != nil {
@@ -76,6 +77,7 @@ func (s *DataService) CreateRecord(ctx context.Context, req *pbv1.CreateRecordRe
 	}, nil
 }
 
+// GetRecord возвращает запись по идентификатору.
 func (s *DataService) GetRecord(ctx context.Context, req *pbv1.GetRecordRequest) (*pbv1.GetRecordResponse, error) {
 	userID, err := userIDFromContext(ctx)
 	if err != nil {
@@ -100,6 +102,7 @@ func (s *DataService) GetRecord(ctx context.Context, req *pbv1.GetRecordRequest)
 	}, nil
 }
 
+// ListRecords возвращает список записей пользователя.
 func (s *DataService) ListRecords(ctx context.Context, req *pbv1.ListRecordsRequest) (*pbv1.ListRecordsResponse, error) {
 	userID, err := userIDFromContext(ctx)
 	if err != nil {
@@ -120,6 +123,7 @@ func (s *DataService) ListRecords(ctx context.Context, req *pbv1.ListRecordsRequ
 	return &pbv1.ListRecordsResponse{Records: pbRecords}, nil
 }
 
+// UpdateRecord обновляет существующую запись с проверкой ревизии.
 func (s *DataService) UpdateRecord(ctx context.Context, req *pbv1.UpdateRecordRequest) (*pbv1.UpdateRecordResponse, error) {
 	userID, err := userIDFromContext(ctx)
 	if err != nil {
@@ -178,6 +182,7 @@ func (s *DataService) UpdateRecord(ctx context.Context, req *pbv1.UpdateRecordRe
 	}, nil
 }
 
+// DeleteRecord помечает запись как удалённую.
 func (s *DataService) DeleteRecord(ctx context.Context, req *pbv1.DeleteRecordRequest) (*pbv1.DeleteRecordResponse, error) {
 	userID, err := userIDFromContext(ctx)
 	if err != nil {

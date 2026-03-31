@@ -1,9 +1,6 @@
-// Package uploads_by_id_chunks_v1_get implements the HTTP endpoint for downloading a single chunk.
+// Package uploads_by_id_chunks_v1_get реализует HTTP-ручку скачивания чанка.
 //
 // GET /api/v1/uploads/{id}/chunks/{index}
-//
-// Client downloads one chunk of binary data from an existing download session.
-// Supports resume by returning remaining chunk indexes.
 package uploads_by_id_chunks_v1_get
 
 import (
@@ -51,7 +48,7 @@ func NewHandler(service ChunkDownloader) *Handler {
 	return &Handler{service: service}
 }
 
-// ServeHTTP обрабатывает HTTP-запрос скачивания чанка.
+// ServeHTTP возвращает один чанк и текущее состояние download-сессии.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)

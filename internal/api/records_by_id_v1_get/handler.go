@@ -1,3 +1,7 @@
+// Package recordsbyidv1get реализует HTTP-ручку получения записи по идентификатору.
+//
+// GET /api/v1/records/{id}
+//
 //go:generate minimock -i .RecordService -o mocks -s _mock.go -g
 package recordsbyidv1get
 
@@ -31,7 +35,7 @@ func NewHandler(service RecordService) *Handler {
 	return &Handler{service: service}
 }
 
-// Handle обрабатывает запрос на получение записи по ID.
+// Handle возвращает запись по идентификатору, если она принадлежит текущему пользователю.
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middlewares.UserIDFromContext(r.Context())
 	if !ok || userID <= 0 {

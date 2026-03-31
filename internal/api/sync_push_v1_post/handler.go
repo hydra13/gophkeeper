@@ -1,9 +1,6 @@
-// Package sync_push_v1_post implements the HTTP endpoint for pushing local changes to the server.
+// Package sync_push_v1_post реализует HTTP-ручку отправки локальных изменений на сервер.
 //
 // POST /api/v1/sync/push
-//
-// Client sends its local changes (pending operations). Server validates them
-// against current server state and either accepts or returns conflicts.
 package sync_push_v1_post
 
 import (
@@ -81,7 +78,7 @@ func NewHandler(service SyncPusher) *Handler {
 	return &Handler{service: service}
 }
 
-// ServeHTTP обрабатывает HTTP-запрос push-синхронизации.
+// ServeHTTP принимает локальные изменения и возвращает принятые ревизии и конфликты.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)

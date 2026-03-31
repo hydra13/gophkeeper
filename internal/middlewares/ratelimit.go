@@ -2,45 +2,41 @@ package middlewares
 
 import (
 	"net/http"
-	"sync"
 	"time"
+
+	"golang.org/x/time/rate"
 )
 
-// RateLimiter — простой лимитер запросов на окно.
+// RateLimiter ограничивает число запросов с помощью token bucket из x/time/rate.
 type RateLimiter struct {
-	mu          sync.Mutex
-	windowStart time.Time
-	count       int
-	limit       int
-	window      time.Duration
+	limiter *rate.Limiter
 }
 
-// NewRateLimiter создаёт новый лимитер.
+// NewRateLimiter создаёт новый лимитер запросов.
 func NewRateLimiter(limit int, window time.Duration) *RateLimiter {
+	if limit <= 0 || window <= 0 {
+		return &RateLimiter{limiter: rate.NewLimiter(rate.Limit(0), 0)}
+	}
+
+	refillInterval := window / time.Duration(limit)
+	if refillInterval <= 0 {
+		refillInterval = time.Nanosecond
+	}
+
 	return &RateLimiter{
-		windowStart: time.Now(),
-		limit:       limit,
-		window:      window,
+		limiter: rate.NewLimiter(rate.Every(refillInterval), limit),
 	}
 }
 
-// Allow проверяет, можно ли пропустить запрос.
+// Allow возвращает, можно ли пропустить следующий запрос.
 func (l *RateLimiter) Allow() bool {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	if time.Since(l.windowStart) > l.window {
-		l.windowStart = time.Now()
-		l.count = 0
-	}
-	if l.count >= l.limit {
+	if l == nil || l.limiter == nil {
 		return false
 	}
-	l.count++
-	return true
+	return l.limiter.Allow()
 }
 
-// RateLimit middleware для ограничения запросов.
+// RateLimit ограничивает частоту HTTP-запросов.
 func RateLimit(limiter *RateLimiter) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

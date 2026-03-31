@@ -1,3 +1,4 @@
+// Package rpc реализует gRPC-ручки сервиса GophKeeper.
 package rpc
 
 import (
@@ -6,7 +7,7 @@ import (
 	"github.com/hydra13/gophkeeper/internal/rpc/pbv1"
 )
 
-// Server gRPC сервер.
+// Server агрегирует все gRPC-сервисы приложения и регистрирует их в grpc.Server.
 type Server struct {
 	auth    pbv1.AuthServiceServer
 	data    pbv1.DataServiceServer

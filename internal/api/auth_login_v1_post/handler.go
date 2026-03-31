@@ -1,3 +1,7 @@
+// Package auth_login_v1_post реализует HTTP-ручку входа пользователя.
+//
+// POST /api/v1/auth/login
+//
 //go:generate minimock -i .UserService -o mocks -s _mock.go -g
 package auth_login_v1_post
 
@@ -32,7 +36,7 @@ type LoginResponse struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
-// Handler обрабатывает HTTP-запросы на логин.
+// Handler обрабатывает запросы входа пользователя.
 type Handler struct {
 	userService UserService
 	log         zerolog.Logger
@@ -46,7 +50,7 @@ func NewHandler(userService UserService, log zerolog.Logger) *Handler {
 	}
 }
 
-// Handle обрабатывает POST /api/v1/auth/login.
+// Handle аутентифицирует пользователя и возвращает пару токенов.
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	var req LoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

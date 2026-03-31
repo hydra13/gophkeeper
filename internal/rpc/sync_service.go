@@ -24,12 +24,12 @@ type SyncUseCase interface {
 
 // PendingChange описывает одно локальное изменение для push.
 type PendingChange struct {
-	Record        *models.Record
-	Deleted       bool
-	BaseRevision  int64
+	Record       *models.Record
+	Deleted      bool
+	BaseRevision int64
 }
 
-// SyncService gRPC имплементация.
+// SyncService реализует gRPC-ручки синхронизации.
 type SyncService struct {
 	pbv1.UnimplementedSyncServiceServer
 	useCase SyncUseCase
@@ -44,6 +44,7 @@ func NewSyncService(useCase SyncUseCase, log zerolog.Logger) *SyncService {
 	}
 }
 
+// Push отправляет локальные изменения клиента на сервер.
 func (s *SyncService) Push(ctx context.Context, req *pbv1.PushRequest) (*pbv1.PushResponse, error) {
 	userID, err := userIDFromContext(ctx)
 	if err != nil {
@@ -81,6 +82,7 @@ func (s *SyncService) Push(ctx context.Context, req *pbv1.PushRequest) (*pbv1.Pu
 	return resp, nil
 }
 
+// Pull возвращает изменения и конфликты после указанной ревизии.
 func (s *SyncService) Pull(ctx context.Context, req *pbv1.PullRequest) (*pbv1.PullResponse, error) {
 	userID, err := userIDFromContext(ctx)
 	if err != nil {
@@ -117,6 +119,7 @@ func (s *SyncService) Pull(ctx context.Context, req *pbv1.PullRequest) (*pbv1.Pu
 	return resp, nil
 }
 
+// GetConflicts возвращает открытые конфликты синхронизации пользователя.
 func (s *SyncService) GetConflicts(ctx context.Context, req *pbv1.GetConflictsRequest) (*pbv1.GetConflictsResponse, error) {
 	userID, err := userIDFromContext(ctx)
 	if err != nil {
@@ -133,6 +136,7 @@ func (s *SyncService) GetConflicts(ctx context.Context, req *pbv1.GetConflictsRe
 	}, nil
 }
 
+// ResolveConflict разрешает конфликт в пользу локальной или серверной версии.
 func (s *SyncService) ResolveConflict(ctx context.Context, req *pbv1.ResolveConflictRequest) (*pbv1.ResolveConflictResponse, error) {
 	userID, err := userIDFromContext(ctx)
 	if err != nil {

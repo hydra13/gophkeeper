@@ -20,7 +20,7 @@ func (w *gzipResponseWriter) Write(b []byte) (int, error) {
 	return w.writer.Write(b)
 }
 
-// Compression middleware для gzip сжатия.
+// Compression сжимает HTTP-ответ gzip, если клиент его поддерживает.
 func Compression() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

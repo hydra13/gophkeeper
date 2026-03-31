@@ -1,9 +1,6 @@
-// Package uploads_by_id_chunks_v1_post implements the HTTP endpoint for uploading a single chunk.
+// Package uploads_by_id_chunks_v1_post реализует HTTP-ручку загрузки чанка.
 //
 // POST /api/v1/uploads/{id}/chunks
-//
-// Client uploads one chunk of binary data within an existing upload session.
-// Supports resume: if upload was interrupted, client can re-send missing chunks.
 package uploads_by_id_chunks_v1_post
 
 import (
@@ -53,7 +50,7 @@ func NewHandler(service ChunkUploader) *Handler {
 	return &Handler{service: service}
 }
 
-// ServeHTTP обрабатывает HTTP-запрос загрузки чанка.
+// ServeHTTP принимает один чанк в рамках существующей upload-сессии.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
