@@ -12,16 +12,16 @@ import (
 )
 
 type mockSyncPusher struct {
-	pushFunc func(userID int64, deviceID string, changes []PendingChange) ([]models.RecordRevision, []models.SyncConflict, error)
+	pushFunc func(userID int64, deviceID string, changes []models.PendingChange) ([]models.RecordRevision, []models.SyncConflict, error)
 }
 
-func (m *mockSyncPusher) Push(userID int64, deviceID string, changes []PendingChange) ([]models.RecordRevision, []models.SyncConflict, error) {
+func (m *mockSyncPusher) Push(userID int64, deviceID string, changes []models.PendingChange) ([]models.RecordRevision, []models.SyncConflict, error) {
 	return m.pushFunc(userID, deviceID, changes)
 }
 
 func TestSyncPushHandler_Success(t *testing.T) {
 	mock := &mockSyncPusher{
-		pushFunc: func(userID int64, deviceID string, changes []PendingChange) ([]models.RecordRevision, []models.SyncConflict, error) {
+		pushFunc: func(userID int64, deviceID string, changes []models.PendingChange) ([]models.RecordRevision, []models.SyncConflict, error) {
 			return []models.RecordRevision{
 				{ID: 1, RecordID: 1, UserID: userID, Revision: 2, DeviceID: deviceID},
 			}, nil, nil
@@ -75,7 +75,7 @@ func TestSyncPushHandler_Success(t *testing.T) {
 
 func TestSyncPushHandler_WithConflicts(t *testing.T) {
 	mock := &mockSyncPusher{
-		pushFunc: func(userID int64, deviceID string, changes []PendingChange) ([]models.RecordRevision, []models.SyncConflict, error) {
+		pushFunc: func(userID int64, deviceID string, changes []models.PendingChange) ([]models.RecordRevision, []models.SyncConflict, error) {
 			return nil, []models.SyncConflict{
 				{RecordID: 1, LocalRevision: 3, ServerRevision: 5},
 			}, nil
@@ -200,7 +200,7 @@ func TestSyncPushHandler_EmptyChanges(t *testing.T) {
 
 func TestSyncPushHandler_ServiceError(t *testing.T) {
 	mock := &mockSyncPusher{
-		pushFunc: func(userID int64, deviceID string, changes []PendingChange) ([]models.RecordRevision, []models.SyncConflict, error) {
+		pushFunc: func(userID int64, deviceID string, changes []models.PendingChange) ([]models.RecordRevision, []models.SyncConflict, error) {
 			return nil, nil, models.ErrRevisionConflict
 		},
 	}

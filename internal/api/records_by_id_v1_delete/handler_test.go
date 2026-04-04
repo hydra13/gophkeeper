@@ -71,12 +71,12 @@ func TestHandler_Handle(t *testing.T) {
 			wantCode: http.StatusBadRequest,
 		},
 		{
-			name:       "record not found",
+			name:       "record not found - idempotent",
 			recordID:   "999",
 			userID:     1,
 			deviceID:   "dev-1",
 			serviceErr: models.ErrRecordNotFound,
-			wantCode:   http.StatusNotFound,
+			wantCode:   http.StatusOK,
 		},
 		{
 			name:     "access denied - wrong user",
@@ -87,12 +87,12 @@ func TestHandler_Handle(t *testing.T) {
 			wantCode: http.StatusForbidden,
 		},
 		{
-			name:     "already deleted",
+			name:     "already deleted - idempotent",
 			recordID: "1",
 			userID:   1,
 			deviceID: "dev-1",
 			record:   deletedRecord,
-			wantCode: http.StatusBadRequest,
+			wantCode: http.StatusOK,
 		},
 		{
 			name:       "internal error on get",

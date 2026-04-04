@@ -1,3 +1,4 @@
+//go:generate minimock -i .UserRepo,.SessionRepo,.TokenManager -o mocks -s _mock.go -g
 package auth
 
 import (
@@ -6,26 +7,45 @@ import (
 	"time"
 
 	"github.com/hydra13/gophkeeper/internal/models"
-	"github.com/hydra13/gophkeeper/internal/repositories"
 	"github.com/hydra13/gophkeeper/internal/services/passwords"
 )
 
 const defaultSessionTTL = 24 * time.Hour
 
+type UserRepo interface {
+	CreateUser(user *models.User) error
+	GetUserByEmail(email string) (*models.User, error)
+}
+
+type SessionRepo interface {
+	CreateSession(session *models.Session) error
+	GetSession(id int64) (*models.Session, error)
+	GetSessionByRefreshToken(token string) (*models.Session, error)
+	RevokeSession(id int64) error
+	RevokeSessionsByUser(userID int64) error
+	UpdateLastSeenAt(id int64) error
+}
+
+type TokenManager interface {
+	NewRefreshToken() (string, error)
+	NewAccessToken(userID int64, sessionID int64) (string, error)
+	ValidateToken(token string) (int64, int64, error)
+}
+
 // Service реализует полный auth use-case: register, login, refresh, logout, logout-all-devices.
 type Service struct {
-	users      repositories.UserRepository
-	sessions   repositories.SessionRepository
-	jwt        *JWTManager
+	users      UserRepo
+	sessions   SessionRepo
+	jwt        TokenManager
 	sessionTTL time.Duration
 	now        func() time.Time
 }
 
 // NewService создаёт новый auth service.
 func NewService(
-	usersRepo repositories.UserRepository,
-	sessionsRepo repositories.SessionRepository,
-	jwtManager *JWTManager,
+	usersRepo UserRepo,
+	sessionsRepo SessionRepo,
+	jwtManager TokenManager,
 	sessionTTL time.Duration,
 ) (*Service, error) {
 	if usersRepo == nil {

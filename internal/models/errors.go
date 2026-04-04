@@ -54,6 +54,18 @@ var (
 	ErrInvalidConflictResolution = errors.New("invalid conflict resolution")
 )
 
+// Ошибки валидации банковских карт.
+var (
+	// ErrInvalidCardNumber — номер карты не проходит проверку (длина или Luhn).
+	ErrInvalidCardNumber = errors.New("invalid card number")
+	// ErrEmptyCardHolder — имя владельца карты не задано.
+	ErrEmptyCardHolder = errors.New("card holder name is required")
+	// ErrInvalidExpiryDate — некорректный формат expiry (ожидается MM/YY).
+	ErrInvalidExpiryDate = errors.New("invalid expiry date, expected MM/YY")
+	// ErrInvalidCVV — CVV должен содержать 3 или 4 цифры.
+	ErrInvalidCVV = errors.New("invalid CVV, expected 3 or 4 digits")
+)
+
 // Ошибки загрузок (upload/download).
 var (
 	// ErrUploadNotFound — upload-сессия не найдена.

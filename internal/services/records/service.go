@@ -1,11 +1,19 @@
+//go:generate minimock -i .RecordRepo,.KeyManager -o mocks -s _mock.go -g
 package records
 
 import (
 	"errors"
 
 	"github.com/hydra13/gophkeeper/internal/models"
-	"github.com/hydra13/gophkeeper/internal/repositories"
 )
+
+type RecordRepo interface {
+	CreateRecord(record *models.Record) error
+	ListRecords(userID int64, recordType models.RecordType, includeDeleted bool) ([]models.Record, error)
+	GetRecord(id int64) (*models.Record, error)
+	UpdateRecord(record *models.Record) error
+	DeleteRecord(id int64) error
+}
 
 // KeyManager предоставляет доступ к актуальной версии ключа.
 type KeyManager interface {
@@ -14,12 +22,12 @@ type KeyManager interface {
 
 // Service реализует бизнес-логику работы с записями.
 type Service struct {
-	repo repositories.RecordRepository
+	repo RecordRepo
 	keys KeyManager
 }
 
 // NewService создаёт новый сервис записей.
-func NewService(repo repositories.RecordRepository, keys KeyManager) (*Service, error) {
+func NewService(repo RecordRepo, keys KeyManager) (*Service, error) {
 	if repo == nil {
 		return nil, errors.New("record repository is required")
 	}

@@ -1,23 +1,37 @@
+//go:generate minimock -i .SyncRepo,.RecordRepo -o mocks -s _mock.go -g
 package sync
 
 import (
 	"errors"
 	"fmt"
 
-	"github.com/hydra13/gophkeeper/internal/api/records_common"
-	"github.com/hydra13/gophkeeper/internal/api/sync_push_v1_post"
 	"github.com/hydra13/gophkeeper/internal/models"
-	"github.com/hydra13/gophkeeper/internal/repositories"
 )
+
+type RecordRepo interface {
+	CreateRecord(record *models.Record) error
+	GetRecord(id int64) (*models.Record, error)
+	UpdateRecord(record *models.Record) error
+	DeleteRecord(id int64) error
+}
+
+type SyncRepo interface {
+	GetRevisions(userID int64, sinceRevision int64) ([]models.RecordRevision, error)
+	CreateRevision(rev *models.RecordRevision) error
+	GetMaxRevision(userID int64) (int64, error)
+	GetConflicts(userID int64) ([]models.SyncConflict, error)
+	CreateConflict(conflict *models.SyncConflict) error
+	ResolveConflict(conflictID int64, resolution string) error
+}
 
 // Service реализует бизнес-логику синхронизации.
 type Service struct {
-	syncRepo   repositories.SyncRepository
-	recordRepo repositories.RecordRepository
+	syncRepo   SyncRepo
+	recordRepo RecordRepo
 }
 
 // NewService создаёт новый sync service.
-func NewService(syncRepo repositories.SyncRepository, recordRepo repositories.RecordRepository) (*Service, error) {
+func NewService(syncRepo SyncRepo, recordRepo RecordRepo) (*Service, error) {
 	if syncRepo == nil {
 		return nil, errors.New("sync repository is required")
 	}
@@ -28,7 +42,7 @@ func NewService(syncRepo repositories.SyncRepository, recordRepo repositories.Re
 }
 
 // Push обрабатывает локальные изменения от клиента.
-func (s *Service) Push(userID int64, deviceID string, changes []sync_push_v1_post.PendingChange) ([]models.RecordRevision, []models.SyncConflict, error) {
+func (s *Service) Push(userID int64, deviceID string, changes []models.PendingChange) ([]models.RecordRevision, []models.SyncConflict, error) {
 	var accepted []models.RecordRevision
 	var conflicts []models.SyncConflict
 
@@ -48,17 +62,17 @@ func (s *Service) Push(userID int64, deviceID string, changes []sync_push_v1_pos
 	return accepted, conflicts, nil
 }
 
-func (s *Service) pushChange(userID int64, deviceID string, change sync_push_v1_post.PendingChange) (*models.RecordRevision, *models.SyncConflict, error) {
+func (s *Service) pushChange(userID int64, deviceID string, change models.PendingChange) (*models.RecordRevision, *models.SyncConflict, error) {
 	if change.Deleted {
 		return s.pushDelete(userID, deviceID, change)
 	}
-	if change.Record.ID == 0 {
+	if change.Record == nil || change.Record.ID == 0 {
 		return s.pushCreate(userID, deviceID, change)
 	}
 	return s.pushUpdate(userID, deviceID, change)
 }
 
-func (s *Service) pushDelete(userID int64, deviceID string, change sync_push_v1_post.PendingChange) (*models.RecordRevision, *models.SyncConflict, error) {
+func (s *Service) pushDelete(userID int64, deviceID string, change models.PendingChange) (*models.RecordRevision, *models.SyncConflict, error) {
 	recordID := change.Record.ID
 	record, err := s.recordRepo.GetRecord(recordID)
 	if err != nil {
@@ -102,17 +116,16 @@ func (s *Service) pushDelete(userID int64, deviceID string, change sync_push_v1_
 	return rev, nil, nil
 }
 
-func (s *Service) pushCreate(userID int64, deviceID string, change sync_push_v1_post.PendingChange) (*models.RecordRevision, *models.SyncConflict, error) {
-	dto := change.Record
+func (s *Service) pushCreate(userID int64, deviceID string, change models.PendingChange) (*models.RecordRevision, *models.SyncConflict, error) {
 	record := &models.Record{
 		UserID:         userID,
-		Type:           models.RecordType(dto.Type),
-		Name:           dto.Name,
-		Metadata:       dto.Metadata,
+		Type:           change.Record.Type,
+		Name:           change.Record.Name,
+		Metadata:       change.Record.Metadata,
 		DeviceID:       deviceID,
-		KeyVersion:     dto.KeyVersion,
-		PayloadVersion: dto.PayloadVersion,
-		Payload:        dtoPayloadToDomain(dto),
+		KeyVersion:     change.Record.KeyVersion,
+		PayloadVersion: change.Record.PayloadVersion,
+		Payload:        change.Record.Payload,
 	}
 
 	if err := record.Validate(); err != nil {
@@ -141,9 +154,8 @@ func (s *Service) pushCreate(userID int64, deviceID string, change sync_push_v1_
 	return rev, nil, nil
 }
 
-func (s *Service) pushUpdate(userID int64, deviceID string, change sync_push_v1_post.PendingChange) (*models.RecordRevision, *models.SyncConflict, error) {
-	dto := change.Record
-	existing, err := s.recordRepo.GetRecord(dto.ID)
+func (s *Service) pushUpdate(userID int64, deviceID string, change models.PendingChange) (*models.RecordRevision, *models.SyncConflict, error) {
+	existing, err := s.recordRepo.GetRecord(change.Record.ID)
 	if err != nil {
 		return nil, nil, fmt.Errorf("get record for update: %w", err)
 	}
@@ -168,15 +180,15 @@ func (s *Service) pushUpdate(userID int64, deviceID string, change sync_push_v1_
 	}
 
 	// Принять изменение
-	existing.Name = dto.Name
-	existing.Metadata = dto.Metadata
+	existing.Name = change.Record.Name
+	existing.Metadata = change.Record.Metadata
 	existing.DeviceID = deviceID
-	existing.Payload = dtoPayloadToDomain(dto)
-	if dto.KeyVersion > 0 {
-		existing.KeyVersion = dto.KeyVersion
+	existing.Payload = change.Record.Payload
+	if change.Record.KeyVersion > 0 {
+		existing.KeyVersion = change.Record.KeyVersion
 	}
-	if dto.PayloadVersion > 0 {
-		existing.PayloadVersion = dto.PayloadVersion
+	if change.Record.PayloadVersion > 0 {
+		existing.PayloadVersion = change.Record.PayloadVersion
 	}
 
 	nextRev, err := s.nextRevision(userID)
@@ -204,16 +216,16 @@ func (s *Service) pushUpdate(userID int64, deviceID string, change sync_push_v1_
 	return rev, nil, nil
 }
 
-func (s *Service) createConflict(userID int64, serverRecord *models.Record, change sync_push_v1_post.PendingChange) (*models.SyncConflict, error) {
+func (s *Service) createConflict(userID int64, serverRecord *models.Record, change models.PendingChange) (*models.SyncConflict, error) {
 	localRecord := &models.Record{
 		UserID:         userID,
-		Type:           models.RecordType(change.Record.Type),
+		Type:           change.Record.Type,
 		Name:           change.Record.Name,
 		Metadata:       change.Record.Metadata,
 		DeviceID:       change.Record.DeviceID,
 		KeyVersion:     change.Record.KeyVersion,
 		PayloadVersion: change.Record.PayloadVersion,
-		Payload:        dtoPayloadToDomain(change.Record),
+		Payload:        change.Record.Payload,
 	}
 
 	conflict := &models.SyncConflict{
@@ -230,7 +242,7 @@ func (s *Service) createConflict(userID int64, serverRecord *models.Record, chan
 	return conflict, nil
 }
 
-func (s *Service) createDeleteConflict(userID int64, serverRecord *models.Record, change sync_push_v1_post.PendingChange) (*models.SyncConflict, error) {
+func (s *Service) createDeleteConflict(userID int64, serverRecord *models.Record, change models.PendingChange) (*models.SyncConflict, error) {
 	conflict := &models.SyncConflict{
 		UserID:         userID,
 		RecordID:       serverRecord.ID,
@@ -354,46 +366,4 @@ func (s *Service) nextRevision(userID int64) (int64, error) {
 		return 0, err
 	}
 	return maxRev + 1, nil
-}
-
-func dtoPayloadToDomain(dto recordscommon.RecordDTO) models.RecordPayload {
-	switch models.RecordType(dto.Type) {
-	case models.RecordTypeLogin:
-		if p, ok := dto.Payload.(map[string]interface{}); ok {
-			return models.LoginPayload{
-				Login:    strVal(p["login"]),
-				Password: strVal(p["password"]),
-			}
-		}
-		return models.LoginPayload{}
-	case models.RecordTypeText:
-		if p, ok := dto.Payload.(map[string]interface{}); ok {
-			return models.TextPayload{Content: strVal(p["content"])}
-		}
-		return models.TextPayload{}
-	case models.RecordTypeBinary:
-		return models.BinaryPayload{}
-	case models.RecordTypeCard:
-		if p, ok := dto.Payload.(map[string]interface{}); ok {
-			return models.CardPayload{
-				Number:     strVal(p["number"]),
-				HolderName: strVal(p["holder_name"]),
-				ExpiryDate: strVal(p["expiry_date"]),
-				CVV:        strVal(p["cvv"]),
-			}
-		}
-		return models.CardPayload{}
-	default:
-		return nil
-	}
-}
-
-func strVal(v interface{}) string {
-	if v == nil {
-		return ""
-	}
-	if s, ok := v.(string); ok {
-		return s
-	}
-	return ""
 }

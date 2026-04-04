@@ -19,13 +19,13 @@ import (
 // --- mock ---
 
 type mockSyncUseCase struct {
-	pushFn           func(userID int64, deviceID string, changes []PendingChange) ([]models.RecordRevision, []models.SyncConflict, error)
+	pushFn           func(userID int64, deviceID string, changes []models.PendingChange) ([]models.RecordRevision, []models.SyncConflict, error)
 	pullFn           func(userID int64, deviceID string, sinceRevision int64, limit int64) ([]models.RecordRevision, []models.Record, []models.SyncConflict, error)
 	getConflictsFn   func(userID int64) ([]models.SyncConflict, error)
 	resolveConflictFn func(userID int64, conflictID int64, resolution string) (*models.Record, error)
 }
 
-func (m *mockSyncUseCase) Push(userID int64, deviceID string, changes []PendingChange) ([]models.RecordRevision, []models.SyncConflict, error) {
+func (m *mockSyncUseCase) Push(userID int64, deviceID string, changes []models.PendingChange) ([]models.RecordRevision, []models.SyncConflict, error) {
 	return m.pushFn(userID, deviceID, changes)
 }
 
@@ -77,7 +77,7 @@ func TestPush_Success(t *testing.T) {
 		{ID: 1, RecordID: 100, UserID: 10, Revision: 3, DeviceID: "dev-1"},
 	}
 	mock := &mockSyncUseCase{
-		pushFn: func(userID int64, deviceID string, changes []PendingChange) ([]models.RecordRevision, []models.SyncConflict, error) {
+		pushFn: func(userID int64, deviceID string, changes []models.PendingChange) ([]models.RecordRevision, []models.SyncConflict, error) {
 			return accepted, nil, nil
 		},
 	}
@@ -133,7 +133,7 @@ func TestPush_NilRecordInChange(t *testing.T) {
 
 func TestPush_UseCaseError(t *testing.T) {
 	mock := &mockSyncUseCase{
-		pushFn: func(userID int64, deviceID string, changes []PendingChange) ([]models.RecordRevision, []models.SyncConflict, error) {
+		pushFn: func(userID int64, deviceID string, changes []models.PendingChange) ([]models.RecordRevision, []models.SyncConflict, error) {
 			return nil, nil, models.ErrRevisionConflict
 		},
 	}

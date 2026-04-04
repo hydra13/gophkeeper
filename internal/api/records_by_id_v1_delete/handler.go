@@ -7,6 +7,7 @@ package recordsbyidv1delete
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -67,6 +68,13 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 
 	record, err := h.service.GetRecord(id)
 	if err != nil {
+		if errors.Is(err, models.ErrRecordNotFound) {
+			// Delete is idempotent: record doesn't exist or already soft-deleted.
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(DeleteRecordResponse{})
+			return
+		}
 		if recordscommon.MapRecordError(w, err) {
 			return
 		}
@@ -80,7 +88,9 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if record.IsDeleted() {
-		recordscommon.WriteError(w, http.StatusBadRequest, "record is already deleted")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(DeleteRecordResponse{})
 		return
 	}
 

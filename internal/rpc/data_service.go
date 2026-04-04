@@ -198,6 +198,10 @@ func (s *DataService) DeleteRecord(ctx context.Context, req *pbv1.DeleteRecordRe
 
 	record, err := s.records.GetRecord(req.Id)
 	if err != nil {
+		// Delete is idempotent: if record doesn't exist or is already soft-deleted — success.
+		if errors.Is(err, models.ErrRecordNotFound) {
+			return &pbv1.DeleteRecordResponse{}, nil
+		}
 		return nil, mapRecordError(err)
 	}
 
@@ -205,7 +209,7 @@ func (s *DataService) DeleteRecord(ctx context.Context, req *pbv1.DeleteRecordRe
 		return nil, status.Error(codes.PermissionDenied, "access denied")
 	}
 	if record.IsDeleted() {
-		return nil, status.Error(codes.FailedPrecondition, "record is already deleted")
+		return &pbv1.DeleteRecordResponse{}, nil
 	}
 
 	if err := s.records.DeleteRecord(req.Id, req.DeviceId); err != nil {
@@ -234,10 +238,14 @@ func protoPayloadToDomain(payload interface{}) (models.RecordType, models.Record
 		// Binary payload content управляется через uploads-слой (task_13).
 		return models.RecordTypeBinary, models.BinaryPayload{}, nil
 	case *pbv1.CreateRecordRequest_Card:
-		return models.RecordTypeCard, models.CardPayload{
+		card := models.CardPayload{
 			Number: p.Card.GetNumber(), HolderName: p.Card.GetHolderName(),
 			ExpiryDate: p.Card.GetExpiryDate(), CVV: p.Card.GetCvv(),
-		}, nil
+		}
+		if err := card.Validate(); err != nil {
+			return "", nil, status.Errorf(codes.InvalidArgument, "card validation failed: %s", err.Error())
+		}
+		return models.RecordTypeCard, card, nil
 	default:
 		return "", nil, status.Error(codes.InvalidArgument, "payload is required")
 	}
@@ -266,10 +274,14 @@ func protoPayloadToDomainForType(rt models.RecordType, payload interface{}) (mod
 		if rt != models.RecordTypeCard {
 			return nil, status.Error(codes.InvalidArgument, "payload type does not match record type")
 		}
-		return models.CardPayload{
+		card := models.CardPayload{
 			Number: p.Card.GetNumber(), HolderName: p.Card.GetHolderName(),
 			ExpiryDate: p.Card.GetExpiryDate(), CVV: p.Card.GetCvv(),
-		}, nil
+		}
+		if err := card.Validate(); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "card validation failed: %s", err.Error())
+		}
+		return card, nil
 	default:
 		return nil, status.Error(codes.InvalidArgument, "payload is required")
 	}

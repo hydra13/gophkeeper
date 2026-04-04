@@ -158,7 +158,7 @@ func TestDataService_CreateRecord_CardType(t *testing.T) {
 
 	resp, err := svc.CreateRecord(ctxWithUser(1), &pbv1.CreateRecordRequest{
 		Type: pbv1.RecordType_RECORD_TYPE_CARD, Name: "test", DeviceId: "dev-1",
-		Payload: &pbv1.CreateRecordRequest_Card{Card: &pbv1.CardPayload{Number: "4111", HolderName: "T", ExpiryDate: "12/25", Cvv: "123"}},
+		Payload: &pbv1.CreateRecordRequest_Card{Card: &pbv1.CardPayload{Number: "4111111111111111", HolderName: "T", ExpiryDate: "12/25", Cvv: "123"}},
 	})
 	require.NoError(t, err)
 	require.NotNil(t, resp.Record)
@@ -379,14 +379,15 @@ func TestDataService_DeleteRecord_Success(t *testing.T) {
 	require.NotNil(t, resp)
 }
 
-func TestDataService_DeleteRecord_NotFound(t *testing.T) {
+func TestDataService_DeleteRecord_NotFound_Idempotent(t *testing.T) {
 	mock := &mockRecordUseCase{
 		getFn: func(id int64) (*models.Record, error) { return nil, models.ErrRecordNotFound },
 	}
 	svc := newTestDataService(mock)
 
-	_, err := svc.DeleteRecord(ctxWithUser(10), &pbv1.DeleteRecordRequest{Id: 999, DeviceId: "d"})
-	require.Equal(t, codes.NotFound, status.Code(err))
+	resp, err := svc.DeleteRecord(ctxWithUser(10), &pbv1.DeleteRecordRequest{Id: 999, DeviceId: "d"})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
 }
 
 func TestDataService_DeleteRecord_AccessDenied(t *testing.T) {
@@ -400,7 +401,7 @@ func TestDataService_DeleteRecord_AccessDenied(t *testing.T) {
 	require.Equal(t, codes.PermissionDenied, status.Code(err))
 }
 
-func TestDataService_DeleteRecord_AlreadyDeleted(t *testing.T) {
+func TestDataService_DeleteRecord_AlreadyDeleted_Idempotent(t *testing.T) {
 	rec := sampleRecord()
 	now := time.Now()
 	rec.DeletedAt = &now
@@ -409,8 +410,9 @@ func TestDataService_DeleteRecord_AlreadyDeleted(t *testing.T) {
 	}
 	svc := newTestDataService(mock)
 
-	_, err := svc.DeleteRecord(ctxWithUser(10), &pbv1.DeleteRecordRequest{Id: 1, DeviceId: "d"})
-	require.Equal(t, codes.FailedPrecondition, status.Code(err))
+	resp, err := svc.DeleteRecord(ctxWithUser(10), &pbv1.DeleteRecordRequest{Id: 1, DeviceId: "d"})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
 }
 
 func TestDataService_DeleteRecord_MissingDeviceID(t *testing.T) {

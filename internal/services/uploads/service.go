@@ -1,3 +1,4 @@
+//go:generate minimock -i .UploadRepo -o mocks -s _mock.go -g
 package uploads
 
 import (
@@ -7,12 +8,19 @@ import (
 	"sync/atomic"
 
 	"github.com/hydra13/gophkeeper/internal/models"
-	"github.com/hydra13/gophkeeper/internal/repositories"
 )
+
+type UploadRepo interface {
+	CreateUploadSession(session *models.UploadSession) error
+	GetUploadSession(id int64) (*models.UploadSession, error)
+	GetCompletedUploadByRecordID(recordID int64) (*models.UploadSession, error)
+	SaveChunk(chunk *models.Chunk) error
+	GetChunks(uploadID int64) ([]models.Chunk, error)
+}
 
 // Service реализует бизнес-логику upload/download бинарных вложений.
 type Service struct {
-	repo repositories.UploadRepository
+	repo UploadRepo
 	mu   sync.RWMutex
 	// downloadSessions хранит активные download-сессии in-memory.
 	downloadSessions sync.Map
@@ -20,7 +28,7 @@ type Service struct {
 }
 
 // NewService создаёт новый uploads service.
-func NewService(repo repositories.UploadRepository) (*Service, error) {
+func NewService(repo UploadRepo) (*Service, error) {
 	if repo == nil {
 		return nil, errors.New("upload repository is required")
 	}

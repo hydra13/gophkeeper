@@ -176,10 +176,14 @@ func buildPayload(rt models.RecordType, req *UpdateRecordRequest) (models.Record
 		if req.Card == nil {
 			return nil, errors.New("card payload is required")
 		}
-		return models.CardPayload{
+		card := models.CardPayload{
 			Number: req.Card.Number, HolderName: req.Card.HolderName,
 			ExpiryDate: req.Card.ExpiryDate, CVV: req.Card.CVV,
-		}, nil
+		}
+		if err := card.Validate(); err != nil {
+			return nil, err
+		}
+		return card, nil
 	default:
 		return nil, errors.New("invalid record type")
 	}

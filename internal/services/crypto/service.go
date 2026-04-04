@@ -1,3 +1,4 @@
+//go:generate minimock -i .KeyProvider -o mocks -s _mock.go -g
 package crypto
 
 import (

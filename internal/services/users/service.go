@@ -1,3 +1,4 @@
+//go:generate minimock -i .UserRepo,.SessionRepo,.TokenGenerator -o mocks -s _mock.go -g
 package users
 
 import (
@@ -8,11 +9,19 @@ import (
 	"time"
 
 	"github.com/hydra13/gophkeeper/internal/models"
-	"github.com/hydra13/gophkeeper/internal/repositories"
 	"github.com/hydra13/gophkeeper/internal/services/passwords"
 )
 
 const defaultSessionTTL = 24 * time.Hour
+
+type UserRepo interface {
+	CreateUser(user *models.User) error
+	GetUserByEmail(email string) (*models.User, error)
+}
+
+type SessionRepo interface {
+	CreateSession(session *models.Session) error
+}
 
 // TokenGenerator отвечает за выпуск токенов.
 type TokenGenerator interface {
@@ -22,15 +31,15 @@ type TokenGenerator interface {
 
 // Service реализует регистрацию и логин пользователей.
 type Service struct {
-	users      repositories.UserRepository
-	sessions   repositories.SessionRepository
+	users      UserRepo
+	sessions   SessionRepo
 	tokens     TokenGenerator
 	sessionTTL time.Duration
 	now        func() time.Time
 }
 
 // NewService создаёт новый сервис пользователей.
-func NewService(usersRepo repositories.UserRepository, sessionsRepo repositories.SessionRepository, tokens TokenGenerator, sessionTTL time.Duration) (*Service, error) {
+func NewService(usersRepo UserRepo, sessionsRepo SessionRepo, tokens TokenGenerator, sessionTTL time.Duration) (*Service, error) {
 	if usersRepo == nil {
 		return nil, errors.New("user repository is required")
 	}

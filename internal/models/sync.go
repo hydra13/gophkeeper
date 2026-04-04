@@ -54,6 +54,16 @@ func (c *SyncConflict) Resolve(resolution string) error {
 	return nil
 }
 
+// PendingChange описывает одно локальное изменение для push-синхронизации.
+type PendingChange struct {
+	// Record — полные данные записи.
+	Record *Record
+	// Deleted — признак удаления записи.
+	Deleted bool
+	// BaseRevision — ревизия, на основе которой было сделано изменение.
+	BaseRevision int64
+}
+
 // Константы разрешения конфликтов.
 const (
 	ConflictResolutionLocal  = "local"

@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/base64"
-	"encoding/json"
 	"os"
 	"testing"
 	"time"
@@ -12,8 +11,6 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/stretchr/testify/require"
 
-	recordscommon "github.com/hydra13/gophkeeper/internal/api/records_common"
-	"github.com/hydra13/gophkeeper/internal/api/sync_push_v1_post"
 	"github.com/hydra13/gophkeeper/internal/migrations"
 	"github.com/hydra13/gophkeeper/internal/models"
 	dbrepo "github.com/hydra13/gophkeeper/internal/repositories/database"
@@ -26,15 +23,15 @@ func TestSyncPushPullHappyPath(t *testing.T) {
 	svc, repo, _ := setupSyncService(t)
 	user, _ := createUserAndKey(t, repo)
 
-	changes := []sync_push_v1_post.PendingChange{
+	changes := []models.PendingChange{
 		{
-			Record: recordscommon.RecordDTO{
+			Record: &models.Record{
 				UserID:     user.ID,
-				Type:       "text",
+				Type:       models.RecordTypeText,
 				Name:       "my secret",
 				DeviceID:   "device-1",
 				KeyVersion: 1,
-				Payload:    map[string]interface{}{"content": "hello"},
+				Payload:    models.TextPayload{Content: "hello"},
 			},
 			BaseRevision: 0,
 		},
@@ -58,15 +55,15 @@ func TestSyncConflictOnConcurrentUpdate(t *testing.T) {
 	user, _ := createUserAndKey(t, repo)
 
 	// Создаем запись через sync push
-	changes := []sync_push_v1_post.PendingChange{
+	changes := []models.PendingChange{
 		{
-			Record: recordscommon.RecordDTO{
+			Record: &models.Record{
 				UserID:     user.ID,
-				Type:       "text",
+				Type:       models.RecordTypeText,
 				Name:       "original",
 				DeviceID:   "device-1",
 				KeyVersion: 1,
-				Payload:    map[string]interface{}{"content": "original"},
+				Payload:    models.TextPayload{Content: "original"},
 			},
 			BaseRevision: 0,
 		},
@@ -77,16 +74,16 @@ func TestSyncConflictOnConcurrentUpdate(t *testing.T) {
 	baseRev := accepted[0].Revision
 
 	// Первое обновление с правильной base_revision — успешно
-	updateChanges := []sync_push_v1_post.PendingChange{
+	updateChanges := []models.PendingChange{
 		{
-			Record: recordscommon.RecordDTO{
+			Record: &models.Record{
 				ID:         recordID,
 				UserID:     user.ID,
-				Type:       "text",
+				Type:       models.RecordTypeText,
 				Name:       "updated-v1",
 				DeviceID:   "device-1",
 				KeyVersion: 1,
-				Payload:    map[string]interface{}{"content": "v1"},
+				Payload:    models.TextPayload{Content: "v1"},
 			},
 			BaseRevision: baseRev,
 		},
@@ -97,16 +94,16 @@ func TestSyncConflictOnConcurrentUpdate(t *testing.T) {
 	require.Empty(t, conflicts2)
 
 	// Второе обновление с устаревшей base_revision — конфликт
-	conflictChanges := []sync_push_v1_post.PendingChange{
+	conflictChanges := []models.PendingChange{
 		{
-			Record: recordscommon.RecordDTO{
+			Record: &models.Record{
 				ID:         recordID,
 				UserID:     user.ID,
-				Type:       "text",
+				Type:       models.RecordTypeText,
 				Name:       "updated-v2",
 				DeviceID:   "device-1",
 				KeyVersion: 1,
-				Payload:    map[string]interface{}{"content": "v2"},
+				Payload:    models.TextPayload{Content: "v2"},
 			},
 			BaseRevision: baseRev, // устаревшая
 		},
@@ -123,15 +120,15 @@ func TestSyncSoftDelete(t *testing.T) {
 	user, _ := createUserAndKey(t, repo)
 
 	// Создаем запись
-	changes := []sync_push_v1_post.PendingChange{
+	changes := []models.PendingChange{
 		{
-			Record: recordscommon.RecordDTO{
+			Record: &models.Record{
 				UserID:     user.ID,
-				Type:       "text",
+				Type:       models.RecordTypeText,
 				Name:       "to-delete",
 				DeviceID:   "device-1",
 				KeyVersion: 1,
-				Payload:    map[string]interface{}{"content": "data"},
+				Payload:    models.TextPayload{Content: "data"},
 			},
 			BaseRevision: 0,
 		},
@@ -141,11 +138,9 @@ func TestSyncSoftDelete(t *testing.T) {
 	recordID := accepted[0].RecordID
 
 	// Удаляем через sync
-	deleteChanges := []sync_push_v1_post.PendingChange{
+	deleteChanges := []models.PendingChange{
 		{
-			Record: recordscommon.RecordDTO{
-				ID: recordID,
-			},
+			Record:       &models.Record{ID: recordID},
 			Deleted:      true,
 			BaseRevision: 0,
 		},
@@ -173,15 +168,15 @@ func TestSyncIncrementalPull(t *testing.T) {
 
 	// Создаем 3 записи последовательно
 	for i := 0; i < 3; i++ {
-		changes := []sync_push_v1_post.PendingChange{
+		changes := []models.PendingChange{
 			{
-				Record: recordscommon.RecordDTO{
+				Record: &models.Record{
 					UserID:     user.ID,
-					Type:       "text",
+					Type:       models.RecordTypeText,
 					Name:       "record-" + time.Now().Format("150405.000"),
 					DeviceID:   "device-1",
 					KeyVersion: 1,
-					Payload:    map[string]interface{}{"content": "data"},
+					Payload:    models.TextPayload{Content: "data"},
 				},
 				BaseRevision: 0,
 			},
@@ -207,15 +202,15 @@ func TestSyncResolveConflictLocal(t *testing.T) {
 	user, _ := createUserAndKey(t, repo)
 
 	// Создаем запись
-	changes := []sync_push_v1_post.PendingChange{
+	changes := []models.PendingChange{
 		{
-			Record: recordscommon.RecordDTO{
+			Record: &models.Record{
 				UserID:     user.ID,
-				Type:       "text",
+				Type:       models.RecordTypeText,
 				Name:       "original",
 				DeviceID:   "device-1",
 				KeyVersion: 1,
-				Payload:    map[string]interface{}{"content": "original"},
+				Payload:    models.TextPayload{Content: "original"},
 			},
 			BaseRevision: 0,
 		},
@@ -226,16 +221,16 @@ func TestSyncResolveConflictLocal(t *testing.T) {
 	baseRev := accepted[0].Revision
 
 	// Обновляем на сервере
-	updateChanges := []sync_push_v1_post.PendingChange{
+	updateChanges := []models.PendingChange{
 		{
-			Record: recordscommon.RecordDTO{
+			Record: &models.Record{
 				ID:         recordID,
 				UserID:     user.ID,
-				Type:       "text",
+				Type:       models.RecordTypeText,
 				Name:       "server-update",
 				DeviceID:   "device-2",
 				KeyVersion: 1,
-				Payload:    map[string]interface{}{"content": "server"},
+				Payload:    models.TextPayload{Content: "server"},
 			},
 			BaseRevision: baseRev,
 		},
@@ -244,16 +239,16 @@ func TestSyncResolveConflictLocal(t *testing.T) {
 	require.NoError(t, err)
 
 	// Провоцируем конфликт
-	conflictChanges := []sync_push_v1_post.PendingChange{
+	conflictChanges := []models.PendingChange{
 		{
-			Record: recordscommon.RecordDTO{
+			Record: &models.Record{
 				ID:         recordID,
 				UserID:     user.ID,
-				Type:       "text",
+				Type:       models.RecordTypeText,
 				Name:       "local-update",
 				DeviceID:   "device-1",
 				KeyVersion: 1,
-				Payload:    map[string]interface{}{"content": "local"},
+				Payload:    models.TextPayload{Content: "local"},
 			},
 			BaseRevision: baseRev,
 		},
@@ -279,15 +274,15 @@ func TestSyncResolveConflictServer(t *testing.T) {
 	user, _ := createUserAndKey(t, repo)
 
 	// Создаем запись
-	changes := []sync_push_v1_post.PendingChange{
+	changes := []models.PendingChange{
 		{
-			Record: recordscommon.RecordDTO{
+			Record: &models.Record{
 				UserID:     user.ID,
-				Type:       "text",
+				Type:       models.RecordTypeText,
 				Name:       "original",
 				DeviceID:   "device-1",
 				KeyVersion: 1,
-				Payload:    map[string]interface{}{"content": "original"},
+				Payload:    models.TextPayload{Content: "original"},
 			},
 			BaseRevision: 0,
 		},
@@ -298,16 +293,16 @@ func TestSyncResolveConflictServer(t *testing.T) {
 	baseRev := accepted[0].Revision
 
 	// Обновляем на сервере
-	updateChanges := []sync_push_v1_post.PendingChange{
+	updateChanges := []models.PendingChange{
 		{
-			Record: recordscommon.RecordDTO{
+			Record: &models.Record{
 				ID:         recordID,
 				UserID:     user.ID,
-				Type:       "text",
+				Type:       models.RecordTypeText,
 				Name:       "server-update",
 				DeviceID:   "device-2",
 				KeyVersion: 1,
-				Payload:    map[string]interface{}{"content": "server"},
+				Payload:    models.TextPayload{Content: "server"},
 			},
 			BaseRevision: baseRev,
 		},
@@ -316,16 +311,16 @@ func TestSyncResolveConflictServer(t *testing.T) {
 	require.NoError(t, err)
 
 	// Провоцируем конфликт
-	conflictChanges := []sync_push_v1_post.PendingChange{
+	conflictChanges := []models.PendingChange{
 		{
-			Record: recordscommon.RecordDTO{
+			Record: &models.Record{
 				ID:         recordID,
 				UserID:     user.ID,
-				Type:       "text",
+				Type:       models.RecordTypeText,
 				Name:       "local-update",
 				DeviceID:   "device-1",
 				KeyVersion: 1,
-				Payload:    map[string]interface{}{"content": "local"},
+				Payload:    models.TextPayload{Content: "local"},
 			},
 			BaseRevision: baseRev,
 		},
@@ -346,15 +341,15 @@ func TestSyncRestoreAfterSoftDelete(t *testing.T) {
 	user, _ := createUserAndKey(t, repo)
 
 	// Создаем запись
-	changes := []sync_push_v1_post.PendingChange{
+	changes := []models.PendingChange{
 		{
-			Record: recordscommon.RecordDTO{
+			Record: &models.Record{
 				UserID:     user.ID,
-				Type:       "text",
+				Type:       models.RecordTypeText,
 				Name:       "will-restore",
 				DeviceID:   "device-1",
 				KeyVersion: 1,
-				Payload:    map[string]interface{}{"content": "data"},
+				Payload:    models.TextPayload{Content: "data"},
 			},
 			BaseRevision: 0,
 		},
@@ -364,11 +359,9 @@ func TestSyncRestoreAfterSoftDelete(t *testing.T) {
 	recordID := accepted[0].RecordID
 
 	// Удаляем через sync
-	deleteChanges := []sync_push_v1_post.PendingChange{
+	deleteChanges := []models.PendingChange{
 		{
-			Record: recordscommon.RecordDTO{
-				ID: recordID,
-			},
+			Record:  &models.Record{ID: recordID},
 			Deleted: true,
 		},
 	}
@@ -382,16 +375,16 @@ func TestSyncRestoreAfterSoftDelete(t *testing.T) {
 	currentRev := record.Revision
 
 	// Восстанавливаем через push update (запись с cleared deleted_at)
-	restoreChanges := []sync_push_v1_post.PendingChange{
+	restoreChanges := []models.PendingChange{
 		{
-			Record: recordscommon.RecordDTO{
+			Record: &models.Record{
 				ID:         recordID,
 				UserID:     user.ID,
-				Type:       "text",
+				Type:       models.RecordTypeText,
 				Name:       "restored",
 				DeviceID:   "device-1",
 				KeyVersion: 1,
-				Payload:    map[string]interface{}{"content": "restored"},
+				Payload:    models.TextPayload{Content: "restored"},
 			},
 			BaseRevision: currentRev,
 		},
@@ -473,7 +466,7 @@ func truncateAllTables(db *sql.DB) error {
 			records,
 			key_versions,
 			users
-		RESTART IDENTITY CASCADE
+			RESTART IDENTITY CASCADE
 	`)
 	return err
 }
@@ -486,34 +479,20 @@ func testMasterKey(t *testing.T) string {
 	return base64.StdEncoding.EncodeToString(key)
 }
 
-// Ensure JSON payload round-trips correctly through DTO conversion.
-func TestDtoPayloadToDomainRoundTrip(t *testing.T) {
-	loginJSON, _ := json.Marshal(map[string]interface{}{"login": "user1", "password": "pass1"})
-	var loginPayload interface{}
-	require.NoError(t, json.Unmarshal(loginJSON, &loginPayload))
-
-	dto := recordscommon.RecordDTO{Type: "login", Payload: loginPayload}
-	result := dtoPayloadToDomain(dto)
-	lp, ok := result.(models.LoginPayload)
-	require.True(t, ok)
-	require.Equal(t, "user1", lp.Login)
-	require.Equal(t, "pass1", lp.Password)
-}
-
 func TestSyncStaleDeleteAfterUpdateReturnsConflict(t *testing.T) {
 	svc, repo, _ := setupSyncService(t)
 	user, _ := createUserAndKey(t, repo)
 
 	// Создаем запись
-	changes := []sync_push_v1_post.PendingChange{
+	changes := []models.PendingChange{
 		{
-			Record: recordscommon.RecordDTO{
+			Record: &models.Record{
 				UserID:     user.ID,
-				Type:       "text",
+				Type:       models.RecordTypeText,
 				Name:       "original",
 				DeviceID:   "device-1",
 				KeyVersion: 1,
-				Payload:    map[string]interface{}{"content": "original"},
+				Payload:    models.TextPayload{Content: "original"},
 			},
 			BaseRevision: 0,
 		},
@@ -524,16 +503,16 @@ func TestSyncStaleDeleteAfterUpdateReturnsConflict(t *testing.T) {
 	baseRev := accepted[0].Revision
 
 	// Обновляем на device-2
-	updateChanges := []sync_push_v1_post.PendingChange{
+	updateChanges := []models.PendingChange{
 		{
-			Record: recordscommon.RecordDTO{
+			Record: &models.Record{
 				ID:         recordID,
 				UserID:     user.ID,
-				Type:       "text",
+				Type:       models.RecordTypeText,
 				Name:       "updated-v2",
 				DeviceID:   "device-2",
 				KeyVersion: 1,
-				Payload:    map[string]interface{}{"content": "v2"},
+				Payload:    models.TextPayload{Content: "v2"},
 			},
 			BaseRevision: baseRev,
 		},
@@ -543,11 +522,9 @@ func TestSyncStaleDeleteAfterUpdateReturnsConflict(t *testing.T) {
 	require.Len(t, accepted2, 1)
 
 	// Удаляем с устаревшей base_revision с device-1 — должен быть конфликт
-	deleteChanges := []sync_push_v1_post.PendingChange{
+	deleteChanges := []models.PendingChange{
 		{
-			Record: recordscommon.RecordDTO{
-				ID: recordID,
-			},
+			Record:       &models.Record{ID: recordID},
 			Deleted:      true,
 			BaseRevision: baseRev, // устаревшая ревизия
 		},
@@ -569,15 +546,15 @@ func TestSyncDeleteThenRestoreViaUpdate(t *testing.T) {
 	user, _ := createUserAndKey(t, repo)
 
 	// Создаем запись
-	changes := []sync_push_v1_post.PendingChange{
+	changes := []models.PendingChange{
 		{
-			Record: recordscommon.RecordDTO{
+			Record: &models.Record{
 				UserID:     user.ID,
-				Type:       "text",
+				Type:       models.RecordTypeText,
 				Name:       "to-restore",
 				DeviceID:   "device-1",
 				KeyVersion: 1,
-				Payload:    map[string]interface{}{"content": "data"},
+				Payload:    models.TextPayload{Content: "data"},
 			},
 			BaseRevision: 0,
 		},
@@ -587,11 +564,9 @@ func TestSyncDeleteThenRestoreViaUpdate(t *testing.T) {
 	recordID := accepted[0].RecordID
 
 	// Soft delete через sync
-	deleteChanges := []sync_push_v1_post.PendingChange{
+	deleteChanges := []models.PendingChange{
 		{
-			Record: recordscommon.RecordDTO{
-				ID: recordID,
-			},
+			Record:       &models.Record{ID: recordID},
 			Deleted:      true,
 			BaseRevision: 0,
 		},
@@ -606,16 +581,16 @@ func TestSyncDeleteThenRestoreViaUpdate(t *testing.T) {
 	currentRev := record.Revision
 
 	// Восстанавливаем через push update с актуальной BaseRevision
-	restoreChanges := []sync_push_v1_post.PendingChange{
+	restoreChanges := []models.PendingChange{
 		{
-			Record: recordscommon.RecordDTO{
+			Record: &models.Record{
 				ID:         recordID,
 				UserID:     user.ID,
-				Type:       "text",
+				Type:       models.RecordTypeText,
 				Name:       "restored-name",
 				DeviceID:   "device-1",
 				KeyVersion: 1,
-				Payload:    map[string]interface{}{"content": "restored"},
+				Payload:    models.TextPayload{Content: "restored"},
 			},
 			BaseRevision: currentRev,
 		},
@@ -637,15 +612,15 @@ func TestSyncDeleteConflictReturnsBothVersions(t *testing.T) {
 	user, _ := createUserAndKey(t, repo)
 
 	// Создаем запись
-	changes := []sync_push_v1_post.PendingChange{
+	changes := []models.PendingChange{
 		{
-			Record: recordscommon.RecordDTO{
+			Record: &models.Record{
 				UserID:     user.ID,
-				Type:       "text",
+				Type:       models.RecordTypeText,
 				Name:       "original",
 				DeviceID:   "device-1",
 				KeyVersion: 1,
-				Payload:    map[string]interface{}{"content": "original"},
+				Payload:    models.TextPayload{Content: "original"},
 			},
 			BaseRevision: 0,
 		},
@@ -656,16 +631,16 @@ func TestSyncDeleteConflictReturnsBothVersions(t *testing.T) {
 	baseRev := accepted[0].Revision
 
 	// Обновляем на device-2
-	updateChanges := []sync_push_v1_post.PendingChange{
+	updateChanges := []models.PendingChange{
 		{
-			Record: recordscommon.RecordDTO{
+			Record: &models.Record{
 				ID:         recordID,
 				UserID:     user.ID,
-				Type:       "text",
+				Type:       models.RecordTypeText,
 				Name:       "server-version",
 				DeviceID:   "device-2",
 				KeyVersion: 1,
-				Payload:    map[string]interface{}{"content": "server"},
+				Payload:    models.TextPayload{Content: "server"},
 			},
 			BaseRevision: baseRev,
 		},
@@ -674,11 +649,9 @@ func TestSyncDeleteConflictReturnsBothVersions(t *testing.T) {
 	require.NoError(t, err)
 
 	// Пытаемся удалить с устаревшей ревизией
-	deleteChanges := []sync_push_v1_post.PendingChange{
+	deleteChanges := []models.PendingChange{
 		{
-			Record: recordscommon.RecordDTO{
-				ID: recordID,
-			},
+			Record:       &models.Record{ID: recordID},
 			Deleted:      true,
 			BaseRevision: baseRev,
 		},
@@ -704,15 +677,15 @@ func TestSyncUpdateConflictReturnsBothVersions(t *testing.T) {
 	user, _ := createUserAndKey(t, repo)
 
 	// Создаем запись
-	changes := []sync_push_v1_post.PendingChange{
+	changes := []models.PendingChange{
 		{
-			Record: recordscommon.RecordDTO{
+			Record: &models.Record{
 				UserID:     user.ID,
-				Type:       "text",
+				Type:       models.RecordTypeText,
 				Name:       "original",
 				DeviceID:   "device-1",
 				KeyVersion: 1,
-				Payload:    map[string]interface{}{"content": "original"},
+				Payload:    models.TextPayload{Content: "original"},
 			},
 			BaseRevision: 0,
 		},
@@ -723,16 +696,16 @@ func TestSyncUpdateConflictReturnsBothVersions(t *testing.T) {
 	baseRev := accepted[0].Revision
 
 	// Обновляем на device-2
-	updateChanges := []sync_push_v1_post.PendingChange{
+	updateChanges := []models.PendingChange{
 		{
-			Record: recordscommon.RecordDTO{
+			Record: &models.Record{
 				ID:         recordID,
 				UserID:     user.ID,
-				Type:       "text",
+				Type:       models.RecordTypeText,
 				Name:       "server-version",
 				DeviceID:   "device-2",
 				KeyVersion: 1,
-				Payload:    map[string]interface{}{"content": "server"},
+				Payload:    models.TextPayload{Content: "server"},
 			},
 			BaseRevision: baseRev,
 		},
@@ -741,16 +714,16 @@ func TestSyncUpdateConflictReturnsBothVersions(t *testing.T) {
 	require.NoError(t, err)
 
 	// Конфликт update с device-1
-	conflictChanges := []sync_push_v1_post.PendingChange{
+	conflictChanges := []models.PendingChange{
 		{
-			Record: recordscommon.RecordDTO{
+			Record: &models.Record{
 				ID:         recordID,
 				UserID:     user.ID,
-				Type:       "text",
+				Type:       models.RecordTypeText,
 				Name:       "local-version",
 				DeviceID:   "device-1",
 				KeyVersion: 1,
-				Payload:    map[string]interface{}{"content": "local"},
+				Payload:    models.TextPayload{Content: "local"},
 			},
 			BaseRevision: baseRev,
 		},

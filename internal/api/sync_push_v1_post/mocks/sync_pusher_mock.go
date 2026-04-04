@@ -8,7 +8,6 @@ import (
 	mm_time "time"
 
 	"github.com/gojuno/minimock/v3"
-	mm_sync_push_v1_post "github.com/hydra13/gophkeeper/internal/api/sync_push_v1_post"
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
@@ -17,9 +16,9 @@ type SyncPusherMock struct {
 	t          minimock.Tester
 	finishOnce sync.Once
 
-	funcPush          func(userID int64, deviceID string, changes []mm_sync_push_v1_post.PendingChange) (ra1 []models.RecordRevision, sa1 []models.SyncConflict, err error)
+	funcPush          func(userID int64, deviceID string, changes []models.PendingChange) (ra1 []models.RecordRevision, sa1 []models.SyncConflict, err error)
 	funcPushOrigin    string
-	inspectFuncPush   func(userID int64, deviceID string, changes []mm_sync_push_v1_post.PendingChange)
+	inspectFuncPush   func(userID int64, deviceID string, changes []models.PendingChange)
 	afterPushCounter  uint64
 	beforePushCounter uint64
 	PushMock          mSyncPusherMockPush
@@ -69,14 +68,14 @@ type SyncPusherMockPushExpectation struct {
 type SyncPusherMockPushParams struct {
 	userID   int64
 	deviceID string
-	changes  []mm_sync_push_v1_post.PendingChange
+	changes  []models.PendingChange
 }
 
 // SyncPusherMockPushParamPtrs contains pointers to parameters of the SyncPusher.Push
 type SyncPusherMockPushParamPtrs struct {
 	userID   *int64
 	deviceID *string
-	changes  *[]mm_sync_push_v1_post.PendingChange
+	changes  *[]models.PendingChange
 }
 
 // SyncPusherMockPushResults contains results of the SyncPusher.Push
@@ -105,7 +104,7 @@ func (mmPush *mSyncPusherMockPush) Optional() *mSyncPusherMockPush {
 }
 
 // Expect sets up expected params for SyncPusher.Push
-func (mmPush *mSyncPusherMockPush) Expect(userID int64, deviceID string, changes []mm_sync_push_v1_post.PendingChange) *mSyncPusherMockPush {
+func (mmPush *mSyncPusherMockPush) Expect(userID int64, deviceID string, changes []models.PendingChange) *mSyncPusherMockPush {
 	if mmPush.mock.funcPush != nil {
 		mmPush.mock.t.Fatalf("SyncPusherMock.Push mock is already set by Set")
 	}
@@ -176,7 +175,7 @@ func (mmPush *mSyncPusherMockPush) ExpectDeviceIDParam2(deviceID string) *mSyncP
 }
 
 // ExpectChangesParam3 sets up expected param changes for SyncPusher.Push
-func (mmPush *mSyncPusherMockPush) ExpectChangesParam3(changes []mm_sync_push_v1_post.PendingChange) *mSyncPusherMockPush {
+func (mmPush *mSyncPusherMockPush) ExpectChangesParam3(changes []models.PendingChange) *mSyncPusherMockPush {
 	if mmPush.mock.funcPush != nil {
 		mmPush.mock.t.Fatalf("SyncPusherMock.Push mock is already set by Set")
 	}
@@ -199,7 +198,7 @@ func (mmPush *mSyncPusherMockPush) ExpectChangesParam3(changes []mm_sync_push_v1
 }
 
 // Inspect accepts an inspector function that has same arguments as the SyncPusher.Push
-func (mmPush *mSyncPusherMockPush) Inspect(f func(userID int64, deviceID string, changes []mm_sync_push_v1_post.PendingChange)) *mSyncPusherMockPush {
+func (mmPush *mSyncPusherMockPush) Inspect(f func(userID int64, deviceID string, changes []models.PendingChange)) *mSyncPusherMockPush {
 	if mmPush.mock.inspectFuncPush != nil {
 		mmPush.mock.t.Fatalf("Inspect function is already set for SyncPusherMock.Push")
 	}
@@ -224,7 +223,7 @@ func (mmPush *mSyncPusherMockPush) Return(ra1 []models.RecordRevision, sa1 []mod
 }
 
 // Set uses given function f to mock the SyncPusher.Push method
-func (mmPush *mSyncPusherMockPush) Set(f func(userID int64, deviceID string, changes []mm_sync_push_v1_post.PendingChange) (ra1 []models.RecordRevision, sa1 []models.SyncConflict, err error)) *SyncPusherMock {
+func (mmPush *mSyncPusherMockPush) Set(f func(userID int64, deviceID string, changes []models.PendingChange) (ra1 []models.RecordRevision, sa1 []models.SyncConflict, err error)) *SyncPusherMock {
 	if mmPush.defaultExpectation != nil {
 		mmPush.mock.t.Fatalf("Default expectation is already set for the SyncPusher.Push method")
 	}
@@ -240,7 +239,7 @@ func (mmPush *mSyncPusherMockPush) Set(f func(userID int64, deviceID string, cha
 
 // When sets expectation for the SyncPusher.Push which will trigger the result defined by the following
 // Then helper
-func (mmPush *mSyncPusherMockPush) When(userID int64, deviceID string, changes []mm_sync_push_v1_post.PendingChange) *SyncPusherMockPushExpectation {
+func (mmPush *mSyncPusherMockPush) When(userID int64, deviceID string, changes []models.PendingChange) *SyncPusherMockPushExpectation {
 	if mmPush.mock.funcPush != nil {
 		mmPush.mock.t.Fatalf("SyncPusherMock.Push mock is already set by Set")
 	}
@@ -282,7 +281,7 @@ func (mmPush *mSyncPusherMockPush) invocationsDone() bool {
 }
 
 // Push implements mm_sync_push_v1_post.SyncPusher
-func (mmPush *SyncPusherMock) Push(userID int64, deviceID string, changes []mm_sync_push_v1_post.PendingChange) (ra1 []models.RecordRevision, sa1 []models.SyncConflict, err error) {
+func (mmPush *SyncPusherMock) Push(userID int64, deviceID string, changes []models.PendingChange) (ra1 []models.RecordRevision, sa1 []models.SyncConflict, err error) {
 	mm_atomic.AddUint64(&mmPush.beforePushCounter, 1)
 	defer mm_atomic.AddUint64(&mmPush.afterPushCounter, 1)
 

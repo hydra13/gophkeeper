@@ -1,4 +1,6 @@
 // Package app собирает зависимости приложения и запускает HTTP/gRPC серверы.
+//
+//go:generate minimock -i .AuthService,.RecordService,.SyncService,.UploadService -o mocks -s _mock.go -g
 package app
 
 import (
@@ -6,10 +8,10 @@ import (
 	"errors"
 	"net"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -23,7 +25,6 @@ import (
 	recordsByIdV1Delete "github.com/hydra13/gophkeeper/internal/api/records_by_id_v1_delete"
 	recordsByIdV1Get "github.com/hydra13/gophkeeper/internal/api/records_by_id_v1_get"
 	recordsByIdV1Put "github.com/hydra13/gophkeeper/internal/api/records_by_id_v1_put"
-	recordsCommon "github.com/hydra13/gophkeeper/internal/api/records_common"
 	recordsV1Get "github.com/hydra13/gophkeeper/internal/api/records_v1_get"
 	recordsV1Post "github.com/hydra13/gophkeeper/internal/api/records_v1_post"
 	"github.com/hydra13/gophkeeper/internal/api/sync_pull_v1_post"
@@ -45,44 +46,52 @@ const (
 	defaultRateWindow      = time.Second
 )
 
+// AuthService реализует все auth-операции: register, login, refresh, logout, validate token.
+type AuthService interface {
+	Register(ctx context.Context, email, password string) (int64, error)
+	Login(ctx context.Context, email, password, deviceID, deviceName, clientType string) (string, string, error)
+	Refresh(ctx context.Context, refreshToken string) (string, string, error)
+	Logout(ctx context.Context, accessToken string) error
+	ValidateToken(token string) (int64, error)
+	ValidateSession(token string) (int64, error)
+}
+
+// RecordService реализует CRUD-операции над записями.
+type RecordService interface {
+	CreateRecord(record *models.Record) error
+	ListRecords(userID int64, recordType models.RecordType, includeDeleted bool) ([]models.Record, error)
+	GetRecord(id int64) (*models.Record, error)
+	UpdateRecord(record *models.Record) error
+	DeleteRecord(id int64, deviceID string) error
+}
+
+// SyncService реализует операции синхронизации.
+type SyncService interface {
+	Push(userID int64, deviceID string, changes []models.PendingChange) ([]models.RecordRevision, []models.SyncConflict, error)
+	Pull(userID int64, deviceID string, sinceRevision int64, limit int64) ([]models.RecordRevision, []models.Record, []models.SyncConflict, error)
+	GetConflicts(userID int64) ([]models.SyncConflict, error)
+	ResolveConflict(userID int64, conflictID int64, resolution string) (*models.Record, error)
+}
+
+// UploadService реализует загрузку и скачивание бинарных данных.
+type UploadService interface {
+	CreateSession(userID, recordID, totalChunks, chunkSize, totalSize, keyVersion int64) (int64, error)
+	GetUploadStatus(uploadID int64) (*models.UploadStatusResponse, error)
+	UploadChunk(uploadID, chunkIndex int64, data []byte) (received, total int64, completed bool, missing []int64, err error)
+	DownloadChunk(uploadID, chunkIndex int64) (*models.ChunkDownloadResponse, error)
+	GetUploadSessionByID(uploadID int64) (*models.UploadSession, error)
+	CreateDownloadSession(userID, recordID int64) (*models.DownloadSession, error)
+	DownloadChunkByID(downloadID, chunkIndex int64) (*models.Chunk, error)
+	ConfirmChunk(downloadID, chunkIndex int64) (confirmed, total int64, status models.DownloadStatus, err error)
+	GetDownloadStatus(downloadID int64) (*models.DownloadSession, error)
+}
+
 // AppDeps описывает бизнес-зависимости, необходимые для запуска приложения.
 type AppDeps struct {
-	// AuthService реализует все auth-операции: register, login, refresh, logout, validate token.
-	AuthService interface {
-		Register(ctx context.Context, email, password string) (int64, error)
-		Login(ctx context.Context, email, password, deviceID, deviceName, clientType string) (string, string, error)
-		Refresh(ctx context.Context, refreshToken string) (string, string, error)
-		Logout(ctx context.Context, accessToken string) error
-		ValidateToken(token string) (int64, error)
-		ValidateSession(token string) (int64, error)
-	}
-	// RecordService реализует CRUD-операции над записями.
-	RecordService interface {
-		CreateRecord(record *models.Record) error
-		ListRecords(userID int64, recordType models.RecordType, includeDeleted bool) ([]models.Record, error)
-		GetRecord(id int64) (*models.Record, error)
-		UpdateRecord(record *models.Record) error
-		DeleteRecord(id int64, deviceID string) error
-	}
-	// SyncService реализует операции синхронизации.
-	SyncService interface {
-		Push(userID int64, deviceID string, changes []sync_push_v1_post.PendingChange) ([]models.RecordRevision, []models.SyncConflict, error)
-		Pull(userID int64, deviceID string, sinceRevision int64, limit int64) ([]models.RecordRevision, []models.Record, []models.SyncConflict, error)
-		GetConflicts(userID int64) ([]models.SyncConflict, error)
-		ResolveConflict(userID int64, conflictID int64, resolution string) (*models.Record, error)
-	}
-	// UploadService реализует загрузку и скачивание бинарных данных.
-	UploadService interface {
-		CreateSession(userID, recordID, totalChunks, chunkSize, totalSize, keyVersion int64) (int64, error)
-		GetUploadStatus(uploadID int64) (*models.UploadStatusResponse, error)
-		UploadChunk(uploadID, chunkIndex int64, data []byte) (received, total int64, completed bool, missing []int64, err error)
-		DownloadChunk(uploadID, chunkIndex int64) (*models.ChunkDownloadResponse, error)
-		GetUploadSessionByID(uploadID int64) (*models.UploadSession, error)
-		CreateDownloadSession(userID, recordID int64) (*models.DownloadSession, error)
-		DownloadChunkByID(downloadID, chunkIndex int64) (*models.Chunk, error)
-		ConfirmChunk(downloadID, chunkIndex int64) (confirmed, total int64, status models.DownloadStatus, err error)
-		GetDownloadStatus(downloadID int64) (*models.DownloadSession, error)
-	}
+	AuthService   AuthService
+	RecordService RecordService
+	SyncService   SyncService
+	UploadService UploadService
 }
 
 func (d AppDeps) validate() error {
@@ -97,16 +106,6 @@ func (d AppDeps) validate() error {
 		return errors.New("upload service dependency is required")
 	default:
 		return nil
-	}
-}
-
-// NewStubDeps возвращает набор заглушек для запуска приложения без бизнес-реализаций.
-func NewStubDeps() AppDeps {
-	return AppDeps{
-		AuthService:   &stubAuthService{},
-		RecordService: &stubRecordService{},
-		SyncService:   &stubSyncService{},
-		UploadService: &stubUploadsService{},
 	}
 }
 
@@ -237,55 +236,42 @@ func buildHTTPServer(cfg *config.Config, log zerolog.Logger, limiter *middleware
 	uploadChunkHandler := uploads_by_id_chunks_v1_post.NewHandler(uploadService)
 	downloadChunkHandler := uploads_by_id_chunks_v1_get.NewHandler(uploadService)
 
-	publicMux := http.NewServeMux()
-	publicMux.Handle("/api/v1/health", healthHandler)
-	publicMux.Handle("/api/v1/auth/register", methodHandler(http.MethodPost, authRegisterHandler.Handle))
-	publicMux.Handle("/api/v1/auth/login", methodHandler(http.MethodPost, authLoginHandler.Handle))
-	publicMux.Handle("/api/v1/auth/refresh", methodHandler(http.MethodPost, authRefreshHandler.Handle))
-	publicMux.Handle("/api/v1/auth/logout", methodHandler(http.MethodPost, authLogoutHandler.Handle))
+	r := chi.NewRouter()
 
-	protectedMux := http.NewServeMux()
-	protectedMux.Handle("/api/v1/records", methodRouter(map[string]func(http.ResponseWriter, *http.Request){
-		http.MethodPost: recordsPostHandler.Handle,
-		http.MethodGet:  recordsGetHandler.Handle,
-	}))
-	protectedMux.Handle("/api/v1/records/{id}", methodRouter(map[string]func(http.ResponseWriter, *http.Request){
-		http.MethodGet:    recordGetHandler.Handle,
-		http.MethodPut:    recordPutHandler.Handle,
-		http.MethodDelete: recordDeleteHandler.Handle,
-	}))
-	protectedMux.Handle("/api/v1/records/{id}/binary", methodRouter(map[string]func(http.ResponseWriter, *http.Request){
-		http.MethodGet: recordBinaryHandler.Handle,
-	}))
+	r.Use(middlewares.TLS())
+	r.Use(middlewares.RateLimit(limiter))
+	r.Use(middlewares.Logger(log))
+	r.Use(middlewares.Compression())
 
-	protectedMux.Handle("/api/v1/sync/push", syncPushHandler)
-	protectedMux.Handle("/api/v1/sync/pull", syncPullHandler)
-
-	protectedMux.Handle("/api/v1/uploads", uploadsStartHandler)
-	protectedMux.Handle("/api/v1/uploads/{id}", uploadStatusHandler)
-	protectedMux.Handle("/api/v1/uploads/{id}/chunks", uploadChunkHandler)
-	protectedMux.Handle("/api/v1/uploads/{id}/chunks/{index}", downloadChunkHandler)
-
-	protectedHandler := middlewares.Auth(authService, log)(protectedMux)
-	root := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if isPublicPath(r.URL.Path) {
-			publicMux.ServeHTTP(w, r)
-			return
-		}
-		protectedHandler.ServeHTTP(w, r)
+	r.Group(func(r chi.Router) {
+		r.Get("/api/v1/health", healthHandler.ServeHTTP)
+		r.Post("/api/v1/auth/register", authRegisterHandler.Handle)
+		r.Post("/api/v1/auth/login", authLoginHandler.Handle)
+		r.Post("/api/v1/auth/refresh", authRefreshHandler.Handle)
+		r.Post("/api/v1/auth/logout", authLogoutHandler.Handle)
 	})
 
-	handler := chain(
-		root,
-		middlewares.TLS(),
-		middlewares.RateLimit(limiter),
-		middlewares.Logger(log),
-		middlewares.Compression(),
-	)
+	r.Group(func(r chi.Router) {
+		r.Use(middlewares.Auth(authService, log))
+		r.Post("/api/v1/records", recordsPostHandler.Handle)
+		r.Get("/api/v1/records", recordsGetHandler.Handle)
+		r.Route("/api/v1/records/{id}", func(r chi.Router) {
+			r.Get("/", recordGetHandler.Handle)
+			r.Put("/", recordPutHandler.Handle)
+			r.Delete("/", recordDeleteHandler.Handle)
+			r.Get("/binary", recordBinaryHandler.Handle)
+		})
+		r.Post("/api/v1/sync/push", syncPushHandler.ServeHTTP)
+		r.Post("/api/v1/sync/pull", syncPullHandler.ServeHTTP)
+		r.Post("/api/v1/uploads", uploadsStartHandler.ServeHTTP)
+		r.Get("/api/v1/uploads/{id}", uploadStatusHandler.ServeHTTP)
+		r.Post("/api/v1/uploads/{id}/chunks", uploadChunkHandler.ServeHTTP)
+		r.Get("/api/v1/uploads/{id}/chunks/{index}", downloadChunkHandler.ServeHTTP)
+	})
 
 	return &http.Server{
 		Addr:         cfg.Server.Address,
-		Handler:      handler,
+		Handler:      r,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
@@ -323,7 +309,7 @@ func buildGRPCServer(cfg *config.Config, log zerolog.Logger, limiter *middleware
 
 	authRPCService := rpc.NewAuthService(deps.AuthService, log)
 	dataService := rpc.NewDataService(deps.RecordService, log)
-	syncService := rpc.NewSyncService(&syncUseCaseAdapter{svc: deps.SyncService}, log)
+	syncService := rpc.NewSyncService(deps.SyncService, log)
 	uploadsService := rpc.NewUploadsService(deps.UploadService, log)
 	healthService := rpc.NewHealthService()
 
@@ -337,226 +323,8 @@ func buildGRPCServer(cfg *config.Config, log zerolog.Logger, limiter *middleware
 	return grpcServer, listener, nil
 }
 
-func chain(handler http.Handler, middlewares ...func(http.Handler) http.Handler) http.Handler {
-	h := handler
-	for i := len(middlewares) - 1; i >= 0; i-- {
-		h = middlewares[i](h)
-	}
-	return h
-}
-
-func methodHandler(method string, handler func(http.ResponseWriter, *http.Request)) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != method {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-		handler(w, r)
-	})
-}
-
-func methodRouter(handlers map[string]func(http.ResponseWriter, *http.Request)) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if handler, ok := handlers[r.Method]; ok {
-			handler(w, r)
-			return
-		}
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-	})
-}
-
-func isPublicPath(path string) bool {
-	if path == "/api/v1/health" {
-		return true
-	}
-	return strings.HasPrefix(path, "/api/v1/auth/")
-}
-
 type healthChecker struct{}
 
 func (h *healthChecker) Health() error {
 	return nil
-}
-
-type stubAuthService struct{}
-
-func (s *stubAuthService) Register(ctx context.Context, email, password string) (int64, error) {
-	return 0, errors.New("auth service not implemented")
-}
-
-func (s *stubAuthService) Login(ctx context.Context, email, password, deviceID, deviceName, clientType string) (string, string, error) {
-	return "", "", errors.New("auth service not implemented")
-}
-
-func (s *stubAuthService) Refresh(ctx context.Context, refreshToken string) (string, string, error) {
-	return "", "", errors.New("auth service not implemented")
-}
-
-func (s *stubAuthService) Logout(ctx context.Context, accessToken string) error {
-	return errors.New("auth service not implemented")
-}
-
-func (s *stubAuthService) ValidateToken(token string) (int64, error) {
-	if token == "" {
-		return 0, errors.New("empty token")
-	}
-	return 1, nil
-}
-
-func (s *stubAuthService) ValidateSession(token string) (int64, error) {
-	if token == "" {
-		return 0, errors.New("empty token")
-	}
-	return 1, nil
-}
-
-type stubRecordService struct{}
-
-func (s *stubRecordService) CreateRecord(record *models.Record) error {
-	return errors.New("record service not implemented")
-}
-
-func (s *stubRecordService) ListRecords(userID int64, recordType models.RecordType, includeDeleted bool) ([]models.Record, error) {
-	return nil, errors.New("record service not implemented")
-}
-
-func (s *stubRecordService) GetRecord(id int64) (*models.Record, error) {
-	return nil, errors.New("record service not implemented")
-}
-
-func (s *stubRecordService) UpdateRecord(record *models.Record) error {
-	return errors.New("record service not implemented")
-}
-
-func (s *stubRecordService) DeleteRecord(id int64, deviceID string) error {
-	return errors.New("record service not implemented")
-}
-
-type stubSyncService struct{}
-
-func (s *stubSyncService) Push(userID int64, deviceID string, changes []sync_push_v1_post.PendingChange) ([]models.RecordRevision, []models.SyncConflict, error) {
-	return nil, nil, errors.New("sync service not implemented")
-}
-
-func (s *stubSyncService) Pull(userID int64, deviceID string, sinceRevision int64, limit int64) ([]models.RecordRevision, []models.Record, []models.SyncConflict, error) {
-	return nil, nil, nil, errors.New("sync service not implemented")
-}
-
-func (s *stubSyncService) GetConflicts(userID int64) ([]models.SyncConflict, error) {
-	return nil, errors.New("sync service not implemented")
-}
-
-func (s *stubSyncService) ResolveConflict(userID int64, conflictID int64, resolution string) (*models.Record, error) {
-	return nil, errors.New("sync service not implemented")
-}
-
-type stubUploadsService struct{}
-
-func (s *stubUploadsService) CreateSession(userID, recordID, totalChunks, chunkSize, totalSize, keyVersion int64) (int64, error) {
-	return 0, errors.New("uploads service not implemented")
-}
-
-func (s *stubUploadsService) GetUploadStatus(uploadID int64) (*models.UploadStatusResponse, error) {
-	return nil, errors.New("uploads service not implemented")
-}
-
-func (s *stubUploadsService) UploadChunk(uploadID, chunkIndex int64, data []byte) (received, total int64, completed bool, missing []int64, err error) {
-	return 0, 0, false, nil, errors.New("uploads service not implemented")
-}
-
-func (s *stubUploadsService) DownloadChunk(uploadID, chunkIndex int64) (*models.ChunkDownloadResponse, error) {
-	return nil, errors.New("uploads service not implemented")
-}
-
-func (s *stubUploadsService) GetUploadSessionByID(uploadID int64) (*models.UploadSession, error) {
-	return nil, errors.New("uploads service not implemented")
-}
-
-func (s *stubUploadsService) CreateDownloadSession(userID, recordID int64) (*models.DownloadSession, error) {
-	return nil, errors.New("uploads service not implemented")
-}
-
-func (s *stubUploadsService) DownloadChunkByID(downloadID, chunkIndex int64) (*models.Chunk, error) {
-	return nil, errors.New("uploads service not implemented")
-}
-
-func (s *stubUploadsService) ConfirmChunk(downloadID, chunkIndex int64) (confirmed, total int64, status models.DownloadStatus, err error) {
-	return 0, 0, "", errors.New("uploads service not implemented")
-}
-
-func (s *stubUploadsService) GetDownloadStatus(downloadID int64) (*models.DownloadSession, error) {
-	return nil, errors.New("uploads service not implemented")
-}
-
-// syncUseCaseAdapter адаптирует SyncService из AppDeps к интерфейсу rpc.SyncUseCase.
-type syncUseCaseAdapter struct {
-	svc interface {
-		Push(userID int64, deviceID string, changes []sync_push_v1_post.PendingChange) ([]models.RecordRevision, []models.SyncConflict, error)
-		Pull(userID int64, deviceID string, sinceRevision int64, limit int64) ([]models.RecordRevision, []models.Record, []models.SyncConflict, error)
-		GetConflicts(userID int64) ([]models.SyncConflict, error)
-		ResolveConflict(userID int64, conflictID int64, resolution string) (*models.Record, error)
-	}
-}
-
-func (a *syncUseCaseAdapter) Push(userID int64, deviceID string, changes []rpc.PendingChange) ([]models.RecordRevision, []models.SyncConflict, error) {
-	dtoChanges := make([]sync_push_v1_post.PendingChange, 0, len(changes))
-	for _, c := range changes {
-		dtoChanges = append(dtoChanges, sync_push_v1_post.PendingChange{
-			Record:       recordToDTO(c.Record),
-			Deleted:      c.Deleted,
-			BaseRevision: c.BaseRevision,
-		})
-	}
-	return a.svc.Push(userID, deviceID, dtoChanges)
-}
-
-func (a *syncUseCaseAdapter) Pull(userID int64, deviceID string, sinceRevision int64, limit int64) ([]models.RecordRevision, []models.Record, []models.SyncConflict, error) {
-	return a.svc.Pull(userID, deviceID, sinceRevision, limit)
-}
-
-func (a *syncUseCaseAdapter) GetConflicts(userID int64) ([]models.SyncConflict, error) {
-	return a.svc.GetConflicts(userID)
-}
-
-func (a *syncUseCaseAdapter) ResolveConflict(userID int64, conflictID int64, resolution string) (*models.Record, error) {
-	return a.svc.ResolveConflict(userID, conflictID, resolution)
-}
-
-func recordToDTO(r *models.Record) recordsCommon.RecordDTO {
-	if r == nil {
-		return recordsCommon.RecordDTO{}
-	}
-	dto := recordsCommon.RecordDTO{
-		ID:             r.ID,
-		UserID:         r.UserID,
-		Type:           string(r.Type),
-		Name:           r.Name,
-		Metadata:       r.Metadata,
-		Revision:       r.Revision,
-		DeviceID:       r.DeviceID,
-		KeyVersion:     r.KeyVersion,
-		PayloadVersion: r.PayloadVersion,
-		CreatedAt:      r.CreatedAt.Format("2006-01-02T15:04:05Z"),
-		UpdatedAt:      r.UpdatedAt.Format("2006-01-02T15:04:05Z"),
-	}
-	if r.DeletedAt != nil {
-		deletedAt := r.DeletedAt.Format("2006-01-02T15:04:05Z")
-		dto.DeletedAt = &deletedAt
-	}
-
-	switch p := r.Payload.(type) {
-	case models.LoginPayload:
-		dto.Payload = recordsCommon.LoginPayloadDTO{Login: p.Login, Password: p.Password}
-	case models.TextPayload:
-		dto.Payload = recordsCommon.TextPayloadDTO{Content: p.Content}
-	case models.BinaryPayload:
-		dto.Payload = recordsCommon.BinaryPayloadDTO{}
-	case models.CardPayload:
-		dto.Payload = recordsCommon.CardPayloadDTO{
-			Number: p.Number, HolderName: p.HolderName,
-			ExpiryDate: p.ExpiryDate, CVV: p.CVV,
-		}
-	}
-
-	return dto
 }

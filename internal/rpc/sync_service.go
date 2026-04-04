@@ -16,17 +16,10 @@ import (
 
 // SyncUseCase определяет операции синхронизации для gRPC слоя.
 type SyncUseCase interface {
-	Push(userID int64, deviceID string, changes []PendingChange) ([]models.RecordRevision, []models.SyncConflict, error)
+	Push(userID int64, deviceID string, changes []models.PendingChange) ([]models.RecordRevision, []models.SyncConflict, error)
 	Pull(userID int64, deviceID string, sinceRevision int64, limit int64) ([]models.RecordRevision, []models.Record, []models.SyncConflict, error)
 	GetConflicts(userID int64) ([]models.SyncConflict, error)
 	ResolveConflict(userID int64, conflictID int64, resolution string) (*models.Record, error)
-}
-
-// PendingChange описывает одно локальное изменение для push.
-type PendingChange struct {
-	Record       *models.Record
-	Deleted      bool
-	BaseRevision int64
 }
 
 // SyncService реализует gRPC-ручки синхронизации.
@@ -58,12 +51,12 @@ func (s *SyncService) Push(ctx context.Context, req *pbv1.PushRequest) (*pbv1.Pu
 		return nil, status.Error(codes.InvalidArgument, "changes are required")
 	}
 
-	changes := make([]PendingChange, 0, len(req.Changes))
+	changes := make([]models.PendingChange, 0, len(req.Changes))
 	for _, pc := range req.Changes {
 		if pc.Record == nil {
 			return nil, status.Error(codes.InvalidArgument, "record is required in pending change")
 		}
-		changes = append(changes, PendingChange{
+		changes = append(changes, models.PendingChange{
 			Record:       protoRecordToDomain(pc.Record),
 			Deleted:      pc.Deleted,
 			BaseRevision: pc.BaseRevision,

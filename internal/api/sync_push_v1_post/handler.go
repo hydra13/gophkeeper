@@ -67,7 +67,7 @@ type Response struct {
 type SyncPusher interface {
 	// Push отправляет локальные изменения на сервер.
 	// Возвращает принятые ревизии и список конфликтов.
-	Push(userID int64, deviceID string, changes []PendingChange) ([]models.RecordRevision, []models.SyncConflict, error)
+	Push(userID int64, deviceID string, changes []models.PendingChange) ([]models.RecordRevision, []models.SyncConflict, error)
 }
 
 // Handler обрабатывает POST /api/v1/sync/push.
@@ -106,7 +106,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	accepted, conflicts, err := h.service.Push(req.UserID, req.DeviceID, req.Changes)
+	accepted, conflicts, err := h.service.Push(req.UserID, req.DeviceID, toDomainChanges(req.Changes))
 	if err != nil {
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
@@ -145,4 +145,73 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
+}
+
+func toDomainChanges(changes []PendingChange) []models.PendingChange {
+	result := make([]models.PendingChange, 0, len(changes))
+	for _, c := range changes {
+		result = append(result, models.PendingChange{
+			Record:       dtoToDomainRecord(c.Record),
+			Deleted:      c.Deleted,
+			BaseRevision: c.BaseRevision,
+		})
+	}
+	return result
+}
+
+func dtoToDomainRecord(dto recordscommon.RecordDTO) *models.Record {
+	r := &models.Record{
+		ID:             dto.ID,
+		UserID:         dto.UserID,
+		Type:           models.RecordType(dto.Type),
+		Name:           dto.Name,
+		Metadata:       dto.Metadata,
+		DeviceID:       dto.DeviceID,
+		KeyVersion:     dto.KeyVersion,
+		PayloadVersion: dto.PayloadVersion,
+		Payload:        dtoPayloadToDomain(dto),
+	}
+	return r
+}
+
+func dtoPayloadToDomain(dto recordscommon.RecordDTO) models.RecordPayload {
+	switch models.RecordType(dto.Type) {
+	case models.RecordTypeLogin:
+		if p, ok := dto.Payload.(map[string]interface{}); ok {
+			return models.LoginPayload{
+				Login:    strVal(p["login"]),
+				Password: strVal(p["password"]),
+			}
+		}
+		return models.LoginPayload{}
+	case models.RecordTypeText:
+		if p, ok := dto.Payload.(map[string]interface{}); ok {
+			return models.TextPayload{Content: strVal(p["content"])}
+		}
+		return models.TextPayload{}
+	case models.RecordTypeBinary:
+		return models.BinaryPayload{}
+	case models.RecordTypeCard:
+		if p, ok := dto.Payload.(map[string]interface{}); ok {
+			return models.CardPayload{
+				Number:     strVal(p["number"]),
+				HolderName: strVal(p["holder_name"]),
+				ExpiryDate: strVal(p["expiry_date"]),
+				CVV:        strVal(p["cvv"]),
+			}
+		}
+		return models.CardPayload{}
+	default:
+		return nil
+	}
+}
+
+func strVal(v interface{}) string {
+	if v == nil {
+		return ""
+	}
+	if s, ok := v.(string); ok {
+		return s
+	}
+	return ""
 }

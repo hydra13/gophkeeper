@@ -158,12 +158,16 @@ func requestToRecord(req *CreateRecordRequest) (*models.Record, error) {
 		if req.Card == nil {
 			return nil, errors.New("card payload is required")
 		}
-		payload = models.CardPayload{
+		card := models.CardPayload{
 			Number:     req.Card.Number,
 			HolderName: req.Card.HolderName,
 			ExpiryDate: req.Card.ExpiryDate,
 			CVV:        req.Card.CVV,
 		}
+		if err := card.Validate(); err != nil {
+			return nil, err
+		}
+		payload = card
 	}
 
 	return &models.Record{

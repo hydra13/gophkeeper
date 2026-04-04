@@ -668,7 +668,7 @@ type e2eSyncUseCase struct {
 	syncRepo *e2eSyncRepo
 }
 
-func (u *e2eSyncUseCase) Push(userID int64, deviceID string, changes []rpc.PendingChange) ([]models.RecordRevision, []models.SyncConflict, error) {
+func (u *e2eSyncUseCase) Push(userID int64, deviceID string, changes []models.PendingChange) ([]models.RecordRevision, []models.SyncConflict, error) {
 	var revisions []models.RecordRevision
 	for _, ch := range changes {
 		if ch.Record == nil {
@@ -1008,7 +1008,7 @@ func TestMetadataE2E_AllRecordTypes(t *testing.T) {
 			name: "card with metadata",
 			rec: &models.Record{
 				Type: models.RecordTypeCard, Name: "card1",
-				Payload:  models.CardPayload{Number: "4111", HolderName: "Test", ExpiryDate: "12/30", CVV: "123"},
+				Payload:  models.CardPayload{Number: "4111111111111111", HolderName: "Test", ExpiryDate: "12/30", CVV: "123"},
 				DeviceID: "e2e-test-device",
 			},
 			meta: "card metadata",

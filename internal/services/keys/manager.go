@@ -1,3 +1,4 @@
+//go:generate minimock -i .Repository -o mocks -s _mock.go -g
 package keys
 
 import (
