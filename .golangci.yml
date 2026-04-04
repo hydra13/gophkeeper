@@ -9,17 +9,16 @@ linters:
     - errcheck
     - staticcheck
     - ineffassign
+  exclusions:
+    rules:
+      - path: _grpc\.pb\.go
+        linters:
+          - govet
+          - errcheck
+          - staticcheck
+          - ineffassign
 
 formatters:
   enable:
     - gofmt
     - goimports
-
-issues:
-  exclude-rules:
-    - path: _grpc\.pb\.go
-      linters:
-        - govet
-        - errcheck
-        - staticcheck
-        - ineffassign

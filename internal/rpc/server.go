@@ -1,4 +1,3 @@
-// Package rpc реализует gRPC-ручки сервиса GophKeeper.
 package rpc
 
 import (
@@ -7,7 +6,7 @@ import (
 	"github.com/hydra13/gophkeeper/internal/rpc/pbv1"
 )
 
-// Server агрегирует все gRPC-сервисы приложения и регистрирует их в grpc.Server.
+// Server объединяет gRPC-сервисы приложения.
 type Server struct {
 	auth    pbv1.AuthServiceServer
 	data    pbv1.DataServiceServer
@@ -16,7 +15,7 @@ type Server struct {
 	health  pbv1.HealthServiceServer
 }
 
-// NewServer создаёт gRPC сервер с зависимостями.
+// NewServer создаёт набор gRPC-сервисов приложения.
 func NewServer(
 	auth pbv1.AuthServiceServer,
 	data pbv1.DataServiceServer,
@@ -33,7 +32,7 @@ func NewServer(
 	}
 }
 
-// Register регистрирует сервисы в gRPC сервере.
+// Register регистрирует все сервисы в gRPC-сервере.
 func (s *Server) Register(g *grpc.Server) {
 	pbv1.RegisterAuthServiceServer(g, s.auth)
 	pbv1.RegisterDataServiceServer(g, s.data)

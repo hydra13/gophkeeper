@@ -2,11 +2,9 @@ package commands
 
 import (
 	"context"
-	"fmt"
 	"time"
 )
 
-// RunSync запускает принудительную синхронизацию с сервером.
 func (r *Runner) RunSync() {
 	core, cleanup, err := r.newCore()
 	if err != nil {
@@ -21,5 +19,5 @@ func (r *Runner) RunSync() {
 		r.fatal(err)
 	}
 
-	fmt.Fprintln(r.deps.Stdout, "synced")
+	r.println(r.deps.Stdout, "synced")
 }

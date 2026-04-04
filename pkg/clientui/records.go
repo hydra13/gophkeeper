@@ -81,12 +81,14 @@ func WriteBinaryFile(path string, data []byte) error {
 	return nil
 }
 
-func PrintRecord(w io.Writer, rec *models.Record) {
-	fmt.Fprint(w, FormatRecord(rec))
+func PrintRecord(w io.Writer, rec *models.Record) error {
+	_, err := fmt.Fprint(w, FormatRecord(rec))
+	return err
 }
 
-func PrintRecordShort(w io.Writer, rec models.Record) {
-	fmt.Fprintln(w, FormatRecordShort(rec))
+func PrintRecordShort(w io.Writer, rec models.Record) error {
+	_, err := fmt.Fprintln(w, FormatRecordShort(rec))
+	return err
 }
 
 func FormatRecord(rec *models.Record) string {

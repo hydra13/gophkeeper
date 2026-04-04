@@ -1,58 +1,40 @@
-// Package uploads_by_id_chunks_v1_post реализует HTTP-ручку загрузки чанка.
-//
-// POST /api/v1/uploads/{id}/chunks
-//
 //go:generate minimock -i .ChunkUploader -o mocks -s _mock.go -g
 package uploads_by_id_chunks_v1_post
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
 )
 
-// ChunkRequest — DTO для загрузки одного чанка.
 type ChunkRequest struct {
-	// UploadID — идентификатор upload-сессии (из URL path).
-	UploadID int64 `json:"upload_id"`
-	// ChunkIndex — порядковый номер чанка (начиная с 0).
-	ChunkIndex int64 `json:"chunk_index"`
-	// Data — бинарное содержимое чанка (base64 в JSON).
-	Data []byte `json:"data"`
+	UploadID   int64  `json:"upload_id"`
+	ChunkIndex int64  `json:"chunk_index"`
+	Data       []byte `json:"data"`
 }
 
-// ChunkResponse — DTO ответа при приёме чанка.
 type ChunkResponse struct {
-	// UploadID — идентификатор upload-сессии.
-	UploadID int64 `json:"upload_id"`
-	// ReceivedChunks — количество принятых чанков.
-	ReceivedChunks int64 `json:"received_chunks"`
-	// TotalChunks — общее количество чанков.
-	TotalChunks int64 `json:"total_chunks"`
-	// Completed — признак завершения загрузки.
-	Completed bool `json:"completed"`
-	// MissingChunks — индексы ещё не принятых чанков (для resume).
-	MissingChunks []int64 `json:"missing_chunks,omitempty"`
+	UploadID       int64   `json:"upload_id"`
+	ReceivedChunks int64   `json:"received_chunks"`
+	TotalChunks    int64   `json:"total_chunks"`
+	Completed      bool    `json:"completed"`
+	MissingChunks  []int64 `json:"missing_chunks,omitempty"`
 }
 
-// ChunkUploader — интерфейс сервиса загрузки чанка.
 type ChunkUploader interface {
-	// UploadChunk загружает один чанк в указанную upload-сессию.
 	UploadChunk(uploadID, chunkIndex int64, data []byte) (receivedChunks, totalChunks int64, completed bool, missingChunks []int64, err error)
 }
 
-// Handler обрабатывает POST /api/v1/uploads/{id}/chunks.
 type Handler struct {
 	service ChunkUploader
 }
 
-// NewHandler создаёт новый обработчик загрузки чанка.
 func NewHandler(service ChunkUploader) *Handler {
 	return &Handler{service: service}
 }
 
-// ServeHTTP принимает один чанк в рамках существующей upload-сессии.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -99,10 +81,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		log.Printf("upload chunk response encode failed: %v", err)
+	}
 }
 
-// extractUploadID извлекает upload_id из URL path /api/v1/uploads/{id}/chunks.
 func extractUploadID(path string) (int64, error) {
 	parts := strings.Split(strings.TrimSuffix(path, "/"), "/")
 	for i, p := range parts {
@@ -113,7 +96,6 @@ func extractUploadID(path string) (int64, error) {
 	return 0, strconv.ErrRange
 }
 
-// mapChunkError мапит ошибки домена на HTTP-статусы.
 func mapChunkError(w http.ResponseWriter, err error) {
 	switch {
 	case isErr(err, "upload session not found"):

@@ -1,4 +1,3 @@
-// Package migrations применяет встроенные SQL-миграции сервиса.
 package migrations
 
 import (
@@ -9,7 +8,7 @@ import (
 	appmigrations "github.com/hydra13/gophkeeper/migrations"
 )
 
-// Apply применяет все встроенные SQL-миграции к указанной базе данных.
+// Apply применяет все встроенные SQL-миграции.
 func Apply(db *sql.DB) error {
 	if err := goose.SetDialect("pgx"); err != nil {
 		return err

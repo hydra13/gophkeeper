@@ -1,3 +1,6 @@
+//go:build e2e
+// +build e2e
+
 package e2e
 
 import (
@@ -252,7 +255,7 @@ func setupE2E(t *testing.T) *e2eTestEnv {
 		core:     core,
 		store:    store,
 		cleanup: func() {
-			conn.Close()
+			_ = conn.Close()
 			s.GracefulStop()
 		},
 	}

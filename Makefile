@@ -1,17 +1,36 @@
-.PHONY: fmt lint test cover cover-check proto proto-check build build-server build-client build-client-cli build-client-tui build-client-desktop build-client-web dev-client-web clean dev-up dev-down dev-reset test-storage-integration
+.PHONY: fmt lint test test-unit test-integration test-e2e cover cover-check proto proto-check build build-server build-client build-client-cli build-client-tui build-client-desktop build-client-web dev-client-web clean dev-up dev-down dev-reset test-storage-integration
 
 PROTO_SRC := rpc/proto/v1/*.proto
 PROTO_OUT := internal/rpc/pbv1
 MODULE := github.com/hydra13/gophkeeper
+INTEGRATION_PACKAGES := ./internal/jobs/reencrypt ./internal/repositories/database ./internal/services/sync ./internal/services/uploads ./internal/storage
+E2E_PACKAGES := ./tests/e2e
+GO_FILES := $(shell git ls-files '*.go')
 
 fmt:
-	goimports -w .
+	goimports -w $(GO_FILES)
 
 lint:
 	golangci-lint run
 
+test-unit:
+	go test -race ./...
+
 test:
-	go test -v -race -coverprofile=coverage.out -coverpkg="$$(go list ./... | grep -v '/pbv1' | grep -v 'proto/v1' | tr '\n' ',' | sed 's/,$$//')" $$(go list ./... | grep -v '/pbv1' | grep -v 'proto/v1')
+	@PACKAGES="$$(bash scripts/list-cover-packages.sh lines)" && \
+	COVERPKG="$$(bash scripts/list-cover-packages.sh csv)" && \
+	LOG_FILE=coverage_test.log && \
+	if ! go test -coverprofile=coverage.out -coverpkg="$$COVERPKG" $$PACKAGES >"$$LOG_FILE" 2>&1; then \
+		tail -n 50 "$$LOG_FILE"; \
+		exit 1; \
+	fi && \
+	rm -f "$$LOG_FILE"
+
+test-integration:
+	go test -p 1 -tags=integration -count=1 $(INTEGRATION_PACKAGES)
+
+test-e2e:
+	go test -tags=e2e -count=1 $(E2E_PACKAGES)
 
 cover: test
 	go tool cover -html=coverage.out

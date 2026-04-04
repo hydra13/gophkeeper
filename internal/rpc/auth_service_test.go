@@ -16,10 +16,10 @@ import (
 
 // mockAuthUseCase реализует AuthUseCase для тестов gRPC.
 type mockAuthUseCase struct {
-	registerFn      func(ctx context.Context, email, password string) (int64, error)
-	loginFn         func(ctx context.Context, email, password, deviceID, deviceName, clientType string) (string, string, error)
-	refreshFn       func(ctx context.Context, refreshToken string) (string, string, error)
-	logoutFn        func(ctx context.Context, accessToken string) error
+	registerFn func(ctx context.Context, email, password string) (int64, error)
+	loginFn    func(ctx context.Context, email, password, deviceID, deviceName, clientType string) (string, string, error)
+	refreshFn  func(ctx context.Context, refreshToken string) (string, string, error)
+	logoutFn   func(ctx context.Context, accessToken string) error
 }
 
 func (m *mockAuthUseCase) Register(ctx context.Context, email, password string) (int64, error) {

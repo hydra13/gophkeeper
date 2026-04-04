@@ -5,63 +5,45 @@ import (
 	"fmt"
 )
 
-// UploadStatus определяет состояние upload-сессии.
+// UploadStatus описывает состояние upload-сессии.
 type UploadStatus string
 
 const (
-	// UploadStatusPending — загрузка начата, но не завершена.
-	UploadStatusPending UploadStatus = "pending"
-	// UploadStatusCompleted — загрузка успешно завершена.
+	UploadStatusPending   UploadStatus = "pending"
 	UploadStatusCompleted UploadStatus = "completed"
-	// UploadStatusAborted — загрузка прервана/отменена.
-	UploadStatusAborted UploadStatus = "aborted"
+	UploadStatusAborted   UploadStatus = "aborted"
 )
 
-// UploadSession — сессия загрузки бинарных данных с поддержкой chunk upload/download и resume.
+// UploadSession хранит состояние загрузки бинарного payload.
 type UploadSession struct {
-	// ID — уникальный идентификатор upload-сессии (upload_id).
-	ID int64
-	// RecordID — ссылка на запись типа binary, к которой относится загрузка.
-	RecordID int64
-	// UserID — владелец загрузки.
-	UserID int64
-	// Status — текущее состояние загрузки.
-	Status UploadStatus
-	// TotalChunks — общее количество чанков.
-	TotalChunks int64
-	// ReceivedChunks — количество полученных чанков.
-	ReceivedChunks int64
-	// ChunkSize — размер одного чанка в байтах.
-	ChunkSize int64
-	// TotalSize — общий размер загружаемого файла в байтах.
-	TotalSize int64
-	// KeyVersion — версия ключа шифрования для загружаемых данных.
-	KeyVersion int64
-	// ReceivedChunkSet — множество индексов уже принятых чанков для защиты от дублей.
+	ID               int64
+	RecordID         int64
+	UserID           int64
+	Status           UploadStatus
+	TotalChunks      int64
+	ReceivedChunks   int64
+	ChunkSize        int64
+	TotalSize        int64
+	KeyVersion       int64
 	ReceivedChunkSet map[int64]bool
 }
 
-// IsCompleted проверяет, завершена ли загрузка.
+// IsCompleted сообщает, что загрузка завершена.
 func (u *UploadSession) IsCompleted() bool {
 	return u.Status == UploadStatusCompleted
 }
 
-// IsAborted проверяет, прервана ли загрузка.
+// IsAborted сообщает, что загрузка прервана.
 func (u *UploadSession) IsAborted() bool {
 	return u.Status == UploadStatusAborted
 }
 
-// IsResumable проверяет, можно ли возобновить загрузку.
+// IsResumable сообщает, что загрузку можно продолжить.
 func (u *UploadSession) IsResumable() bool {
 	return u.Status == UploadStatusPending && u.ReceivedChunks < u.TotalChunks
 }
 
-// CompleteChunk регистрирует получение очередного чанка.
-// Чанки должны поступать строго по порядку: следующий ожидаемый индекс равен ReceivedChunks.
-// Возвращает ErrChunkOutOfOrder если индекс не совпадает с ожидаемым.
-// Возвращает ErrDuplicateChunk если чанк с таким индексом уже был принят.
-// Возвращает ErrChunkOutOfRange если индекс вне диапазона.
-// Возвращает ErrUploadNotPending или ErrUploadAborted если статус не позволяет принять чанк.
+// CompleteChunk отмечает очередной принятый чанк.
 func (u *UploadSession) CompleteChunk(chunkIndex int64) error {
 	if u.Status == UploadStatusCompleted {
 		return ErrUploadCompleted
@@ -92,7 +74,7 @@ func (u *UploadSession) CompleteChunk(chunkIndex int64) error {
 	return nil
 }
 
-// Abort прерывает загрузку. Допускается только в статусе pending.
+// Abort переводит upload-сессию в состояние aborted.
 func (u *UploadSession) Abort() error {
 	if u.Status != UploadStatusPending {
 		return errors.New("only pending upload can be aborted")
@@ -101,8 +83,7 @@ func (u *UploadSession) Abort() error {
 	return nil
 }
 
-// MissingChunks возвращает слайс индексов ещё не принятых чанков.
-// Позволяет клиенту узнать какие чанки нужно отправить для resume.
+// MissingChunks возвращает индексы ещё не полученных чанков.
 func (u *UploadSession) MissingChunks() []int64 {
 	var missing []int64
 	for i := int64(0); i < u.TotalChunks; i++ {
@@ -113,71 +94,49 @@ func (u *UploadSession) MissingChunks() []int64 {
 	return missing
 }
 
-// Chunk — отдельный чанк бинарных данных.
+// Chunk описывает отдельный фрагмент бинарных данных.
 type Chunk struct {
-	// UploadID — ссылка на upload-сессию.
-	UploadID int64
-	// ChunkIndex — порядковый номер чанка (начиная с 0).
+	UploadID   int64
 	ChunkIndex int64
-	// Data — бинарное содержимое чанка.
-	Data []byte
+	Data       []byte
 }
 
-// DownloadStatus определяет состояние download-сессии.
+// DownloadStatus описывает состояние download-сессии.
 type DownloadStatus string
 
 const (
-	// DownloadStatusActive — скачивание активно, чанки отдаются клиенту.
-	DownloadStatusActive DownloadStatus = "active"
-	// DownloadStatusCompleted — все чанки подтверждены клиентом, скачивание завершено.
+	DownloadStatusActive    DownloadStatus = "active"
 	DownloadStatusCompleted DownloadStatus = "completed"
-	// DownloadStatusAborted — скачивание прервано.
-	DownloadStatusAborted DownloadStatus = "aborted"
+	DownloadStatusAborted   DownloadStatus = "aborted"
 )
 
-// DownloadSession — сессия скачивания бинарных данных с поддержкой resume.
-// Клиент подтверждает каждый полученный чанк, что позволяет отслеживать прогресс
-// и возобновлять скачивание после разрыва соединения.
+// DownloadSession хранит состояние скачивания бинарного payload.
 type DownloadSession struct {
-	// ID — уникальный идентификатор download-сессии.
-	ID int64
-	// RecordID — ссылка на запись типа binary.
-	RecordID int64
-	// UserID — владелец скачивания.
-	UserID int64
-	// Status — текущее состояние скачивания.
-	Status DownloadStatus
-	// TotalChunks — общее количество чанков для скачивания.
-	TotalChunks int64
-	// ConfirmedChunks — количество чанков, подтверждённых клиентом.
-	ConfirmedChunks int64
-	// ConfirmedChunkSet — множество индексов чанков, подтверждённых клиентом.
+	ID                int64
+	RecordID          int64
+	UserID            int64
+	Status            DownloadStatus
+	TotalChunks       int64
+	ConfirmedChunks   int64
 	ConfirmedChunkSet map[int64]bool
 }
 
-// IsCompleted проверяет, завершено ли скачивание (все чанки подтверждены).
+// IsCompleted сообщает, что скачивание завершено.
 func (d *DownloadSession) IsCompleted() bool {
 	return d.Status == DownloadStatusCompleted
 }
 
-// IsAborted проверяет, прервано ли скачивание.
+// IsAborted сообщает, что скачивание прервано.
 func (d *DownloadSession) IsAborted() bool {
 	return d.Status == DownloadStatusAborted
 }
 
-// IsResumable проверяет, можно ли возобновить скачивание.
+// IsResumable сообщает, что скачивание можно продолжить.
 func (d *DownloadSession) IsResumable() bool {
 	return d.Status == DownloadStatusActive && d.ConfirmedChunks < d.TotalChunks
 }
 
 // ConfirmChunk подтверждает получение чанка клиентом.
-// Чанки подтверждаются строго по порядку: следующий ожидаемый индекс равен ConfirmedChunks.
-// Возвращает ErrChunkOutOfOrder если индекс не совпадает с ожидаемым.
-// Возвращает ErrDownloadCompleted если сессия уже завершена.
-// Возвращает ErrDownloadAborted если сессия прервана.
-// Возвращает ErrDownloadNotActive если сессия не в статусе active.
-// Возвращает ErrChunkOutOfRange если индекс вне диапазона.
-// Возвращает ErrChunkAlreadyConfirmed если чанк уже был подтверждён.
 func (d *DownloadSession) ConfirmChunk(chunkIndex int64) error {
 	if d.Status == DownloadStatusCompleted {
 		return ErrDownloadCompleted
@@ -208,7 +167,7 @@ func (d *DownloadSession) ConfirmChunk(chunkIndex int64) error {
 	return nil
 }
 
-// Abort прерывает скачивание. Допускается только в статусе active.
+// Abort переводит download-сессию в состояние aborted.
 func (d *DownloadSession) Abort() error {
 	if d.Status != DownloadStatusActive {
 		return ErrDownloadNotActive
@@ -217,8 +176,7 @@ func (d *DownloadSession) Abort() error {
 	return nil
 }
 
-// RemainingChunks возвращает слайс индексов чанков, ещё не подтверждённых клиентом.
-// Позволяет серверу узнать какие чанки нужно повторно отправить для resume.
+// RemainingChunks возвращает индексы ещё не подтверждённых чанков.
 func (d *DownloadSession) RemainingChunks() []int64 {
 	var remaining []int64
 	for i := int64(0); i < d.TotalChunks; i++ {
@@ -229,34 +187,22 @@ func (d *DownloadSession) RemainingChunks() []int64 {
 	return remaining
 }
 
-// UploadStatusResponse — DTO ответа статуса upload-сессии.
+// UploadStatusResponse описывает ответ со статусом загрузки.
 type UploadStatusResponse struct {
-	// UploadID — идентификатор upload-сессии.
-	UploadID int64 `json:"upload_id"`
-	// RecordID — ссылка на запись.
-	RecordID int64 `json:"record_id"`
-	// Status — текущее состояние загрузки (pending, completed, aborted).
-	Status string `json:"status"`
-	// TotalChunks — общее количество чанков.
-	TotalChunks int64 `json:"total_chunks"`
-	// ReceivedChunks — количество принятых чанков.
-	ReceivedChunks int64 `json:"received_chunks"`
-	// MissingChunks — индексы ещё не принятых чанков (для resume загрузки).
-	MissingChunks []int64 `json:"missing_chunks,omitempty"`
+	UploadID       int64   `json:"upload_id"`
+	RecordID       int64   `json:"record_id"`
+	Status         string  `json:"status"`
+	TotalChunks    int64   `json:"total_chunks"`
+	ReceivedChunks int64   `json:"received_chunks"`
+	MissingChunks  []int64 `json:"missing_chunks,omitempty"`
 }
 
-// DownloadResponse — DTO ответа для статуса download-сессии.
+// DownloadResponse описывает ответ со статусом скачивания.
 type DownloadResponse struct {
-	// DownloadID — идентификатор download-сессии.
-	DownloadID int64 `json:"download_id"`
-	// RecordID — ссылка на запись.
-	RecordID int64 `json:"record_id"`
-	// Status — текущее состояние скачивания (active, completed, aborted).
-	Status string `json:"status"`
-	// TotalChunks — общее количество чанков.
-	TotalChunks int64 `json:"total_chunks"`
-	// ConfirmedChunks — количество подтверждённых клиентом чанков.
-	ConfirmedChunks int64 `json:"confirmed_chunks"`
-	// RemainingChunks — индексы чанков, ещё не подтверждённых клиентом (для resume скачивания).
+	DownloadID      int64   `json:"download_id"`
+	RecordID        int64   `json:"record_id"`
+	Status          string  `json:"status"`
+	TotalChunks     int64   `json:"total_chunks"`
+	ConfirmedChunks int64   `json:"confirmed_chunks"`
 	RemainingChunks []int64 `json:"remaining_chunks,omitempty"`
 }

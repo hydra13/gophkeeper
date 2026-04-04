@@ -14,7 +14,6 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// UploadsUseCase определяет операции upload/download для gRPC слоя.
 type UploadsUseCase interface {
 	CreateSession(userID, recordID, totalChunks, chunkSize, totalSize, keyVersion int64) (int64, error)
 	GetUploadSessionByID(uploadID int64) (*models.UploadSession, error)
@@ -25,14 +24,14 @@ type UploadsUseCase interface {
 	GetDownloadStatus(downloadID int64) (*models.DownloadSession, error)
 }
 
-// UploadsService реализует gRPC-ручки загрузки и скачивания бинарных данных.
+// UploadsService реализует gRPC-ручки работы с бинарными payload.
 type UploadsService struct {
 	pbv1.UnimplementedUploadsServiceServer
 	usecase UploadsUseCase
 	log     zerolog.Logger
 }
 
-// NewUploadsService создаёт UploadsService с зависимостями.
+// NewUploadsService создаёт UploadsService.
 func NewUploadsService(usecase UploadsUseCase, log zerolog.Logger) *UploadsService {
 	return &UploadsService{
 		usecase: usecase,
@@ -40,7 +39,6 @@ func NewUploadsService(usecase UploadsUseCase, log zerolog.Logger) *UploadsServi
 	}
 }
 
-// CreateUploadSession создаёт upload-сессию для бинарной записи.
 func (s *UploadsService) CreateUploadSession(ctx context.Context, req *pbv1.CreateUploadSessionRequest) (*pbv1.CreateUploadSessionResponse, error) {
 	userID, err := userIDFromContext(ctx)
 	if err != nil {
@@ -71,7 +69,6 @@ func (s *UploadsService) CreateUploadSession(ctx context.Context, req *pbv1.Crea
 	}, nil
 }
 
-// UploadChunk принимает поток чанков и закрывает загрузку итоговым статусом.
 func (s *UploadsService) UploadChunk(stream grpc.ClientStreamingServer[pbv1.UploadChunkRequest, pbv1.UploadChunkResponse]) error {
 	ctx := stream.Context()
 
@@ -127,7 +124,6 @@ func (s *UploadsService) UploadChunk(stream grpc.ClientStreamingServer[pbv1.Uplo
 	return nil
 }
 
-// GetUploadStatus возвращает состояние upload-сессии.
 func (s *UploadsService) GetUploadStatus(ctx context.Context, req *pbv1.GetUploadStatusRequest) (*pbv1.GetUploadStatusResponse, error) {
 	if _, err := userIDFromContext(ctx); err != nil {
 		return nil, err
@@ -151,7 +147,6 @@ func (s *UploadsService) GetUploadStatus(ctx context.Context, req *pbv1.GetUploa
 	}, nil
 }
 
-// CreateDownloadSession создаёт download-сессию для бинарной записи.
 func (s *UploadsService) CreateDownloadSession(ctx context.Context, req *pbv1.CreateDownloadSessionRequest) (*pbv1.CreateDownloadSessionResponse, error) {
 	userID, err := userIDFromContext(ctx)
 	if err != nil {
@@ -174,7 +169,6 @@ func (s *UploadsService) CreateDownloadSession(ctx context.Context, req *pbv1.Cr
 	}, nil
 }
 
-// DownloadChunk отправляет один или несколько чанков из download-сессии.
 func (s *UploadsService) DownloadChunk(req *pbv1.DownloadChunkRequest, stream grpc.ServerStreamingServer[pbv1.DownloadChunkResponse]) error {
 	ctx := stream.Context()
 
@@ -191,7 +185,6 @@ func (s *UploadsService) DownloadChunk(req *pbv1.DownloadChunkRequest, stream gr
 		return mapDownloadError(err)
 	}
 
-	// Определяем какие чанки отправлять
 	var chunkIndices []int64
 	if req.ChunkIndex >= 0 {
 		chunkIndices = []int64{req.ChunkIndex}
@@ -217,7 +210,6 @@ func (s *UploadsService) DownloadChunk(req *pbv1.DownloadChunkRequest, stream gr
 	return nil
 }
 
-// ConfirmChunk подтверждает получение чанка клиентом.
 func (s *UploadsService) ConfirmChunk(ctx context.Context, req *pbv1.ConfirmChunkRequest) (*pbv1.ConfirmChunkResponse, error) {
 	if _, err := userIDFromContext(ctx); err != nil {
 		return nil, err
@@ -242,7 +234,6 @@ func (s *UploadsService) ConfirmChunk(ctx context.Context, req *pbv1.ConfirmChun
 	}, nil
 }
 
-// GetDownloadStatus возвращает состояние download-сессии.
 func (s *UploadsService) GetDownloadStatus(ctx context.Context, req *pbv1.GetDownloadStatusRequest) (*pbv1.GetDownloadStatusResponse, error) {
 	if _, err := userIDFromContext(ctx); err != nil {
 		return nil, err
@@ -292,7 +283,6 @@ func domainDownloadStatusToProto(s models.DownloadStatus) pbv1.DownloadStatus {
 	}
 }
 
-// mapUploadError мапит доменные ошибки upload в gRPC status codes.
 func mapUploadError(err error) error {
 	switch {
 	case errors.Is(err, models.ErrUploadNotFound):
@@ -316,7 +306,6 @@ func mapUploadError(err error) error {
 	}
 }
 
-// mapDownloadError мапит доменные ошибки download в gRPC status codes.
 func mapDownloadError(err error) error {
 	switch {
 	case errors.Is(err, models.ErrDownloadNotFound):

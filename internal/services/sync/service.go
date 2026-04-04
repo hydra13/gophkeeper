@@ -24,13 +24,13 @@ type SyncRepo interface {
 	ResolveConflict(conflictID int64, resolution string) error
 }
 
-// Service реализует бизнес-логику синхронизации.
+// Service координирует pull/push синхронизацию и конфликты.
 type Service struct {
 	syncRepo   SyncRepo
 	recordRepo RecordRepo
 }
 
-// NewService создаёт новый sync service.
+// NewService создаёт сервис синхронизации.
 func NewService(syncRepo SyncRepo, recordRepo RecordRepo) (*Service, error) {
 	if syncRepo == nil {
 		return nil, errors.New("sync repository is required")
@@ -41,7 +41,7 @@ func NewService(syncRepo SyncRepo, recordRepo RecordRepo) (*Service, error) {
 	return &Service{syncRepo: syncRepo, recordRepo: recordRepo}, nil
 }
 
-// Push обрабатывает локальные изменения от клиента.
+// Push применяет локальные изменения клиента.
 func (s *Service) Push(userID int64, deviceID string, changes []models.PendingChange) ([]models.RecordRevision, []models.SyncConflict, error) {
 	var accepted []models.RecordRevision
 	var conflicts []models.SyncConflict
@@ -85,7 +85,6 @@ func (s *Service) pushDelete(userID int64, deviceID string, change models.Pendin
 		return nil, nil, nil
 	}
 
-	// Конфликт: base_revision клиента не совпадает с текущей ревизией сервера
 	if change.BaseRevision != 0 && change.BaseRevision != record.Revision {
 		conflict, err := s.createDeleteConflict(userID, record, change)
 		if err != nil {
@@ -117,11 +116,17 @@ func (s *Service) pushDelete(userID int64, deviceID string, change models.Pendin
 }
 
 func (s *Service) pushCreate(userID int64, deviceID string, change models.PendingChange) (*models.RecordRevision, *models.SyncConflict, error) {
+	nextRev, err := s.nextRevision(userID)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	record := &models.Record{
 		UserID:         userID,
 		Type:           change.Record.Type,
 		Name:           change.Record.Name,
 		Metadata:       change.Record.Metadata,
+		Revision:       nextRev,
 		DeviceID:       deviceID,
 		KeyVersion:     change.Record.KeyVersion,
 		PayloadVersion: change.Record.PayloadVersion,
@@ -134,11 +139,6 @@ func (s *Service) pushCreate(userID int64, deviceID string, change models.Pendin
 
 	if err := s.recordRepo.CreateRecord(record); err != nil {
 		return nil, nil, fmt.Errorf("create record: %w", err)
-	}
-
-	nextRev, err := s.nextRevision(userID)
-	if err != nil {
-		return nil, nil, err
 	}
 
 	rev := &models.RecordRevision{
@@ -163,7 +163,6 @@ func (s *Service) pushUpdate(userID int64, deviceID string, change models.Pendin
 		return nil, nil, models.ErrRecordNotFound
 	}
 
-	// Конфликт: base_revision клиента не совпадает с текущей ревизией сервера
 	if change.BaseRevision != existing.Revision {
 		conflict, err := s.createConflict(userID, existing, change)
 		if err != nil {
@@ -172,14 +171,12 @@ func (s *Service) pushUpdate(userID int64, deviceID string, change models.Pendin
 		return nil, conflict, nil
 	}
 
-	// Восстановление soft-deleted записи: если запись удалена, а клиент присылает update с актуальной ревизией
 	if existing.IsDeleted() {
 		if err := existing.Restore(); err != nil {
 			return nil, nil, err
 		}
 	}
 
-	// Принять изменение
 	existing.Name = change.Record.Name
 	existing.Metadata = change.Record.Metadata
 	existing.DeviceID = deviceID
@@ -256,7 +253,7 @@ func (s *Service) createDeleteConflict(userID int64, serverRecord *models.Record
 	return conflict, nil
 }
 
-// Pull возвращает изменения для пользователя начиная с указанного курсора.
+// Pull возвращает изменения и конфликты начиная с указанной ревизии.
 func (s *Service) Pull(userID int64, deviceID string, sinceRevision int64, limit int64) ([]models.RecordRevision, []models.Record, []models.SyncConflict, error) {
 	if limit <= 0 {
 		limit = 50
@@ -293,12 +290,12 @@ func (s *Service) Pull(userID int64, deviceID string, sinceRevision int64, limit
 	return revisions, records, conflicts, nil
 }
 
-// GetConflicts возвращает нерешённые конфликты.
+// GetConflicts возвращает незакрытые конфликты пользователя.
 func (s *Service) GetConflicts(userID int64) ([]models.SyncConflict, error) {
 	return s.syncRepo.GetConflicts(userID)
 }
 
-// ResolveConflict разрешает конфликт и обновляет запись.
+// ResolveConflict разрешает конфликт и возвращает итоговую запись.
 func (s *Service) ResolveConflict(userID int64, conflictID int64, resolution string) (*models.Record, error) {
 	conflicts, err := s.syncRepo.GetConflicts(userID)
 	if err != nil {

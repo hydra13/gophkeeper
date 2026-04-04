@@ -7,6 +7,8 @@
 | Исключение                     | Причина                                  |
 | ------------------------------ | ---------------------------------------- |
 | `**/mocks/`                    | Сгенерированные моки (mockgen)           |
+| `tests/`, `tests/**`           | Интеграционные и e2e-only test packages  |
+| `cmd/client/`, `cmd/client/**` | Все клиенты исключены из coverage-gate |
 | `**/proto/v1/`                 | Сгенерированный protobuf-код             |
 | `**/pbv1/`                     | Сгенерированный protobuf-код             |
 | `**_grpc.pb.go`, `**.pb.go`   | Сгенерированные protobuf-файлы          |
@@ -37,10 +39,10 @@
 
 ## Воспроизводимость
 
-Команда `make cover-check` воспроизводит ту же логику подсчёта, что и CI (`.github/workflows/ci.yml`, job `test`).
+Команда `make cover-check` воспроизводит ту же логику подсчёта, что и CI (`.github/workflows/ci.yml`, job `coverage`).
 
 Обе среды:
-1. Формируют список пакетов через `go list ./...` (исключая proto/pbv1).
+1. Формируют список пакетов только для `./cmd/server/...` и `./internal/...`, исключая `mocks`, `proto/v1` и `pbv1`.
 2. Запускают `go test -race -coverprofile=coverage.out -coverpkg=<all-pkgs>` по всем пакетам.
 3. Фильтруют coverage.out, убирая mocks и сгенерированные protobuf-файлы.
 4. Считают `go tool cover -func=` по отфильтрованному профилю.

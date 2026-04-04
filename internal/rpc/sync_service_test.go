@@ -19,9 +19,9 @@ import (
 // --- mock ---
 
 type mockSyncUseCase struct {
-	pushFn           func(userID int64, deviceID string, changes []models.PendingChange) ([]models.RecordRevision, []models.SyncConflict, error)
-	pullFn           func(userID int64, deviceID string, sinceRevision int64, limit int64) ([]models.RecordRevision, []models.Record, []models.SyncConflict, error)
-	getConflictsFn   func(userID int64) ([]models.SyncConflict, error)
+	pushFn            func(userID int64, deviceID string, changes []models.PendingChange) ([]models.RecordRevision, []models.SyncConflict, error)
+	pullFn            func(userID int64, deviceID string, sinceRevision int64, limit int64) ([]models.RecordRevision, []models.Record, []models.SyncConflict, error)
+	getConflictsFn    func(userID int64) ([]models.SyncConflict, error)
 	resolveConflictFn func(userID int64, conflictID int64, resolution string) (*models.Record, error)
 }
 
@@ -64,7 +64,7 @@ func sampleDomainRecord() *models.Record {
 	return &models.Record{
 		ID: 1, UserID: 10, Type: models.RecordTypeLogin,
 		Name: "test", Metadata: "meta",
-		Payload: models.LoginPayload{Login: "user", Password: "pass"},
+		Payload:  models.LoginPayload{Login: "user", Password: "pass"},
 		Revision: 2, DeviceID: "dev-1", KeyVersion: 1,
 		CreatedAt: time.Now(), UpdatedAt: time.Now(),
 	}
@@ -231,7 +231,7 @@ func TestGetConflicts_Success(t *testing.T) {
 		{
 			ID: 1, UserID: 10, RecordID: 100,
 			LocalRevision: 3, ServerRevision: 5,
-			Resolved: false,
+			Resolved:     false,
 			LocalRecord:  sampleDomainRecord(),
 			ServerRecord: sampleDomainRecord(),
 		},
@@ -426,7 +426,7 @@ func TestProtoRecordToDomain_DeletedAt(t *testing.T) {
 	now := time.Now()
 	pb := &pbv1.Record{
 		Id: 1, Type: pbv1.RecordType_RECORD_TYPE_TEXT,
-		Payload: &pbv1.Record_Text{Text: &pbv1.TextPayload{Content: "x"}},
+		Payload:    &pbv1.Record_Text{Text: &pbv1.TextPayload{Content: "x"}},
 		KeyVersion: 1, DeletedAt: timestamppb.New(now),
 		CreatedAt: timestamppb.Now(), UpdatedAt: timestamppb.Now(),
 	}

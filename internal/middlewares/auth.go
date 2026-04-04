@@ -1,4 +1,3 @@
-// Package middlewares содержит HTTP и gRPC middleware сервиса.
 package middlewares
 
 import (
@@ -9,25 +8,21 @@ import (
 	"github.com/rs/zerolog"
 )
 
-// TokenValidator проверяет access token и состояние серверной сессии.
 type TokenValidator interface {
 	ValidateSession(token string) (int64, error)
 }
 
 type userIDContextKey struct{}
 
-// UserIDFromContext извлекает userID, сохранённый middleware в контексте.
 func UserIDFromContext(ctx context.Context) (int64, bool) {
 	userID, ok := ctx.Value(userIDContextKey{}).(int64)
 	return userID, ok
 }
 
-// ContextWithUserID сохраняет userID в контексте запроса.
 func ContextWithUserID(ctx context.Context, userID int64) context.Context {
 	return context.WithValue(ctx, userIDContextKey{}, userID)
 }
 
-// Auth проверяет заголовок Authorization и добавляет userID в контекст запроса.
 func Auth(validator TokenValidator, log zerolog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

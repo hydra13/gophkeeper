@@ -75,11 +75,11 @@ func TestClientCore_RestoreAuth(t *testing.T) {
 	assert.False(t, core.RestoreAuth())
 
 	// С авторизацией
-	store.Auth().Set(cache.AuthData{
+	require.NoError(t, store.Auth().Set(cache.AuthData{
 		AccessToken:  "cached-token",
 		RefreshToken: "cached-refresh",
 		DeviceID:     "test-device",
-	})
+	}))
 	assert.True(t, core.RestoreAuth())
 	assert.True(t, core.IsAuthenticated())
 }
@@ -330,7 +330,7 @@ func TestClientCore_SyncNow(t *testing.T) {
 	loginHelper(t, core)
 
 	// Добавим pending операцию
-	store.Pending().Enqueue(cache.PendingOp{
+	require.NoError(t, store.Pending().Enqueue(cache.PendingOp{
 		RecordID:  1,
 		Operation: cache.OperationCreate,
 		Record: &models.Record{
@@ -339,7 +339,7 @@ func TestClientCore_SyncNow(t *testing.T) {
 			Type:    models.RecordTypeText,
 			Payload: models.TextPayload{Content: "data"},
 		},
-	})
+	}))
 
 	created := false
 	transport.CreateRecordFunc = func(ctx context.Context, record *models.Record) (*models.Record, error) {
@@ -372,7 +372,7 @@ func TestClientCore_FlushPending_RetryOnError(t *testing.T) {
 	core, transport, store := newTestCore(t)
 	loginHelper(t, core)
 
-	store.Pending().Enqueue(cache.PendingOp{
+	require.NoError(t, store.Pending().Enqueue(cache.PendingOp{
 		RecordID:  1,
 		Operation: cache.OperationCreate,
 		Record: &models.Record{
@@ -381,7 +381,7 @@ func TestClientCore_FlushPending_RetryOnError(t *testing.T) {
 			Type:    models.RecordTypeText,
 			Payload: models.TextPayload{Content: "x"},
 		},
-	})
+	}))
 
 	transport.CreateRecordFunc = func(ctx context.Context, record *models.Record) (*models.Record, error) {
 		return nil, fmt.Errorf("server error")
@@ -590,7 +590,7 @@ func TestClientCore_UploadBinary_Resume(t *testing.T) {
 	loginHelper(t, core)
 
 	// Имитируем прерванный upload: чанк 0 загружен, 1 и 2 — нет
-	store.Transfers().Save(cache.Transfer{
+	require.NoError(t, store.Transfers().Save(cache.Transfer{
 		ID:           50,
 		Type:         cache.TransferUpload,
 		RecordID:     10,
@@ -600,7 +600,7 @@ func TestClientCore_UploadBinary_Resume(t *testing.T) {
 		Status:       cache.TransferStatusActive,
 		ChunkSize:    100,
 		TotalSize:    300,
-	})
+	}))
 
 	transport.GetUploadStatusFunc = func(ctx context.Context, uploadID int64) (*apiclient.UploadStatus, error) {
 		return &apiclient.UploadStatus{
@@ -632,7 +632,7 @@ func TestClientCore_UploadBinary_ResumeFromPaused(t *testing.T) {
 	loginHelper(t, core)
 
 	// Имитируем прерванный upload, сохранённый как paused
-	store.Transfers().Save(cache.Transfer{
+	require.NoError(t, store.Transfers().Save(cache.Transfer{
 		ID:           50,
 		Type:         cache.TransferUpload,
 		RecordID:     10,
@@ -642,7 +642,7 @@ func TestClientCore_UploadBinary_ResumeFromPaused(t *testing.T) {
 		Status:       cache.TransferStatusPaused,
 		ChunkSize:    100,
 		TotalSize:    300,
-	})
+	}))
 
 	transport.GetUploadStatusFunc = func(ctx context.Context, uploadID int64) (*apiclient.UploadStatus, error) {
 		return &apiclient.UploadStatus{
@@ -674,7 +674,7 @@ func TestClientCore_DownloadBinary_Resume(t *testing.T) {
 	loginHelper(t, core)
 
 	// Имитируем прерванный download: чанк 0 скачан, 1 — нет
-	store.Transfers().Save(cache.Transfer{
+	require.NoError(t, store.Transfers().Save(cache.Transfer{
 		ID:           60,
 		Type:         cache.TransferDownload,
 		RecordID:     10,
@@ -683,7 +683,7 @@ func TestClientCore_DownloadBinary_Resume(t *testing.T) {
 		CompletedIdx: 0,
 		Status:       cache.TransferStatusActive,
 		ChunkSize:    1024,
-	})
+	}))
 
 	chunksDownloaded := []int64{}
 	transport.DownloadChunkFunc = func(ctx context.Context, downloadID, chunkIndex int64) ([]byte, error) {
@@ -708,7 +708,7 @@ func TestClientCore_DownloadBinary_ResumeFromPaused(t *testing.T) {
 	loginHelper(t, core)
 
 	// Имитируем прерванный download, сохранённый как paused
-	store.Transfers().Save(cache.Transfer{
+	require.NoError(t, store.Transfers().Save(cache.Transfer{
 		ID:           60,
 		Type:         cache.TransferDownload,
 		RecordID:     10,
@@ -717,7 +717,7 @@ func TestClientCore_DownloadBinary_ResumeFromPaused(t *testing.T) {
 		CompletedIdx: 0,
 		Status:       cache.TransferStatusPaused,
 		ChunkSize:    1024,
-	})
+	}))
 
 	chunksDownloaded := []int64{}
 	transport.DownloadChunkFunc = func(ctx context.Context, downloadID, chunkIndex int64) ([]byte, error) {
@@ -855,7 +855,7 @@ func TestClientCore_FlushPending_UpdateOperation(t *testing.T) {
 	core, transport, store := newTestCore(t)
 	loginHelper(t, core)
 
-	store.Pending().Enqueue(cache.PendingOp{
+	require.NoError(t, store.Pending().Enqueue(cache.PendingOp{
 		RecordID:  5,
 		Operation: cache.OperationUpdate,
 		Record: &models.Record{
@@ -865,7 +865,7 @@ func TestClientCore_FlushPending_UpdateOperation(t *testing.T) {
 			Payload:  models.TextPayload{Content: "updated"},
 			Revision: 1,
 		},
-	})
+	}))
 
 	updated := false
 	transport.UpdateRecordFunc = func(ctx context.Context, record *models.Record) (*models.Record, error) {
@@ -896,7 +896,7 @@ func TestClientCore_FlushPending_DeleteOperation(t *testing.T) {
 
 	store.Records().Put(&models.Record{ID: 7, Name: "to-delete", Revision: 1})
 
-	store.Pending().Enqueue(cache.PendingOp{
+	require.NoError(t, store.Pending().Enqueue(cache.PendingOp{
 		RecordID:  7,
 		Operation: cache.OperationDelete,
 		Record: &models.Record{
@@ -904,7 +904,7 @@ func TestClientCore_FlushPending_DeleteOperation(t *testing.T) {
 			Name:     "to-delete",
 			Revision: 1,
 		},
-	})
+	}))
 
 	deleted := false
 	transport.DeleteRecordFunc = func(ctx context.Context, id int64, deviceID string) error {
@@ -932,7 +932,7 @@ func TestClientCore_FlushPending_UpdateError_Requeues(t *testing.T) {
 	core, transport, store := newTestCore(t)
 	loginHelper(t, core)
 
-	store.Pending().Enqueue(cache.PendingOp{
+	require.NoError(t, store.Pending().Enqueue(cache.PendingOp{
 		RecordID:  8,
 		Operation: cache.OperationUpdate,
 		Record: &models.Record{
@@ -941,7 +941,7 @@ func TestClientCore_FlushPending_UpdateError_Requeues(t *testing.T) {
 			Type:    models.RecordTypeText,
 			Payload: models.TextPayload{Content: "x"},
 		},
-	})
+	}))
 
 	transport.UpdateRecordFunc = func(ctx context.Context, record *models.Record) (*models.Record, error) {
 		return nil, fmt.Errorf("conflict")
@@ -962,13 +962,13 @@ func TestClientCore_FlushPending_DeleteError_Requeues(t *testing.T) {
 	core, transport, store := newTestCore(t)
 	loginHelper(t, core)
 
-	store.Pending().Enqueue(cache.PendingOp{
+	require.NoError(t, store.Pending().Enqueue(cache.PendingOp{
 		RecordID:  9,
 		Operation: cache.OperationDelete,
 		Record: &models.Record{
 			ID: 9, Name: "will-fail-delete",
 		},
-	})
+	}))
 
 	transport.DeleteRecordFunc = func(ctx context.Context, id int64, deviceID string) error {
 		assert.Equal(t, "test-device", deviceID)
@@ -1021,14 +1021,14 @@ func TestClientCore_SyncNow_FlushError_StopsBeforePull(t *testing.T) {
 	core, transport, store := newTestCore(t)
 	loginHelper(t, core)
 
-	store.Pending().Enqueue(cache.PendingOp{
+	require.NoError(t, store.Pending().Enqueue(cache.PendingOp{
 		RecordID:  1,
 		Operation: cache.OperationCreate,
 		Record: &models.Record{
 			ID: 1, Name: "fail-first", Type: models.RecordTypeText,
 			Payload: models.TextPayload{Content: "x"},
 		},
-	})
+	}))
 
 	pullCalled := false
 	transport.CreateRecordFunc = func(ctx context.Context, record *models.Record) (*models.Record, error) {

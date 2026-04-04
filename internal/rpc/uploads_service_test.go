@@ -324,10 +324,10 @@ func TestGetUploadStatus_Success(t *testing.T) {
 	svc.usecase = &mockUploadsUseCase{
 		getUploadSessionByIDFn: func(uploadID int64) (*models.UploadSession, error) {
 			return &models.UploadSession{
-				ID:             1,
-				Status:         models.UploadStatusPending,
-				TotalChunks:    3,
-				ReceivedChunks: 1,
+				ID:               1,
+				Status:           models.UploadStatusPending,
+				TotalChunks:      3,
+				ReceivedChunks:   1,
 				ReceivedChunkSet: map[int64]bool{0: true},
 			}, nil
 		},
@@ -433,10 +433,10 @@ func TestDownloadChunk_AllChunks(t *testing.T) {
 	svc.usecase = &mockUploadsUseCase{
 		getDownloadStatusFn: func(downloadID int64) (*models.DownloadSession, error) {
 			return &models.DownloadSession{
-				ID:                 1,
-				TotalChunks:        2,
-				Status:             models.DownloadStatusActive,
-				ConfirmedChunkSet:  map[int64]bool{},
+				ID:                1,
+				TotalChunks:       2,
+				Status:            models.DownloadStatusActive,
+				ConfirmedChunkSet: map[int64]bool{},
 			}, nil
 		},
 		downloadChunkByIDFn: func(downloadID, chunkIndex int64) (*models.Chunk, error) {
@@ -546,11 +546,11 @@ func TestGetDownloadStatus_Success(t *testing.T) {
 	svc.usecase = &mockUploadsUseCase{
 		getDownloadStatusFn: func(downloadID int64) (*models.DownloadSession, error) {
 			return &models.DownloadSession{
-				ID:                 1,
-				TotalChunks:        3,
-				ConfirmedChunks:    1,
-				Status:             models.DownloadStatusActive,
-				ConfirmedChunkSet:  map[int64]bool{0: true},
+				ID:                1,
+				TotalChunks:       3,
+				ConfirmedChunks:   1,
+				Status:            models.DownloadStatusActive,
+				ConfirmedChunkSet: map[int64]bool{0: true},
 			}, nil
 		},
 	}

@@ -22,8 +22,8 @@ import (
 
 // mockBlobStorage implements repositories.BlobStorage for unit tests.
 type mockBlobStorage struct {
-	saveErr  error
-	readErr  error
+	saveErr   error
+	readErr   error
 	deleteErr error
 	existsErr error
 	existsVal bool
@@ -197,7 +197,9 @@ func TestNew_NilBlob_ReturnsError(t *testing.T) {
 	if err != nil {
 		t.Skip("pgx driver not available, using lightweight stub")
 	}
-	defer db.Close()
+	t.Cleanup(func() {
+		require.NoError(t, db.Close())
+	})
 
 	repo, repoErr := New(db, nil)
 	require.Error(t, repoErr)
@@ -221,7 +223,9 @@ func TestNew_ValidParams_ReturnsRepository(t *testing.T) {
 	if err != nil {
 		t.Skip("pgx driver not available")
 	}
-	defer db.Close()
+	t.Cleanup(func() {
+		require.NoError(t, db.Close())
+	})
 
 	blob := newMockBlobStorage()
 	repo, repoErr := New(db, blob)
@@ -340,16 +344,16 @@ func TestScanSession_ValidData_Active(t *testing.T) {
 	future := now.Add(24 * time.Hour)
 	row := &mockRow{
 		values: []any{
-			int64(42),          // ID
-			int64(1),           // UserID
-			"device-1",         // DeviceID
-			"MacBook Pro",      // DeviceName
-			"cli",              // ClientType
-			"refresh-token",    // RefreshToken
-			now,                // LastSeenAt
-			future,             // ExpiresAt
-			sql.NullTime{},     // RevokedAt (not revoked)
-			now,                // CreatedAt
+			int64(42),       // ID
+			int64(1),        // UserID
+			"device-1",      // DeviceID
+			"MacBook Pro",   // DeviceName
+			"cli",           // ClientType
+			"refresh-token", // RefreshToken
+			now,             // LastSeenAt
+			future,          // ExpiresAt
+			sql.NullTime{},  // RevokedAt (not revoked)
+			now,             // CreatedAt
 		},
 	}
 	session, err := scanSession(row)
@@ -417,14 +421,14 @@ func TestScanKeyVersion_ValidData_Active(t *testing.T) {
 	now := time.Now()
 	row := &mockRow{
 		values: []any{
-			int64(1),           // ID
-			int64(2),           // Version
-			"active",           // Status
-			[]byte("enc-key"),  // EncryptedKey
-			[]byte("nonce"),    // KeyNonce
-			now,                // CreatedAt
-			sql.NullTime{},     // DeprecatedAt
-			sql.NullTime{},     // RetiredAt
+			int64(1),          // ID
+			int64(2),          // Version
+			"active",          // Status
+			[]byte("enc-key"), // EncryptedKey
+			[]byte("nonce"),   // KeyNonce
+			now,               // CreatedAt
+			sql.NullTime{},    // DeprecatedAt
+			sql.NullTime{},    // RetiredAt
 		},
 	}
 	kv, err := scanKeyVersion(row)
@@ -993,7 +997,7 @@ func TestUnmarshalConflictRecord_CardPayload(t *testing.T) {
 func TestUnmarshalConflictRecord_DeletedAt(t *testing.T) {
 	t.Parallel()
 	// Truncate to second precision since JSON marshalling loses nanosecond precision
-	deletedAt := time.Now().Add(-1 * time.Hour).Truncate(time.Second)
+	deletedAt := time.Now().UTC().Add(-1 * time.Hour).Truncate(time.Second)
 	record := &models.Record{
 		ID:        4,
 		UserID:    10,
@@ -1010,7 +1014,8 @@ func TestUnmarshalConflictRecord_DeletedAt(t *testing.T) {
 	parsed, err := unmarshalConflictRecord(data)
 	require.NoError(t, err)
 	require.NotNil(t, parsed.DeletedAt)
-	assert.Equal(t, deletedAt, *parsed.DeletedAt)
+	assert.True(t, deletedAt.Equal(*parsed.DeletedAt))
+	assert.Equal(t, deletedAt.UTC(), parsed.DeletedAt.UTC())
 }
 
 func TestUnmarshalConflictRecord_InvalidJSON(t *testing.T) {
@@ -1023,8 +1028,8 @@ func TestMarshalUnmarshalConflictRecord_RoundTrip(t *testing.T) {
 	t.Parallel()
 	now := time.Now()
 	tests := []struct {
-		name    string
-		record  *models.Record
+		name   string
+		record *models.Record
 	}{
 		{
 			name: "text payload",
@@ -1121,19 +1126,19 @@ func TestScanRecord_NoCrypto_ReturnsError(t *testing.T) {
 	now := time.Now()
 	row := &mockRow{
 		values: []any{
-			int64(1),                // ID
-			int64(10),               // UserID
-			"text",                  // Type
-			"test",                  // Name
-			"meta",                  // Metadata
+			int64(1),                  // ID
+			int64(10),                 // UserID
+			"text",                    // Type
+			"test",                    // Name
+			"meta",                    // Metadata
 			[]byte(`{"content":"x"}`), // Payload
-			int64(1),                // Revision
-			sql.NullTime{},          // DeletedAt
-			"dev-1",                 // DeviceID
-			int64(1),                // KeyVersion
-			int64(0),                // PayloadVersion
-			now,                     // CreatedAt
-			now,                     // UpdatedAt
+			int64(1),                  // Revision
+			sql.NullTime{},            // DeletedAt
+			"dev-1",                   // DeviceID
+			int64(1),                  // KeyVersion
+			int64(0),                  // PayloadVersion
+			now,                       // CreatedAt
+			now,                       // UpdatedAt
 		},
 	}
 	record, err := repo.scanRecord(row)

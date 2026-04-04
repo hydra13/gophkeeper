@@ -24,13 +24,13 @@ type s3Client interface {
 	HeadBucket(ctx context.Context, params *s3.HeadBucketInput, optFns ...func(*s3.Options)) (*s3.HeadBucketOutput, error)
 }
 
-// S3Blob хранит бинарные данные в S3-compatible object storage.
+// S3Blob хранит бинарные данные в S3-совместимом хранилище.
 type S3Blob struct {
 	client s3Client
 	bucket string
 }
 
-// NewS3Blob создаёт S3Blob и проверяет доступность указанного bucket.
+// NewS3Blob создаёт blob-хранилище поверх S3-совместимого API.
 func NewS3Blob(cfg config.BlobStorageConfig) (*S3Blob, error) {
 	if cfg.Endpoint == "" {
 		return nil, errors.New("s3 endpoint is required")
@@ -88,7 +88,6 @@ func (p staticCredentialsProvider) Retrieve(context.Context) (aws.Credentials, e
 	}, nil
 }
 
-// Save сохраняет объект в bucket по нормализованному ключу.
 func (s *S3Blob) Save(path string, data []byte) error {
 	key, err := normalizeBlobPath(path)
 	if err != nil {
@@ -106,7 +105,6 @@ func (s *S3Blob) Save(path string, data []byte) error {
 	return nil
 }
 
-// Read читает объект из bucket по нормализованному ключу.
 func (s *S3Blob) Read(path string) ([]byte, error) {
 	key, err := normalizeBlobPath(path)
 	if err != nil {
@@ -123,7 +121,7 @@ func (s *S3Blob) Read(path string) ([]byte, error) {
 		}
 		return nil, fmt.Errorf("get object %q: %w", key, err)
 	}
-	defer out.Body.Close()
+	defer func() { _ = out.Body.Close() }()
 
 	data, err := io.ReadAll(out.Body)
 	if err != nil {
@@ -132,7 +130,6 @@ func (s *S3Blob) Read(path string) ([]byte, error) {
 	return data, nil
 }
 
-// Delete удаляет объект из bucket по нормализованному ключу.
 func (s *S3Blob) Delete(path string) error {
 	key, err := normalizeBlobPath(path)
 	if err != nil {
@@ -149,7 +146,6 @@ func (s *S3Blob) Delete(path string) error {
 	return nil
 }
 
-// Exists проверяет наличие объекта в bucket по нормализованному ключу.
 func (s *S3Blob) Exists(path string) (bool, error) {
 	key, err := normalizeBlobPath(path)
 	if err != nil {

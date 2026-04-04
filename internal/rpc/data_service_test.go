@@ -177,7 +177,7 @@ func TestDataService_CreateRecord_MissingName(t *testing.T) {
 	svc := newTestDataService(&mockRecordUseCase{})
 	_, err := svc.CreateRecord(ctxWithUser(1), &pbv1.CreateRecordRequest{
 		DeviceId: "dev-1",
-		Payload: &pbv1.CreateRecordRequest_Login{Login: &pbv1.LoginPayload{Login: "u", Password: "p"}},
+		Payload:  &pbv1.CreateRecordRequest_Login{Login: &pbv1.LoginPayload{Login: "u", Password: "p"}},
 	})
 	require.Equal(t, codes.InvalidArgument, status.Code(err))
 }
@@ -185,7 +185,7 @@ func TestDataService_CreateRecord_MissingName(t *testing.T) {
 func TestDataService_CreateRecord_MissingDeviceID(t *testing.T) {
 	svc := newTestDataService(&mockRecordUseCase{})
 	_, err := svc.CreateRecord(ctxWithUser(1), &pbv1.CreateRecordRequest{
-		Name: "test",
+		Name:    "test",
 		Payload: &pbv1.CreateRecordRequest_Login{Login: &pbv1.LoginPayload{Login: "u", Password: "p"}},
 	})
 	require.Equal(t, codes.InvalidArgument, status.Code(err))
@@ -253,7 +253,9 @@ func TestDataService_GetRecord_InvalidID(t *testing.T) {
 
 func TestDataService_ListRecords_Success(t *testing.T) {
 	records := []models.Record{*sampleRecord()}
-	mock := &mockRecordUseCase{listFn: func(userID int64, recordType models.RecordType, includeDeleted bool) ([]models.Record, error) { return records, nil }}
+	mock := &mockRecordUseCase{listFn: func(userID int64, recordType models.RecordType, includeDeleted bool) ([]models.Record, error) {
+		return records, nil
+	}}
 	svc := newTestDataService(mock)
 
 	resp, err := svc.ListRecords(ctxWithUser(10), &pbv1.ListRecordsRequest{})
@@ -263,7 +265,9 @@ func TestDataService_ListRecords_Success(t *testing.T) {
 }
 
 func TestDataService_ListRecords_Empty(t *testing.T) {
-	mock := &mockRecordUseCase{listFn: func(userID int64, recordType models.RecordType, includeDeleted bool) ([]models.Record, error) { return nil, nil }}
+	mock := &mockRecordUseCase{listFn: func(userID int64, recordType models.RecordType, includeDeleted bool) ([]models.Record, error) {
+		return nil, nil
+	}}
 	svc := newTestDataService(mock)
 
 	resp, err := svc.ListRecords(ctxWithUser(10), &pbv1.ListRecordsRequest{})

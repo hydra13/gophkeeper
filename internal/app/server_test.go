@@ -10,7 +10,6 @@ import (
 	"github.com/hydra13/gophkeeper/internal/app/mocks"
 	"github.com/hydra13/gophkeeper/internal/config"
 	"github.com/hydra13/gophkeeper/internal/middlewares"
-	"github.com/hydra13/gophkeeper/internal/models"
 )
 
 func TestValidate(t *testing.T) {
@@ -100,30 +99,4 @@ func TestBuildHTTPServer_Success(t *testing.T) {
 	require.NotNil(t, srv)
 	require.Equal(t, ":0", srv.Addr)
 	require.NotNil(t, srv.Handler)
-}
-
-// mockSyncService implements SyncService for testing.
-type mockSyncService struct {
-	pushedChanges []models.PendingChange
-	pushErr       error
-	pullErr       error
-	conflictsErr  error
-	resolveErr    error
-}
-
-func (m *mockSyncService) Push(userID int64, deviceID string, changes []models.PendingChange) ([]models.RecordRevision, []models.SyncConflict, error) {
-	m.pushedChanges = changes
-	return nil, nil, m.pushErr
-}
-
-func (m *mockSyncService) Pull(userID int64, deviceID string, sinceRevision int64, limit int64) ([]models.RecordRevision, []models.Record, []models.SyncConflict, error) {
-	return nil, nil, nil, m.pullErr
-}
-
-func (m *mockSyncService) GetConflicts(userID int64) ([]models.SyncConflict, error) {
-	return nil, m.conflictsErr
-}
-
-func (m *mockSyncService) ResolveConflict(userID int64, conflictID int64, resolution string) (*models.Record, error) {
-	return nil, m.resolveErr
 }

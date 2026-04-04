@@ -15,20 +15,20 @@ const (
 	refreshTokenBytes = 32
 )
 
-// Claims — JWT claims для access-токена.
+// Claims описывает пользовательские claims access-токена.
 type Claims struct {
 	jwt.RegisteredClaims
 	UserID    int64 `json:"uid"`
 	SessionID int64 `json:"sid"`
 }
 
-// JWTManager генерирует и валидирует JWT access-токены и refresh-токены.
+// JWTManager выпускает и проверяет JWT и refresh-токены.
 type JWTManager struct {
 	secret    []byte
 	accessTTL time.Duration
 }
 
-// NewJWTManager создаёт JWTManager с секретом и временем жизни access-токена.
+// NewJWTManager создаёт менеджер JWT с заданным TTL access-токена.
 func NewJWTManager(secret string, accessTTL time.Duration) (*JWTManager, error) {
 	if secret == "" {
 		return nil, errors.New("jwt secret is required")
@@ -42,7 +42,7 @@ func NewJWTManager(secret string, accessTTL time.Duration) (*JWTManager, error) 
 	}, nil
 }
 
-// NewAccessToken создаёт подписанный JWT access-токен для userID с привязкой к sessionID.
+// NewAccessToken выпускает access-токен для пользователя и сессии.
 func (m *JWTManager) NewAccessToken(userID, sessionID int64) (string, error) {
 	now := time.Now()
 	claims := Claims{
@@ -57,7 +57,7 @@ func (m *JWTManager) NewAccessToken(userID, sessionID int64) (string, error) {
 	return token.SignedString(m.secret)
 }
 
-// NewRefreshToken генерирует криптографически случайный refresh-токен.
+// NewRefreshToken генерирует случайный refresh-токен.
 func (m *JWTManager) NewRefreshToken() (string, error) {
 	b := make([]byte, refreshTokenBytes)
 	if _, err := rand.Read(b); err != nil {
@@ -66,7 +66,7 @@ func (m *JWTManager) NewRefreshToken() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
-// ValidateToken парсит и валидирует access-токен, возвращает userID и sessionID.
+// ValidateToken проверяет токен и возвращает userID и sessionID.
 func (m *JWTManager) ValidateToken(tokenString string) (int64, int64, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(t *jwt.Token) (interface{}, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {

@@ -7,12 +7,10 @@ import (
 	"golang.org/x/time/rate"
 )
 
-// RateLimiter ограничивает число запросов с помощью token bucket из x/time/rate.
 type RateLimiter struct {
 	limiter *rate.Limiter
 }
 
-// NewRateLimiter создаёт новый лимитер запросов.
 func NewRateLimiter(limit int, window time.Duration) *RateLimiter {
 	if limit <= 0 || window <= 0 {
 		return &RateLimiter{limiter: rate.NewLimiter(rate.Limit(0), 0)}
@@ -28,7 +26,6 @@ func NewRateLimiter(limit int, window time.Duration) *RateLimiter {
 	}
 }
 
-// Allow возвращает, можно ли пропустить следующий запрос.
 func (l *RateLimiter) Allow() bool {
 	if l == nil || l.limiter == nil {
 		return false
@@ -36,7 +33,6 @@ func (l *RateLimiter) Allow() bool {
 	return l.limiter.Allow()
 }
 
-// RateLimit ограничивает частоту HTTP-запросов.
 func RateLimit(limiter *RateLimiter) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

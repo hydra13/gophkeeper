@@ -1,6 +1,6 @@
 package models
 
-// StoredPayload описывает сохранённый бинарный payload в blob storage.
+// StoredPayload описывает сохранённую версию бинарного payload.
 type StoredPayload struct {
 	RecordID    int64
 	Version     int64

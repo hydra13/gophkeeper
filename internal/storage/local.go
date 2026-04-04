@@ -11,7 +11,7 @@ type LocalBlob struct {
 	baseDir string
 }
 
-// NewLocalBlob создаёт LocalBlob с базовой директорией baseDir.
+// NewLocalBlob создаёт файловое blob-хранилище.
 func NewLocalBlob(baseDir string) (*LocalBlob, error) {
 	if baseDir == "" {
 		return nil, fmt.Errorf("base directory is required")
@@ -22,7 +22,6 @@ func NewLocalBlob(baseDir string) (*LocalBlob, error) {
 	return &LocalBlob{baseDir: baseDir}, nil
 }
 
-// Save сохраняет бинарные данные по относительному пути внутри baseDir.
 func (l *LocalBlob) Save(path string, data []byte) error {
 	fullPath, err := l.resolvePath(path)
 	if err != nil {
@@ -34,7 +33,6 @@ func (l *LocalBlob) Save(path string, data []byte) error {
 	return os.WriteFile(fullPath, data, 0o644)
 }
 
-// Read читает бинарные данные по относительному пути внутри baseDir.
 func (l *LocalBlob) Read(path string) ([]byte, error) {
 	fullPath, err := l.resolvePath(path)
 	if err != nil {
@@ -43,7 +41,6 @@ func (l *LocalBlob) Read(path string) ([]byte, error) {
 	return os.ReadFile(fullPath)
 }
 
-// Delete удаляет объект по относительному пути внутри baseDir.
 func (l *LocalBlob) Delete(path string) error {
 	fullPath, err := l.resolvePath(path)
 	if err != nil {
@@ -56,7 +53,6 @@ func (l *LocalBlob) Delete(path string) error {
 	return nil
 }
 
-// Exists проверяет наличие объекта по относительному пути внутри baseDir.
 func (l *LocalBlob) Exists(path string) (bool, error) {
 	fullPath, err := l.resolvePath(path)
 	if err != nil {

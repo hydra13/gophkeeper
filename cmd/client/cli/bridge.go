@@ -26,16 +26,12 @@ func newCore() (*clientcore.ClientCore, func(), error) {
 var fatalFunc = defaultFatal
 
 func defaultFatal(err error) {
-	fmt.Fprintf(os.Stderr, "error: %v\n", err)
+	_, _ = fmt.Fprintf(os.Stderr, "error: %v\n", err)
 	os.Exit(1)
 }
 
 func fatal(err error) {
 	fatalFunc(err)
-}
-
-func defaultCacheDir() string {
-	return common.DefaultCacheDir()
 }
 
 func defaultServerAddr() string {
@@ -46,16 +42,16 @@ func defaultTLSCertFile() string {
 	return common.DefaultTLSCertFile()
 }
 
-func hostname() string {
-	return common.Hostname()
-}
-
 var readPasswordFunc = defaultReadPassword
 
 func defaultReadPassword(prompt string) string {
-	fmt.Fprint(os.Stderr, prompt)
+	if _, err := fmt.Fprint(os.Stderr, prompt); err != nil {
+		fatal(fmt.Errorf("write prompt: %w", err))
+	}
 	b, err := term.ReadPassword(int(os.Stdin.Fd()))
-	fmt.Fprintln(os.Stderr)
+	if _, printErr := fmt.Fprintln(os.Stderr); printErr != nil {
+		fatal(fmt.Errorf("write newline: %w", printErr))
+	}
 	if err != nil {
 		fatal(fmt.Errorf("read password: %w", err))
 	}
@@ -69,7 +65,9 @@ func readPassword(prompt string) string {
 var readLineFunc = defaultReadLine
 
 func defaultReadLine(prompt string) string {
-	fmt.Fprint(os.Stderr, prompt)
+	if _, err := fmt.Fprint(os.Stderr, prompt); err != nil {
+		fatal(fmt.Errorf("write prompt: %w", err))
+	}
 	var line string
 	if _, err := fmt.Scanln(&line); err != nil {
 		fatal(fmt.Errorf("read input: %w", err))
@@ -105,11 +103,15 @@ func parseRecordType(s string) (models.RecordType, error) {
 }
 
 func printRecord(rec *models.Record) {
-	clientui.PrintRecord(os.Stdout, rec)
+	if err := clientui.PrintRecord(os.Stdout, rec); err != nil {
+		fatal(fmt.Errorf("write record: %w", err))
+	}
 }
 
 func printRecordShort(r models.Record) {
-	clientui.PrintRecordShort(os.Stdout, r)
+	if err := clientui.PrintRecordShort(os.Stdout, r); err != nil {
+		fatal(fmt.Errorf("write record: %w", err))
+	}
 }
 
 func buildPayload(recordType models.RecordType, data string) models.RecordPayload {

@@ -1,5 +1,3 @@
-// Package app собирает зависимости приложения и запускает HTTP/gRPC серверы.
-//
 //go:generate minimock -i .AuthService,.RecordService,.SyncService,.UploadService -o mocks -s _mock.go -g
 package app
 
@@ -46,7 +44,6 @@ const (
 	defaultRateWindow      = time.Second
 )
 
-// AuthService реализует все auth-операции: register, login, refresh, logout, validate token.
 type AuthService interface {
 	Register(ctx context.Context, email, password string) (int64, error)
 	Login(ctx context.Context, email, password, deviceID, deviceName, clientType string) (string, string, error)
@@ -56,7 +53,6 @@ type AuthService interface {
 	ValidateSession(token string) (int64, error)
 }
 
-// RecordService реализует CRUD-операции над записями.
 type RecordService interface {
 	CreateRecord(record *models.Record) error
 	ListRecords(userID int64, recordType models.RecordType, includeDeleted bool) ([]models.Record, error)
@@ -65,7 +61,6 @@ type RecordService interface {
 	DeleteRecord(id int64, deviceID string) error
 }
 
-// SyncService реализует операции синхронизации.
 type SyncService interface {
 	Push(userID int64, deviceID string, changes []models.PendingChange) ([]models.RecordRevision, []models.SyncConflict, error)
 	Pull(userID int64, deviceID string, sinceRevision int64, limit int64) ([]models.RecordRevision, []models.Record, []models.SyncConflict, error)
@@ -73,7 +68,6 @@ type SyncService interface {
 	ResolveConflict(userID int64, conflictID int64, resolution string) (*models.Record, error)
 }
 
-// UploadService реализует загрузку и скачивание бинарных данных.
 type UploadService interface {
 	CreateSession(userID, recordID, totalChunks, chunkSize, totalSize, keyVersion int64) (int64, error)
 	GetUploadStatus(uploadID int64) (*models.UploadStatusResponse, error)
@@ -86,7 +80,6 @@ type UploadService interface {
 	GetDownloadStatus(downloadID int64) (*models.DownloadSession, error)
 }
 
-// AppDeps описывает бизнес-зависимости, необходимые для запуска приложения.
 type AppDeps struct {
 	AuthService   AuthService
 	RecordService RecordService
@@ -109,7 +102,6 @@ func (d AppDeps) validate() error {
 	}
 }
 
-// Run запускает HTTP и gRPC серверы, фоновые job и выполняет graceful shutdown.
 func Run(ctx context.Context, cfg *config.Config, log zerolog.Logger, deps AppDeps) error {
 	if err := deps.validate(); err != nil {
 		return err

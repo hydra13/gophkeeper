@@ -9,14 +9,12 @@ type runtimeContextSetter interface {
 	SetRuntimeContext(context.Context)
 }
 
-// App управляет жизненным циклом desktop-клиента.
 type App struct {
 	cleanup func()
 	setters []runtimeContextSetter
 	once    sync.Once
 }
 
-// NewApp создает Wails-приложение и регистрирует сервисы, которым нужен runtime context.
 func NewApp(cleanup func(), setters ...runtimeContextSetter) *App {
 	return &App{
 		cleanup: cleanup,

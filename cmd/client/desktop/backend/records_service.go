@@ -12,17 +12,14 @@ import (
 
 const binaryChunkSize int64 = 64 * 1024
 
-// RecordsService инкапсулирует операции чтения и изменения записей.
 type RecordsService struct {
 	core *clientcore.ClientCore
 }
 
-// NewRecordsService создает сервис для работы с записями desktop-клиента.
 func NewRecordsService(core *clientcore.ClientCore) *RecordsService {
 	return &RecordsService{core: core}
 }
 
-// ListRecords возвращает список записей с фильтрацией по типу.
 func (s *RecordsService) ListRecords(filter string) ([]RecordListItem, error) {
 	recordType, err := parseFilter(filter)
 	if err != nil {
@@ -44,7 +41,6 @@ func (s *RecordsService) ListRecords(filter string) ([]RecordListItem, error) {
 	return items, nil
 }
 
-// GetRecord возвращает полные данные записи по ее идентификатору.
 func (s *RecordsService) GetRecord(id int64) (*RecordDetails, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -57,13 +53,11 @@ func (s *RecordsService) GetRecord(id int64) (*RecordDetails, error) {
 	return toRecordDetails(record), nil
 }
 
-// CreateRecord создает новую запись.
 func (s *RecordsService) CreateRecord(input RecordUpsertInput) (*RecordDetails, error) {
 	input.ID = 0
 	return s.saveRecord(input)
 }
 
-// UpdateRecord обновляет существующую запись.
 func (s *RecordsService) UpdateRecord(input RecordUpsertInput) (*RecordDetails, error) {
 	if input.ID <= 0 {
 		return nil, fmt.Errorf("record id is required")
@@ -71,7 +65,6 @@ func (s *RecordsService) UpdateRecord(input RecordUpsertInput) (*RecordDetails, 
 	return s.saveRecord(input)
 }
 
-// DeleteRecord удаляет запись по идентификатору.
 func (s *RecordsService) DeleteRecord(id int64) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -79,7 +72,6 @@ func (s *RecordsService) DeleteRecord(id int64) error {
 	return normalizeError(s.core.DeleteRecord(ctx, id))
 }
 
-// SyncNow запускает синхронизацию клиента с сервером.
 func (s *RecordsService) SyncNow() (SyncResult, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()

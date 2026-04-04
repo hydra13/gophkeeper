@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/hydra13/gophkeeper/internal/models"
+	"github.com/stretchr/testify/require"
 )
 
 type mockSyncPuller struct {
@@ -221,7 +222,7 @@ func TestSyncPullHandler_HasMore(t *testing.T) {
 	h.ServeHTTP(w, req)
 
 	var resp Response
-	json.NewDecoder(w.Body).Decode(&resp)
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
 	if !resp.HasMore {
 		t.Fatal("expected HasMore=true when results equal limit")
 	}

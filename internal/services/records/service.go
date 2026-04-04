@@ -15,18 +15,17 @@ type RecordRepo interface {
 	DeleteRecord(id int64) error
 }
 
-// KeyManager предоставляет доступ к актуальной версии ключа.
 type KeyManager interface {
 	EnsureActive() (*models.KeyVersion, error)
 }
 
-// Service реализует бизнес-логику работы с записями.
+// Service реализует операции создания, чтения и удаления записей.
 type Service struct {
 	repo RecordRepo
 	keys KeyManager
 }
 
-// NewService создаёт новый сервис записей.
+// NewService создаёт сервис записей.
 func NewService(repo RecordRepo, keys KeyManager) (*Service, error) {
 	if repo == nil {
 		return nil, errors.New("record repository is required")
@@ -37,7 +36,6 @@ func NewService(repo RecordRepo, keys KeyManager) (*Service, error) {
 	return &Service{repo: repo, keys: keys}, nil
 }
 
-// CreateRecord создаёт новую запись и привязывает её к активному key_version.
 func (s *Service) CreateRecord(record *models.Record) error {
 	if record == nil {
 		return errors.New("record is nil")
@@ -53,14 +51,10 @@ func (s *Service) CreateRecord(record *models.Record) error {
 	return s.repo.CreateRecord(record)
 }
 
-// ListRecords возвращает записи пользователя с опциональной фильтрацией.
-// По умолчанию (recordType="", includeDeleted=false) — только активные записи всех типов.
 func (s *Service) ListRecords(userID int64, recordType models.RecordType, includeDeleted bool) ([]models.Record, error) {
 	return s.repo.ListRecords(userID, recordType, includeDeleted)
 }
 
-// GetRecord возвращает запись по ID.
-// Возвращает ErrRecordNotFound для soft-deleted записей.
 func (s *Service) GetRecord(id int64) (*models.Record, error) {
 	record, err := s.repo.GetRecord(id)
 	if err != nil {
@@ -72,7 +66,6 @@ func (s *Service) GetRecord(id int64) (*models.Record, error) {
 	return record, nil
 }
 
-// UpdateRecord обновляет запись.
 func (s *Service) UpdateRecord(record *models.Record) error {
 	if record == nil {
 		return errors.New("record is nil")
@@ -83,7 +76,6 @@ func (s *Service) UpdateRecord(record *models.Record) error {
 	return s.repo.UpdateRecord(record)
 }
 
-// DeleteRecord выполняет soft delete записи.
 func (s *Service) DeleteRecord(id int64, deviceID string) error {
 	if deviceID == "" {
 		return models.ErrEmptyDeviceID

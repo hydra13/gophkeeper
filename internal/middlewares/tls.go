@@ -2,7 +2,6 @@ package middlewares
 
 import "net/http"
 
-// TLS запрещает HTTP-запросы без установленного TLS-соединения.
 func TLS() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

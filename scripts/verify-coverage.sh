@@ -4,9 +4,14 @@
 set -euo pipefail
 
 echo "==> Running tests with coverage..."
-PACKAGES=$(go list ./... | grep -v '/pbv1' | grep -v 'proto/v1')
-COVERPKGS=$(echo $PACKAGES | tr ' ' ',')
-go test -race -coverprofile=coverage.out -coverpkg="$COVERPKGS" $PACKAGES
+PACKAGES=$(bash scripts/list-cover-packages.sh lines | tr '\n' ' ')
+COVERPKGS=$(bash scripts/list-cover-packages.sh csv)
+LOG_FILE=coverage_test.log
+if ! go test -coverprofile=coverage.out -coverpkg="$COVERPKGS" $PACKAGES >"$LOG_FILE" 2>&1; then
+    tail -n 50 "$LOG_FILE"
+    exit 1
+fi
+rm -f "$LOG_FILE"
 
 echo "==> Filtering coverage profile..."
 grep -ve '/mocks/' -e '\.pb\.go' -e '/proto/v1/' -e '/pbv1/' coverage.out > coverage_filtered.out

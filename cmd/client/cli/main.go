@@ -38,7 +38,9 @@ func main() {
 	case "version":
 		fmt.Printf("gophkeeper-cli %s\n", buildinfo.Short())
 	default:
-		fmt.Fprintf(os.Stderr, "unknown command: %s\n", cmd)
+		if _, err := fmt.Fprintf(os.Stderr, "unknown command: %s\n", cmd); err != nil {
+			os.Exit(1)
+		}
 		printUsage()
 		os.Exit(1)
 	}

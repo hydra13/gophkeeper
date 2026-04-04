@@ -1,7 +1,3 @@
-// Package models содержит доменные сущности GophKeeper.
-//
-// Модели не зависят от транспортного слоя (HTTP, gRPC) и слоя хранения (PostgreSQL, файловое хранилище).
-// Все инварианты и бизнес-правила зафиксированы на уровне домена.
 package models
 
 import (
@@ -9,21 +5,17 @@ import (
 	"time"
 )
 
-// RecordType определяет тип хранимой записи секрета.
+// RecordType определяет тип записи.
 type RecordType string
 
 const (
-	// RecordTypeLogin — пара логин/пароль.
-	RecordTypeLogin RecordType = "login"
-	// RecordTypeText — произвольные текстовые данные.
-	RecordTypeText RecordType = "text"
-	// RecordTypeBinary — произвольные бинарные данные.
+	RecordTypeLogin  RecordType = "login"
+	RecordTypeText   RecordType = "text"
 	RecordTypeBinary RecordType = "binary"
-	// RecordTypeCard — данные банковской карты.
-	RecordTypeCard RecordType = "card"
+	RecordTypeCard   RecordType = "card"
 )
 
-// ValidRecordTypes содержит все допустимые типы записей.
+// ValidRecordTypes содержит допустимые типы записей.
 var ValidRecordTypes = map[RecordType]bool{
 	RecordTypeLogin:  true,
 	RecordTypeText:   true,
@@ -31,45 +23,29 @@ var ValidRecordTypes = map[RecordType]bool{
 	RecordTypeCard:   true,
 }
 
-// Record — единая доменная сущность хранения секрета.
-// Объединяет все типы (login, text, binary, card) через типизированный payload.
+// Record описывает основную доменную сущность секрета.
 type Record struct {
-	// ID — уникальный идентификатор записи.
-	ID int64
-	// UserID — владелец записи.
-	UserID int64
-	// Type — тип секрета (login, text, binary, card).
-	Type RecordType
-	// Name — пользовательское название записи.
-	Name string
-	// Metadata — произвольная текстовая метаинформация.
-	Metadata string
-	// Payload — типизированные данные в зависимости от Type.
-	Payload RecordPayload
-	// Revision — монотонно возрастающая версия записи для синхронизации.
-	Revision int64
-	// DeletedAt — время soft delete; nil означает, что запись активна.
-	DeletedAt *time.Time
-	// DeviceID — идентификатор устройства, создавшего или изменившего запись.
-	DeviceID string
-	// KeyVersion — версия серверного ключа шифрования, которым зашифрована запись.
-	KeyVersion int64
-	// PayloadVersion — версия payload (для бинарных данных).
+	ID             int64
+	UserID         int64
+	Type           RecordType
+	Name           string
+	Metadata       string
+	Payload        RecordPayload
+	Revision       int64
+	DeletedAt      *time.Time
+	DeviceID       string
+	KeyVersion     int64
 	PayloadVersion int64
-	// CreatedAt — время создания записи.
-	CreatedAt time.Time
-	// UpdatedAt — время последнего обновления записи.
-	UpdatedAt time.Time
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 
-// RecordPayload — интерфейс типизированных данных записи.
-// Реализации: LoginPayload, TextPayload, BinaryPayload, CardPayload.
+// RecordPayload объединяет типизированные payload записей.
 type RecordPayload interface {
-	// RecordType возвращает тип записи, к которому относится payload.
 	RecordType() RecordType
 }
 
-// Validate проверяет корректность записи.
+// Validate проверяет корректность записи перед сохранением.
 func (r *Record) Validate() error {
 	if !ValidRecordTypes[r.Type] {
 		return fmt.Errorf("invalid record type: %s", r.Type)
@@ -98,13 +74,12 @@ func (r *Record) Validate() error {
 	return nil
 }
 
-// IsDeleted проверяет, удалена ли запись (soft delete).
+// IsDeleted сообщает, что запись помечена удалённой.
 func (r *Record) IsDeleted() bool {
 	return r.DeletedAt != nil
 }
 
-// BumpRevision увеличивает ревизию записи с проверкой монотонного роста.
-// Возвращает ошибку, если newRevision не больше текущей ревизии.
+// BumpRevision обновляет ревизию записи и устройство-источник изменения.
 func (r *Record) BumpRevision(newRevision int64, deviceID string) error {
 	if newRevision <= r.Revision {
 		return ErrRevisionNotMonotonic
@@ -118,8 +93,7 @@ func (r *Record) BumpRevision(newRevision int64, deviceID string) error {
 	return nil
 }
 
-// SoftDelete помечает запись как удалённую.
-// Возвращает ошибку, если запись уже удалена.
+// SoftDelete помечает запись удалённой.
 func (r *Record) SoftDelete() error {
 	if r.IsDeleted() {
 		return ErrAlreadyDeleted
@@ -130,8 +104,7 @@ func (r *Record) SoftDelete() error {
 	return nil
 }
 
-// Restore восстанавливает удалённую запись.
-// Возвращает ошибку, если запись не была удалена.
+// Restore снимает пометку удаления с записи.
 func (r *Record) Restore() error {
 	if !r.IsDeleted() {
 		return ErrNotDeleted

@@ -1,7 +1,3 @@
-// Package auth_logout_v1_post реализует HTTP-ручку завершения сессии.
-//
-// POST /api/v1/auth/logout
-//
 //go:generate minimock -i .TokenService -o mocks -s _mock.go -g
 package auth_logout_v1_post
 
@@ -16,24 +12,19 @@ import (
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
-// TokenService определяет зависимости, необходимые для завершения сессии.
 type TokenService interface {
 	Logout(ctx context.Context, accessToken string) error
 }
 
-// LogoutRequest — DTO запроса на завершение сессии.
 type LogoutRequest struct{}
 
-// LogoutResponse — DTO успешного ответа завершения сессии.
 type LogoutResponse struct{}
 
-// Handler обрабатывает запросы завершения сессии.
 type Handler struct {
 	tokenService TokenService
 	log          zerolog.Logger
 }
 
-// NewHandler создаёт новый Handler для завершения сессии.
 func NewHandler(tokenService TokenService, log zerolog.Logger) *Handler {
 	return &Handler{
 		tokenService: tokenService,
@@ -41,13 +32,11 @@ func NewHandler(tokenService TokenService, log zerolog.Logger) *Handler {
 	}
 }
 
-// Handle завершает текущую сессию по access token из заголовка Authorization.
-// Требует заголовок Authorization: Bearer <access_token>.
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	token := extractBearerToken(r)
 	if token == "" {
 		h.log.Debug().Msg("logout: missing authorization header")
-		writeError(w, http.StatusUnauthorized, "authorization header required")
+		writeError(h.log, w, http.StatusUnauthorized, "authorization header required")
 		return
 	}
 
@@ -57,7 +46,7 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusNoContent, nil)
+	writeJSON(h.log, w, http.StatusNoContent, nil)
 }
 
 func extractBearerToken(r *http.Request) string {
@@ -68,28 +57,34 @@ func extractBearerToken(r *http.Request) string {
 	return ""
 }
 
-func writeJSON(w http.ResponseWriter, status int, v interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
+func writeJSON(log zerolog.Logger, w http.ResponseWriter, status int, v interface{}) {
 	if v != nil && status != http.StatusNoContent {
-		json.NewEncoder(w).Encode(v)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+		if err := json.NewEncoder(w).Encode(v); err != nil {
+			log.Error().Err(err).Msg("logout response encode failed")
+		}
+		return
 	}
+	w.WriteHeader(status)
 }
 
-func writeError(w http.ResponseWriter, status int, message string) {
+func writeError(log zerolog.Logger, w http.ResponseWriter, status int, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(map[string]string{"error": message})
+	if err := json.NewEncoder(w).Encode(map[string]string{"error": message}); err != nil {
+		log.Error().Err(err).Msg("logout error response encode failed")
+	}
 }
 
 func mapError(w http.ResponseWriter, log zerolog.Logger, err error, op string) {
 	switch {
 	case errors.Is(err, models.ErrUnauthorized):
-		writeError(w, http.StatusUnauthorized, err.Error())
+		writeError(log, w, http.StatusUnauthorized, err.Error())
 	case errors.Is(err, models.ErrSessionExpired):
-		writeError(w, http.StatusUnauthorized, err.Error())
+		writeError(log, w, http.StatusUnauthorized, err.Error())
 	default:
 		log.Error().Err(err).Str("op", op).Msg("internal error")
-		writeError(w, http.StatusInternalServerError, "internal error")
+		writeError(log, w, http.StatusInternalServerError, "internal error")
 	}
 }

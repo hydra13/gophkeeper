@@ -10,29 +10,29 @@ import (
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
-// FileStore — реализация Store с JSON-персистентностью на диск.
+// FileStore реализует Store поверх одного JSON-файла.
 type FileStore struct {
-	mu       sync.RWMutex
-	dir      string
-	records  *recordCacheImpl
-	pending  *pendingQueueImpl
+	mu        sync.RWMutex
+	dir       string
+	records   *recordCacheImpl
+	pending   *pendingQueueImpl
 	transfers *transferStateImpl
-	auth     *authStoreImpl
+	auth      *authStoreImpl
 	syncState *syncStateImpl
 }
 
-// NewFileStore создаёт файловый кеш в указанной директории.
+// NewFileStore создаёт файловое хранилище клиентского кеша.
 func NewFileStore(dir string) (*FileStore, error) {
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return nil, fmt.Errorf("create cache dir: %w", err)
 	}
 
 	s := &FileStore{
-		dir: dir,
-		records:  &recordCacheImpl{data: make(map[int64]models.Record)},
-		pending:  &pendingQueueImpl{},
+		dir:       dir,
+		records:   &recordCacheImpl{data: make(map[int64]models.Record)},
+		pending:   &pendingQueueImpl{},
 		transfers: &transferStateImpl{data: make(map[int64]Transfer)},
-		auth:     &authStoreImpl{},
+		auth:      &authStoreImpl{},
 		syncState: &syncStateImpl{},
 	}
 
@@ -43,13 +43,12 @@ func NewFileStore(dir string) (*FileStore, error) {
 	return s, nil
 }
 
-func (s *FileStore) Records() RecordCache      { return s.records }
-func (s *FileStore) Pending() PendingQueue      { return s.pending }
-func (s *FileStore) Transfers() TransferState   { return s.transfers }
-func (s *FileStore) Auth() AuthStore            { return s.auth }
-func (s *FileStore) Sync() SyncState            { return s.syncState }
+func (s *FileStore) Records() RecordCache     { return s.records }
+func (s *FileStore) Pending() PendingQueue    { return s.pending }
+func (s *FileStore) Transfers() TransferState { return s.transfers }
+func (s *FileStore) Auth() AuthStore          { return s.auth }
+func (s *FileStore) Sync() SyncState          { return s.syncState }
 
-// Flush сохраняет все данные на диск.
 func (s *FileStore) Flush() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -58,11 +57,11 @@ func (s *FileStore) Flush() error {
 
 func (s *FileStore) flushLocked() error {
 	type persistent struct {
-		Records   map[int64]jsonRecord  `json:"records"`
-		Pending   []jsonPendingOp       `json:"pending"`
-		Transfers map[int64]Transfer    `json:"transfers"`
-		Auth      *AuthData             `json:"auth,omitempty"`
-		Sync      SyncData              `json:"sync"`
+		Records   map[int64]jsonRecord `json:"records"`
+		Pending   []jsonPendingOp      `json:"pending"`
+		Transfers map[int64]Transfer   `json:"transfers"`
+		Auth      *AuthData            `json:"auth,omitempty"`
+		Sync      SyncData             `json:"sync"`
 	}
 
 	records := make(map[int64]jsonRecord, len(s.records.data))
@@ -118,11 +117,11 @@ func (s *FileStore) load() error {
 	}
 
 	type persistent struct {
-		Records   map[int64]jsonRecord  `json:"records"`
-		Pending   []jsonPendingOp       `json:"pending"`
-		Transfers map[int64]Transfer    `json:"transfers"`
-		Auth      *AuthData             `json:"auth,omitempty"`
-		Sync      SyncData              `json:"sync"`
+		Records   map[int64]jsonRecord `json:"records"`
+		Pending   []jsonPendingOp      `json:"pending"`
+		Transfers map[int64]Transfer   `json:"transfers"`
+		Auth      *AuthData            `json:"auth,omitempty"`
+		Sync      SyncData             `json:"sync"`
 	}
 
 	var data persistent
@@ -160,8 +159,6 @@ func (s *FileStore) load() error {
 
 	return nil
 }
-
-// --- RecordCache ---
 
 type recordCacheImpl struct {
 	data map[int64]models.Record
@@ -205,8 +202,6 @@ func (r *recordCacheImpl) Clear() {
 	r.data = make(map[int64]models.Record)
 }
 
-// --- PendingQueue ---
-
 type pendingQueueImpl struct {
 	ops []PendingOp
 }
@@ -235,8 +230,6 @@ func (q *pendingQueueImpl) Len() int {
 func (q *pendingQueueImpl) Clear() {
 	q.ops = nil
 }
-
-// --- TransferState ---
 
 type transferStateImpl struct {
 	data map[int64]Transfer
@@ -289,8 +282,6 @@ func (t *transferStateImpl) Clear() {
 	t.data = make(map[int64]Transfer)
 }
 
-// --- AuthStore ---
-
 type authStoreImpl struct {
 	data *AuthData
 }
@@ -311,8 +302,6 @@ func (a *authStoreImpl) Set(data AuthData) error {
 func (a *authStoreImpl) Clear() {
 	a.data = nil
 }
-
-// --- SyncState ---
 
 type syncStateImpl struct {
 	data SyncData

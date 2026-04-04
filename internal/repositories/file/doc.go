@@ -1,2 +1,2 @@
-// Package file реализует файловое blob-хранилище для payload и чанков вложений.
+// Package file реализует файловое blob-хранилище.
 package file

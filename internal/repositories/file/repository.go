@@ -7,12 +7,10 @@ import (
 	"strings"
 )
 
-// Repository реализует файловое blob-хранилище.
 type Repository struct {
 	basePath string
 }
 
-// New создаёт файловое хранилище по указанному пути.
 func New(basePath string) (*Repository, error) {
 	if basePath == "" {
 		return nil, errors.New("blob base path is required")
@@ -23,7 +21,6 @@ func New(basePath string) (*Repository, error) {
 	return &Repository{basePath: basePath}, nil
 }
 
-// Save сохраняет бинарные данные по относительному пути.
 func (r *Repository) Save(path string, data []byte) error {
 	fullPath, err := r.resolvePath(path)
 	if err != nil {
@@ -39,7 +36,6 @@ func (r *Repository) Save(path string, data []byte) error {
 	return os.Rename(tmpPath, fullPath)
 }
 
-// Read возвращает бинарные данные по относительному пути.
 func (r *Repository) Read(path string) ([]byte, error) {
 	fullPath, err := r.resolvePath(path)
 	if err != nil {
@@ -48,7 +44,6 @@ func (r *Repository) Read(path string) ([]byte, error) {
 	return os.ReadFile(fullPath)
 }
 
-// Delete удаляет бинарные данные по относительному пути.
 func (r *Repository) Delete(path string) error {
 	fullPath, err := r.resolvePath(path)
 	if err != nil {
@@ -60,7 +55,6 @@ func (r *Repository) Delete(path string) error {
 	return nil
 }
 
-// Exists проверяет наличие данных по относительному пути.
 func (r *Repository) Exists(path string) (bool, error) {
 	fullPath, err := r.resolvePath(path)
 	if err != nil {

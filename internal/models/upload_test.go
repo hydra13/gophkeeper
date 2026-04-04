@@ -160,10 +160,10 @@ func TestUploadSessionAbort_NotPending(t *testing.T) {
 
 func TestUploadSessionMissingChunks(t *testing.T) {
 	u := &UploadSession{
-		Status:            UploadStatusPending,
-		TotalChunks:       4,
-		ReceivedChunks:    0,
-		ReceivedChunkSet:  map[int64]bool{0: true, 2: true},
+		Status:           UploadStatusPending,
+		TotalChunks:      4,
+		ReceivedChunks:   0,
+		ReceivedChunkSet: map[int64]bool{0: true, 2: true},
 	}
 	missing := u.MissingChunks()
 	if len(missing) != 2 {
@@ -228,9 +228,9 @@ func TestDownloadSessionIsAborted(t *testing.T) {
 
 func TestDownloadSessionIsResumable(t *testing.T) {
 	d := &DownloadSession{
-		Status:           DownloadStatusActive,
-		TotalChunks:      5,
-		ConfirmedChunks:  2,
+		Status:          DownloadStatusActive,
+		TotalChunks:     5,
+		ConfirmedChunks: 2,
 	}
 	if !d.IsResumable() {
 		t.Fatal("expected download to be resumable")
@@ -238,9 +238,9 @@ func TestDownloadSessionIsResumable(t *testing.T) {
 
 	// Все чанки подтверждены
 	d2 := &DownloadSession{
-		Status:           DownloadStatusActive,
-		TotalChunks:      5,
-		ConfirmedChunks:  5,
+		Status:          DownloadStatusActive,
+		TotalChunks:     5,
+		ConfirmedChunks: 5,
 	}
 	if d2.IsResumable() {
 		t.Fatal("expected download with all chunks confirmed to not be resumable")
@@ -360,10 +360,10 @@ func TestDownloadSessionAbort_NotActive(t *testing.T) {
 
 func TestDownloadSessionRemainingChunks(t *testing.T) {
 	d := &DownloadSession{
-		Status:             DownloadStatusActive,
-		TotalChunks:        4,
-		ConfirmedChunks:    0,
-		ConfirmedChunkSet:  map[int64]bool{0: true, 2: true},
+		Status:            DownloadStatusActive,
+		TotalChunks:       4,
+		ConfirmedChunks:   0,
+		ConfirmedChunkSet: map[int64]bool{0: true, 2: true},
 	}
 	remaining := d.RemainingChunks()
 	if len(remaining) != 2 {
@@ -379,10 +379,10 @@ func TestDownloadSessionRemainingChunks(t *testing.T) {
 
 func TestDownloadSessionResume(t *testing.T) {
 	d := &DownloadSession{
-		Status:             DownloadStatusActive,
-		TotalChunks:        4,
-		ConfirmedChunks:    2,
-		ConfirmedChunkSet:  map[int64]bool{0: true, 1: true},
+		Status:            DownloadStatusActive,
+		TotalChunks:       4,
+		ConfirmedChunks:   2,
+		ConfirmedChunkSet: map[int64]bool{0: true, 1: true},
 	}
 
 	// Resume: подтверждаем недостающие чанки

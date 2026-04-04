@@ -1,6 +1,3 @@
-// Package grpc реализует gRPC-транспортный клиент для GophKeeper.
-// Предоставляет Client, удовлетворяющий интерфейсу apiclient.Transport,
-// и поддерживает аутентификацию, CRUD записей, синхронизацию и chunk-загрузку файлов.
 package grpc
 
 import (
@@ -22,7 +19,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// Client — gRPC-реализация Transport.
 type Client struct {
 	authConn     *grpc.ClientConn
 	authClient   pbv1.AuthServiceClient
@@ -32,14 +28,12 @@ type Client struct {
 	accessToken  string
 }
 
-// Config — параметры подключения gRPC-клиента.
 type Config struct {
 	Address     string
 	TLSCertFile string // пустая строка = insecure
 	AccessToken string
 }
 
-// NewClient создаёт gRPC-клиент и подключается к серверу.
 func NewClient(ctx context.Context, cfg Config) (*Client, error) {
 	var opts []grpc.DialOption
 
@@ -70,7 +64,6 @@ func NewClient(ctx context.Context, cfg Config) (*Client, error) {
 	return c, nil
 }
 
-// Close закрывает gRPC-соединение.
 func (c *Client) Close() error {
 	if c.authConn != nil {
 		return c.authConn.Close()
@@ -78,12 +71,10 @@ func (c *Client) Close() error {
 	return nil
 }
 
-// SetAccessToken устанавливает access-токен для авторизации запросов.
 func (c *Client) SetAccessToken(token string) {
 	c.accessToken = token
 }
 
-// authContext возвращает контекст с access-токеном в metadata.
 func (c *Client) authContext(ctx context.Context) context.Context {
 	if c.accessToken == "" {
 		return ctx
@@ -91,7 +82,6 @@ func (c *Client) authContext(ctx context.Context) context.Context {
 	return metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+c.accessToken)
 }
 
-// Register регистрирует нового пользователя.
 func (c *Client) Register(ctx context.Context, email, password string) (int64, error) {
 	resp, err := c.authClient.Register(ctx, &pbv1.RegisterRequest{
 		Email:    email,
@@ -103,7 +93,6 @@ func (c *Client) Register(ctx context.Context, email, password string) (int64, e
 	return resp.UserId, nil
 }
 
-// Login аутентифицирует пользователя.
 func (c *Client) Login(ctx context.Context, email, password, deviceID, deviceName, clientType string) (string, string, error) {
 	resp, err := c.authClient.Login(ctx, &pbv1.LoginRequest{
 		Email:      email,
@@ -119,7 +108,6 @@ func (c *Client) Login(ctx context.Context, email, password, deviceID, deviceNam
 	return resp.AccessToken, resp.RefreshToken, nil
 }
 
-// Refresh обновляет пару токенов.
 func (c *Client) Refresh(ctx context.Context, refreshToken string) (string, string, error) {
 	resp, err := c.authClient.Refresh(ctx, &pbv1.RefreshRequest{
 		RefreshToken: refreshToken,
@@ -131,7 +119,6 @@ func (c *Client) Refresh(ctx context.Context, refreshToken string) (string, stri
 	return resp.AccessToken, resp.RefreshToken, nil
 }
 
-// Logout отзывает текущую сессию.
 func (c *Client) Logout(ctx context.Context) error {
 	_, err := c.authClient.Logout(c.authContext(ctx), &pbv1.LogoutRequest{})
 	if err != nil {
@@ -141,7 +128,6 @@ func (c *Client) Logout(ctx context.Context) error {
 	return nil
 }
 
-// CreateRecord создаёт запись на сервере.
 func (c *Client) CreateRecord(ctx context.Context, record *models.Record) (*models.Record, error) {
 	pbRecord := domainToProtoRecord(record)
 	pbPayload := domainToProtoPayload(record)
@@ -173,7 +159,6 @@ func (c *Client) CreateRecord(ctx context.Context, record *models.Record) (*mode
 	return protoToDomainRecord(resp.Record), nil
 }
 
-// GetRecord получает запись по ID.
 func (c *Client) GetRecord(ctx context.Context, id int64) (*models.Record, error) {
 	resp, err := c.dataClient.GetRecord(c.authContext(ctx), &pbv1.GetRecordRequest{Id: id})
 	if err != nil {
@@ -182,7 +167,6 @@ func (c *Client) GetRecord(ctx context.Context, id int64) (*models.Record, error
 	return protoToDomainRecord(resp.Record), nil
 }
 
-// ListRecords получает список записей.
 func (c *Client) ListRecords(ctx context.Context, recordType models.RecordType, includeDeleted bool) ([]models.Record, error) {
 	resp, err := c.dataClient.ListRecords(c.authContext(ctx), &pbv1.ListRecordsRequest{
 		Type:           domainToProtoRecordType(recordType),
@@ -199,7 +183,6 @@ func (c *Client) ListRecords(ctx context.Context, recordType models.RecordType, 
 	return records, nil
 }
 
-// UpdateRecord обновляет запись.
 func (c *Client) UpdateRecord(ctx context.Context, record *models.Record) (*models.Record, error) {
 	pbRecord := domainToProtoRecord(record)
 	pbPayload := domainToProtoPayloadForUpdate(record)
@@ -232,7 +215,6 @@ func (c *Client) UpdateRecord(ctx context.Context, record *models.Record) (*mode
 	return protoToDomainRecord(resp.Record), nil
 }
 
-// DeleteRecord удаляет запись.
 func (c *Client) DeleteRecord(ctx context.Context, id int64, deviceID string) error {
 	_, err := c.dataClient.DeleteRecord(c.authContext(ctx), &pbv1.DeleteRecordRequest{
 		Id:       id,
@@ -244,7 +226,6 @@ func (c *Client) DeleteRecord(ctx context.Context, id int64, deviceID string) er
 	return nil
 }
 
-// Pull получает изменения с сервера.
 func (c *Client) Pull(ctx context.Context, sinceRevision int64, deviceID string, limit int32) (*apiclient.PullResult, error) {
 	resp, err := c.syncClient.Pull(c.authContext(ctx), &pbv1.PullRequest{
 		SinceRevision: sinceRevision,
@@ -270,7 +251,6 @@ func (c *Client) Pull(ctx context.Context, sinceRevision int64, deviceID string,
 	return result, nil
 }
 
-// Push отправляет локальные изменения на сервер.
 func (c *Client) Push(ctx context.Context, changes []apiclient.PendingChange, deviceID string) (*apiclient.PushResult, error) {
 	pbChanges := make([]*pbv1.PendingChange, 0, len(changes))
 	for _, ch := range changes {
@@ -304,7 +284,6 @@ func (c *Client) Push(ctx context.Context, changes []apiclient.PendingChange, de
 	return result, nil
 }
 
-// CreateUploadSession создаёт сессию загрузки.
 func (c *Client) CreateUploadSession(ctx context.Context, recordID, totalChunks, chunkSize, totalSize, keyVersion int64) (int64, error) {
 	resp, err := c.uploadClient.CreateUploadSession(c.authContext(ctx), &pbv1.CreateUploadSessionRequest{
 		RecordId:    recordID,
@@ -319,7 +298,6 @@ func (c *Client) CreateUploadSession(ctx context.Context, recordID, totalChunks,
 	return resp.UploadId, nil
 }
 
-// UploadChunk загружает чанк данных.
 func (c *Client) UploadChunk(ctx context.Context, uploadID, chunkIndex int64, data []byte) error {
 	stream, err := c.uploadClient.UploadChunk(c.authContext(ctx))
 	if err != nil {
@@ -342,7 +320,6 @@ func (c *Client) UploadChunk(ctx context.Context, uploadID, chunkIndex int64, da
 	return nil
 }
 
-// GetUploadStatus получает статус upload-сессии.
 func (c *Client) GetUploadStatus(ctx context.Context, uploadID int64) (*apiclient.UploadStatus, error) {
 	resp, err := c.uploadClient.GetUploadStatus(c.authContext(ctx), &pbv1.GetUploadStatusRequest{
 		UploadId: uploadID,
@@ -359,7 +336,6 @@ func (c *Client) GetUploadStatus(ctx context.Context, uploadID int64) (*apiclien
 	}, nil
 }
 
-// CreateDownloadSession создаёт сессию скачивания.
 func (c *Client) CreateDownloadSession(ctx context.Context, recordID int64) (int64, int64, error) {
 	resp, err := c.uploadClient.CreateDownloadSession(c.authContext(ctx), &pbv1.CreateDownloadSessionRequest{
 		RecordId: recordID,
@@ -370,7 +346,6 @@ func (c *Client) CreateDownloadSession(ctx context.Context, recordID int64) (int
 	return resp.DownloadId, resp.TotalChunks, nil
 }
 
-// DownloadChunk скачивает чанк данных.
 func (c *Client) DownloadChunk(ctx context.Context, downloadID, chunkIndex int64) ([]byte, error) {
 	stream, err := c.uploadClient.DownloadChunk(c.authContext(ctx), &pbv1.DownloadChunkRequest{
 		DownloadId: downloadID,
@@ -390,7 +365,6 @@ func (c *Client) DownloadChunk(ctx context.Context, downloadID, chunkIndex int64
 	return resp.Data, nil
 }
 
-// ConfirmChunk подтверждает получение чанка.
 func (c *Client) ConfirmChunk(ctx context.Context, downloadID, chunkIndex int64) error {
 	_, err := c.uploadClient.ConfirmChunk(c.authContext(ctx), &pbv1.ConfirmChunkRequest{
 		DownloadId: downloadID,
@@ -402,7 +376,6 @@ func (c *Client) ConfirmChunk(ctx context.Context, downloadID, chunkIndex int64)
 	return nil
 }
 
-// GetDownloadStatus получает статус download-сессии.
 func (c *Client) GetDownloadStatus(ctx context.Context, downloadID int64) (*apiclient.DownloadStatus, error) {
 	resp, err := c.uploadClient.GetDownloadStatus(c.authContext(ctx), &pbv1.GetDownloadStatusRequest{
 		DownloadId: downloadID,
@@ -419,8 +392,6 @@ func (c *Client) GetDownloadStatus(ctx context.Context, downloadID int64) (*apic
 	}, nil
 }
 
-// tlsCredentialsFromFile загружает TLS-credentials из CA-сертификата.
-// Поддерживает self-signed сертификаты для локальной разработки.
 func tlsCredentialsFromFile(certFile string) (credentials.TransportCredentials, error) {
 	pemData, err := os.ReadFile(certFile)
 	if err != nil {
@@ -438,8 +409,6 @@ func tlsCredentialsFromFile(certFile string) (credentials.TransportCredentials, 
 	}
 	return credentials.NewTLS(tlsCfg), nil
 }
-
-// --- Конвертация доменных моделей <-> protobuf ---
 
 func domainToProtoRecordType(rt models.RecordType) pbv1.RecordType {
 	switch rt {

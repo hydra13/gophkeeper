@@ -11,7 +11,7 @@ import (
 
 const defaultConfigPath = "configs/config.dev.json"
 
-// Load загружает конфигурацию из файла, переменных окружения и флагов командной строки.
+// Load читает конфигурацию из переменных окружения и файлов.
 func Load() (*Config, error) {
 	cfg := &Config{}
 

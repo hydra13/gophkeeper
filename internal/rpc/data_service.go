@@ -15,7 +15,6 @@ import (
 	"github.com/hydra13/gophkeeper/internal/rpc/pbv1"
 )
 
-// RecordUseCase определяет операции над записями для gRPC слоя.
 type RecordUseCase interface {
 	CreateRecord(record *models.Record) error
 	GetRecord(id int64) (*models.Record, error)
@@ -24,14 +23,14 @@ type RecordUseCase interface {
 	DeleteRecord(id int64, deviceID string) error
 }
 
-// DataService реализует gRPC CRUD-ручки для записей.
+// DataService реализует gRPC-ручки для записей.
 type DataService struct {
 	pbv1.UnimplementedDataServiceServer
 	records RecordUseCase
 	log     zerolog.Logger
 }
 
-// NewDataService создаёт DataService с зависимостями.
+// NewDataService создаёт DataService.
 func NewDataService(records RecordUseCase, log zerolog.Logger) *DataService {
 	return &DataService{
 		records: records,
@@ -39,7 +38,6 @@ func NewDataService(records RecordUseCase, log zerolog.Logger) *DataService {
 	}
 }
 
-// CreateRecord создаёт запись текущего пользователя.
 func (s *DataService) CreateRecord(ctx context.Context, req *pbv1.CreateRecordRequest) (*pbv1.CreateRecordResponse, error) {
 	userID, err := userIDFromContext(ctx)
 	if err != nil {
@@ -77,7 +75,6 @@ func (s *DataService) CreateRecord(ctx context.Context, req *pbv1.CreateRecordRe
 	}, nil
 }
 
-// GetRecord возвращает запись по идентификатору.
 func (s *DataService) GetRecord(ctx context.Context, req *pbv1.GetRecordRequest) (*pbv1.GetRecordResponse, error) {
 	userID, err := userIDFromContext(ctx)
 	if err != nil {
@@ -102,7 +99,6 @@ func (s *DataService) GetRecord(ctx context.Context, req *pbv1.GetRecordRequest)
 	}, nil
 }
 
-// ListRecords возвращает список записей пользователя.
 func (s *DataService) ListRecords(ctx context.Context, req *pbv1.ListRecordsRequest) (*pbv1.ListRecordsResponse, error) {
 	userID, err := userIDFromContext(ctx)
 	if err != nil {
@@ -123,7 +119,6 @@ func (s *DataService) ListRecords(ctx context.Context, req *pbv1.ListRecordsRequ
 	return &pbv1.ListRecordsResponse{Records: pbRecords}, nil
 }
 
-// UpdateRecord обновляет существующую запись с проверкой ревизии.
 func (s *DataService) UpdateRecord(ctx context.Context, req *pbv1.UpdateRecordRequest) (*pbv1.UpdateRecordResponse, error) {
 	userID, err := userIDFromContext(ctx)
 	if err != nil {
@@ -182,7 +177,6 @@ func (s *DataService) UpdateRecord(ctx context.Context, req *pbv1.UpdateRecordRe
 	}, nil
 }
 
-// DeleteRecord помечает запись как удалённую.
 func (s *DataService) DeleteRecord(ctx context.Context, req *pbv1.DeleteRecordRequest) (*pbv1.DeleteRecordResponse, error) {
 	userID, err := userIDFromContext(ctx)
 	if err != nil {
@@ -198,7 +192,6 @@ func (s *DataService) DeleteRecord(ctx context.Context, req *pbv1.DeleteRecordRe
 
 	record, err := s.records.GetRecord(req.Id)
 	if err != nil {
-		// Delete is idempotent: if record doesn't exist or is already soft-deleted — success.
 		if errors.Is(err, models.ErrRecordNotFound) {
 			return &pbv1.DeleteRecordResponse{}, nil
 		}
@@ -227,7 +220,6 @@ func userIDFromContext(ctx context.Context) (int64, error) {
 	return userID, nil
 }
 
-// protoPayloadToDomain конвертирует oneof payload из CreateRecordRequest в доменный тип и payload.
 func protoPayloadToDomain(payload interface{}) (models.RecordType, models.RecordPayload, error) {
 	switch p := payload.(type) {
 	case *pbv1.CreateRecordRequest_Login:
@@ -235,7 +227,6 @@ func protoPayloadToDomain(payload interface{}) (models.RecordType, models.Record
 	case *pbv1.CreateRecordRequest_Text:
 		return models.RecordTypeText, models.TextPayload{Content: p.Text.GetContent()}, nil
 	case *pbv1.CreateRecordRequest_Binary:
-		// Binary payload content управляется через uploads-слой (task_13).
 		return models.RecordTypeBinary, models.BinaryPayload{}, nil
 	case *pbv1.CreateRecordRequest_Card:
 		card := models.CardPayload{
@@ -251,7 +242,6 @@ func protoPayloadToDomain(payload interface{}) (models.RecordType, models.Record
 	}
 }
 
-// protoPayloadToDomainForType конвертирует oneof payload из UpdateRecordRequest для существующего типа.
 func protoPayloadToDomainForType(rt models.RecordType, payload interface{}) (models.RecordPayload, error) {
 	switch p := payload.(type) {
 	case *pbv1.UpdateRecordRequest_Login:
@@ -268,7 +258,6 @@ func protoPayloadToDomainForType(rt models.RecordType, payload interface{}) (mod
 		if rt != models.RecordTypeBinary {
 			return nil, status.Error(codes.InvalidArgument, "payload type does not match record type")
 		}
-		// Binary payload content управляется через uploads-слой (task_13).
 		return models.BinaryPayload{}, nil
 	case *pbv1.UpdateRecordRequest_Card:
 		if rt != models.RecordTypeCard {
@@ -287,7 +276,6 @@ func protoPayloadToDomainForType(rt models.RecordType, payload interface{}) (mod
 	}
 }
 
-// domainRecordToProto конвертирует доменную запись в protobuf Record.
 func domainRecordToProto(r *models.Record) *pbv1.Record {
 	if r == nil {
 		return nil
@@ -316,7 +304,6 @@ func domainRecordToProto(r *models.Record) *pbv1.Record {
 	case models.TextPayload:
 		pb.Payload = &pbv1.Record_Text{Text: &pbv1.TextPayload{Content: p.Content}}
 	case models.BinaryPayload:
-		// Binary payload content управляется через uploads-слой (task_13).
 		pb.Payload = &pbv1.Record_Binary{Binary: &pbv1.BinaryPayload{}}
 	case models.CardPayload:
 		pb.Payload = &pbv1.Record_Card{Card: &pbv1.CardPayload{
@@ -365,7 +352,6 @@ func timeToProto(t time.Time) *timestamppb.Timestamp {
 	return timestamppb.New(t)
 }
 
-// mapRecordError маппит доменные ошибки в gRPC status codes.
 func mapRecordError(err error) error {
 	switch {
 	case errors.Is(err, models.ErrRecordNotFound):

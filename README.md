@@ -366,7 +366,10 @@ curl http://localhost:9000/minio/health/live
 | `make lint`        | Статический анализ (golangci-lint)            |
 | `make test`        | Запуск тестов с race detector и покрытием     |
 | `make cover`       | Генерация HTML-отчёта покрытия                |
-| `make cover-check` | Проверка порога покрытия (>= 70%)             |
+| `make test-unit`        | Unit-тесты (`-race`)                       |
+| `make test-integration` | Integration-тесты (`-tags=integration`)    |
+| `make test-e2e`         | E2E-тесты (`-tags=e2e`)                    |
+| `make cover-check`      | Проверка порога покрытия (>= 70%)          |
 | `make proto`       | Генерация Go-кода из protobuf                 |
 | `make build`       | Сборка server + client                        |
 | `make build-server`| Сборка только сервера                         |

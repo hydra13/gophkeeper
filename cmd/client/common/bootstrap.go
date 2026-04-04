@@ -3,6 +3,7 @@ package common
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 
@@ -11,7 +12,6 @@ import (
 	clientcore "github.com/hydra13/gophkeeper/pkg/clientcore"
 )
 
-// NewCore создает общее клиентское ядро и функцию очистки ресурсов.
 func NewCore() (*clientcore.ClientCore, func(), error) {
 	ctx := context.Background()
 	addr := DefaultServerAddr()
@@ -31,7 +31,9 @@ func NewCore() (*clientcore.ClientCore, func(), error) {
 
 	store, err := cache.NewFileStore(DefaultCacheDir())
 	if err != nil {
-		client.Close()
+		if closeErr := client.Close(); closeErr != nil {
+			log.Printf("close grpc client after cache init failure: %v", closeErr)
+		}
 		return nil, nil, fmt.Errorf("init cache: %w", err)
 	}
 
@@ -41,14 +43,17 @@ func NewCore() (*clientcore.ClientCore, func(), error) {
 	core.RestoreAuth()
 
 	cleanup := func() {
-		store.Flush()
-		client.Close()
+		if err := store.Flush(); err != nil {
+			log.Printf("flush cache during cleanup: %v", err)
+		}
+		if err := client.Close(); err != nil {
+			log.Printf("close grpc client during cleanup: %v", err)
+		}
 	}
 
 	return core, cleanup, nil
 }
 
-// DefaultCacheDir возвращает путь к каталогу локального клиентского кеша.
 func DefaultCacheDir() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -57,7 +62,6 @@ func DefaultCacheDir() string {
 	return filepath.Join(home, ".gophkeeper", "cache")
 }
 
-// DefaultServerAddr возвращает адрес gRPC-сервера из окружения или значение по умолчанию.
 func DefaultServerAddr() string {
 	if v := os.Getenv("GK_GRPC_ADDRESS"); v != "" {
 		return v
@@ -65,7 +69,6 @@ func DefaultServerAddr() string {
 	return "localhost:9090"
 }
 
-// DefaultTLSCertFile возвращает путь к TLS-сертификату клиента.
 func DefaultTLSCertFile() string {
 	if v := os.Getenv("GK_TLS_CERT_FILE"); v != "" {
 		return v
@@ -76,7 +79,6 @@ func DefaultTLSCertFile() string {
 	return ""
 }
 
-// Hostname возвращает имя текущего хоста для формирования device ID.
 func Hostname() string {
 	name, err := os.Hostname()
 	if err != nil {

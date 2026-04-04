@@ -1,41 +1,33 @@
-// Package recordsbyidv1get реализует HTTP-ручку получения записи по идентификатору.
-//
-// GET /api/v1/records/{id}
-//
 //go:generate minimock -i .RecordService -o mocks -s _mock.go -g
 package recordsbyidv1get
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"strconv"
 
-	"github.com/hydra13/gophkeeper/internal/api/records_common"
+	recordscommon "github.com/hydra13/gophkeeper/internal/api/records_common"
 	"github.com/hydra13/gophkeeper/internal/middlewares"
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
-// GetRecordResponse — DTO ответа при получении записи.
 type GetRecordResponse struct {
 	Record recordscommon.RecordDTO `json:"record"`
 }
 
-// RecordService — интерфейс бизнес-логики для работы с записями.
 type RecordService interface {
 	GetRecord(id int64) (*models.Record, error)
 }
 
-// Handler — HTTP-обработчик для GET /api/v1/records/{id}.
 type Handler struct {
 	service RecordService
 }
 
-// NewHandler создаёт новый обработчик.
 func NewHandler(service RecordService) *Handler {
 	return &Handler{service: service}
 }
 
-// Handle возвращает запись по идентификатору, если она принадлежит текущему пользователю.
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middlewares.UserIDFromContext(r.Context())
 	if !ok || userID <= 0 {
@@ -68,10 +60,11 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(resp)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		log.Printf("get record response encode failed: %v", err)
+	}
 }
 
-// recordToResponse преобразует доменную модель в DTO ответа.
 func recordToResponse(r *models.Record) GetRecordResponse {
 	return GetRecordResponse{Record: recordscommon.RecordToDTO(*r)}
 }

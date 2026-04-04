@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 type mockChunkUploader struct {
@@ -75,7 +77,7 @@ func TestChunkUploadHandler_Completed(t *testing.T) {
 	h.ServeHTTP(w, req)
 
 	var resp ChunkResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
 	if !resp.Completed {
 		t.Fatal("expected completed")
 	}

@@ -1,12 +1,9 @@
-// Package uploads_by_id_chunks_v1_get реализует HTTP-ручку скачивания чанка.
-//
-// GET /api/v1/uploads/{id}/chunks/{index}
-//
 //go:generate minimock -i .ChunkDownloader -o mocks -s _mock.go -g
 package uploads_by_id_chunks_v1_get
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -14,23 +11,18 @@ import (
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
-// ChunkDownloader — интерфейс сервиса скачивания чанка.
 type ChunkDownloader interface {
-	// DownloadChunk возвращает данные чанка и статус download-сессии.
 	DownloadChunk(uploadID, chunkIndex int64) (*models.ChunkDownloadResponse, error)
 }
 
-// Handler обрабатывает GET /api/v1/uploads/{id}/chunks/{index}.
 type Handler struct {
 	service ChunkDownloader
 }
 
-// NewHandler создаёт новый обработчик скачивания чанка.
 func NewHandler(service ChunkDownloader) *Handler {
 	return &Handler{service: service}
 }
 
-// ServeHTTP возвращает один чанк и текущее состояние download-сессии.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -54,10 +46,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		log.Printf("download chunk response encode failed: %v", err)
+	}
 }
 
-// extractUploadIDAndChunkIndex извлекает upload_id и chunk_index из URL path /api/v1/uploads/{id}/chunks/{index}.
 func extractUploadIDAndChunkIndex(path string) (int64, int64, error) {
 	parts := strings.Split(strings.TrimSuffix(path, "/"), "/")
 	var uploadID, chunkIndex int64
@@ -89,7 +82,6 @@ func extractUploadIDAndChunkIndex(path string) (int64, int64, error) {
 	return uploadID, chunkIndex, nil
 }
 
-// mapDownloadError мапит ошибки домена на HTTP-статусы.
 func mapDownloadError(w http.ResponseWriter, err error) {
 	switch {
 	case isErr(err, "upload session not found"):

@@ -20,7 +20,6 @@ func (w *gzipResponseWriter) Write(b []byte) (int, error) {
 	return w.writer.Write(b)
 }
 
-// Compression сжимает HTTP-ответ gzip, если клиент его поддерживает.
 func Compression() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -30,12 +29,14 @@ func Compression() func(http.Handler) http.Handler {
 			}
 
 			gz := gzip.NewWriter(w)
-			defer gz.Close()
 
 			w.Header().Set("Content-Encoding", "gzip")
 			w.Header().Set("Vary", "Accept-Encoding")
 			gzw := &gzipResponseWriter{ResponseWriter: w, writer: gz}
 			next.ServeHTTP(gzw, r)
+			if err := gz.Close(); err != nil {
+				return
+			}
 		})
 	}
 }

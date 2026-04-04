@@ -1,7 +1,3 @@
-// Package auth_login_v1_post реализует HTTP-ручку входа пользователя.
-//
-// POST /api/v1/auth/login
-//
 //go:generate minimock -i .UserService -o mocks -s _mock.go -g
 package auth_login_v1_post
 
@@ -16,12 +12,10 @@ import (
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
-// UserService определяет зависимости, необходимые для логина.
 type UserService interface {
 	Login(ctx context.Context, email, password, deviceID, deviceName, clientType string) (accessToken, refreshToken string, err error)
 }
 
-// LoginRequest — DTO запроса на логин.
 type LoginRequest struct {
 	Email      string `json:"email"`
 	Password   string `json:"password"`
@@ -30,19 +24,16 @@ type LoginRequest struct {
 	ClientType string `json:"client_type"`
 }
 
-// LoginResponse — DTO успешного ответа логина.
 type LoginResponse struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
 }
 
-// Handler обрабатывает запросы входа пользователя.
 type Handler struct {
 	userService UserService
 	log         zerolog.Logger
 }
 
-// NewHandler создаёт новый Handler для логина.
 func NewHandler(userService UserService, log zerolog.Logger) *Handler {
 	return &Handler{
 		userService: userService,
@@ -50,18 +41,17 @@ func NewHandler(userService UserService, log zerolog.Logger) *Handler {
 	}
 }
 
-// Handle аутентифицирует пользователя и возвращает пару токенов.
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	var req LoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		h.log.Debug().Err(err).Msg("login: failed to decode request body")
-		writeError(w, http.StatusBadRequest, "invalid request body")
+		writeError(h.log, w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
 	if err := validateLogin(req); err != nil {
 		h.log.Debug().Err(err).Msg("login: validation failed")
-		writeError(w, http.StatusBadRequest, err.Error())
+		writeError(h.log, w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -71,7 +61,7 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, LoginResponse{
+	writeJSON(h.log, w, http.StatusOK, LoginResponse{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 	})
@@ -90,26 +80,30 @@ func validateLogin(req LoginRequest) error {
 	return nil
 }
 
-func writeJSON(w http.ResponseWriter, status int, v interface{}) {
+func writeJSON(log zerolog.Logger, w http.ResponseWriter, status int, v interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v)
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		log.Error().Err(err).Msg("login response encode failed")
+	}
 }
 
-func writeError(w http.ResponseWriter, status int, message string) {
+func writeError(log zerolog.Logger, w http.ResponseWriter, status int, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(map[string]string{"error": message})
+	if err := json.NewEncoder(w).Encode(map[string]string{"error": message}); err != nil {
+		log.Error().Err(err).Msg("login error response encode failed")
+	}
 }
 
 func mapError(w http.ResponseWriter, log zerolog.Logger, err error, op string) {
 	switch {
 	case errors.Is(err, models.ErrInvalidCredentials):
-		writeError(w, http.StatusUnauthorized, err.Error())
+		writeError(log, w, http.StatusUnauthorized, err.Error())
 	case errors.Is(err, models.ErrUserNotFound):
-		writeError(w, http.StatusUnauthorized, "invalid credentials")
+		writeError(log, w, http.StatusUnauthorized, "invalid credentials")
 	default:
 		log.Error().Err(err).Str("op", op).Msg("internal error")
-		writeError(w, http.StatusInternalServerError, "internal error")
+		writeError(log, w, http.StatusInternalServerError, "internal error")
 	}
 }

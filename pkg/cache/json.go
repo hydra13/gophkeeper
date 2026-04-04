@@ -7,21 +7,20 @@ import (
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
-// jsonRecord — JSON-сериализуемое представление Record.
 type jsonRecord struct {
-	ID             int64              `json:"id"`
-	UserID         int64              `json:"user_id"`
-	Type           models.RecordType  `json:"type"`
-	Name           string             `json:"name"`
-	Metadata       string             `json:"metadata"`
-	Payload        json.RawMessage    `json:"payload"`
-	Revision       int64              `json:"revision"`
-	DeletedAt      *int64             `json:"deleted_at,omitempty"`
-	DeviceID       string             `json:"device_id"`
-	KeyVersion     int64              `json:"key_version"`
-	PayloadVersion int64              `json:"payload_version"`
-	CreatedAt      int64              `json:"created_at"`
-	UpdatedAt      int64              `json:"updated_at"`
+	ID             int64             `json:"id"`
+	UserID         int64             `json:"user_id"`
+	Type           models.RecordType `json:"type"`
+	Name           string            `json:"name"`
+	Metadata       string            `json:"metadata"`
+	Payload        json.RawMessage   `json:"payload"`
+	Revision       int64             `json:"revision"`
+	DeletedAt      *int64            `json:"deleted_at,omitempty"`
+	DeviceID       string            `json:"device_id"`
+	KeyVersion     int64             `json:"key_version"`
+	PayloadVersion int64             `json:"payload_version"`
+	CreatedAt      int64             `json:"created_at"`
+	UpdatedAt      int64             `json:"updated_at"`
 }
 
 func recordToJSON(r models.Record) (jsonRecord, error) {
@@ -112,14 +111,13 @@ func jsonToRecord(jr jsonRecord) (models.Record, error) {
 	return r, nil
 }
 
-// jsonPendingOp — JSON-сериализуемое представление PendingOp.
 type jsonPendingOp struct {
-	ID           int64             `json:"id"`
-	RecordID     int64             `json:"record_id"`
-	Operation    OperationType     `json:"operation"`
-	Record       json.RawMessage   `json:"record"`
-	BaseRevision int64             `json:"base_revision"`
-	CreatedAt    int64             `json:"created_at"`
+	ID           int64           `json:"id"`
+	RecordID     int64           `json:"record_id"`
+	Operation    OperationType   `json:"operation"`
+	Record       json.RawMessage `json:"record"`
+	BaseRevision int64           `json:"base_revision"`
+	CreatedAt    int64           `json:"created_at"`
 }
 
 func pendingOpToJSON(op PendingOp) (jsonPendingOp, error) {

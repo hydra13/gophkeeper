@@ -1,12 +1,12 @@
 package models
 
-// LoginPayload — данные типа логин/пароль.
+// LoginPayload хранит логин и пароль записи.
 type LoginPayload struct {
 	Login    string
 	Password string
 }
 
-// RecordType возвращает тип записи login.
+// RecordType возвращает тип payload.
 func (p LoginPayload) RecordType() RecordType {
 	return RecordTypeLogin
 }

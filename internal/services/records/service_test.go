@@ -202,32 +202,32 @@ func TestServiceCreateRecord_AllTypes(t *testing.T) {
 		{
 			name: "login type",
 			record: &models.Record{
-				UserID:   1, Type: models.RecordTypeLogin, Name: "my login",
-				Payload: models.LoginPayload{Login: "user", Password: "pass"},
+				UserID: 1, Type: models.RecordTypeLogin, Name: "my login",
+				Payload:  models.LoginPayload{Login: "user", Password: "pass"},
 				DeviceID: "dev-1",
 			},
 		},
 		{
 			name: "text type",
 			record: &models.Record{
-				UserID:   1, Type: models.RecordTypeText, Name: "my note",
-				Payload: models.TextPayload{Content: "hello"},
+				UserID: 1, Type: models.RecordTypeText, Name: "my note",
+				Payload:  models.TextPayload{Content: "hello"},
 				DeviceID: "dev-1",
 			},
 		},
 		{
 			name: "binary type",
 			record: &models.Record{
-				UserID:   1, Type: models.RecordTypeBinary, Name: "my file",
-				Payload: models.BinaryPayload{Data: []byte{1, 2, 3}},
+				UserID: 1, Type: models.RecordTypeBinary, Name: "my file",
+				Payload:  models.BinaryPayload{Data: []byte{1, 2, 3}},
 				DeviceID: "dev-1", PayloadVersion: 1,
 			},
 		},
 		{
 			name: "card type",
 			record: &models.Record{
-				UserID:   1, Type: models.RecordTypeCard, Name: "my card",
-				Payload: models.CardPayload{Number: "4111", HolderName: "Test", ExpiryDate: "12/25", CVV: "123"},
+				UserID: 1, Type: models.RecordTypeCard, Name: "my card",
+				Payload:  models.CardPayload{Number: "4111", HolderName: "Test", ExpiryDate: "12/25", CVV: "123"},
 				DeviceID: "dev-1",
 			},
 		},
@@ -296,7 +296,7 @@ func TestServiceUpdateRecord(t *testing.T) {
 
 	r := &models.Record{
 		UserID: 1, Type: models.RecordTypeLogin, Name: "original",
-		Payload: models.LoginPayload{Login: "user", Password: "pass"},
+		Payload:  models.LoginPayload{Login: "user", Password: "pass"},
 		DeviceID: "dev-1",
 	}
 	require.NoError(t, service.CreateRecord(r))
@@ -384,7 +384,7 @@ func TestServiceUpdateRecord_ValidationError(t *testing.T) {
 
 	// Create a valid record first.
 	r := &models.Record{
-		UserID:   1, Type: models.RecordTypeText, Name: "valid",
+		UserID: 1, Type: models.RecordTypeText, Name: "valid",
 		Payload: models.TextPayload{Content: "data"}, DeviceID: "dev-1",
 	}
 	require.NoError(t, service.CreateRecord(r))

@@ -1,9 +1,8 @@
-// Package config описывает конфигурацию сервиса и её загрузку.
 package config
 
 import "time"
 
-// Config описывает полную конфигурацию сервиса.
+// Config объединяет конфигурацию приложения.
 type Config struct {
 	Server   ServerConfig       `json:"server"`
 	Database DatabaseConfig     `json:"database"`
@@ -13,7 +12,7 @@ type Config struct {
 	Upload   UploadLimitsConfig `json:"upload"`
 }
 
-// ServerConfig содержит параметры HTTP и gRPC серверов.
+// ServerConfig описывает настройки HTTP- и gRPC-серверов.
 type ServerConfig struct {
 	Address     string `json:"address"`
 	GRPCAddress string `json:"grpc_address"`
@@ -21,23 +20,23 @@ type ServerConfig struct {
 	TLSKeyFile  string `json:"tls_key_file"`
 }
 
-// DatabaseConfig содержит параметры подключения к PostgreSQL.
+// DatabaseConfig описывает подключение к БД.
 type DatabaseConfig struct {
 	DSN string `json:"dsn"`
 }
 
-// AuthConfig содержит параметры JWT-аутентификации.
+// AuthConfig описывает параметры аутентификации.
 type AuthConfig struct {
 	JWTSecret     string        `json:"jwt_secret"`
 	TokenDuration time.Duration `json:"token_duration"`
 }
 
-// CryptoConfig содержит параметры криптографии и мастер-ключа.
+// CryptoConfig описывает параметры шифрования.
 type CryptoConfig struct {
 	MasterKey string `json:"master_key"`
 }
 
-// BlobStorageConfig содержит параметры blob-хранилища бинарных данных.
+// BlobStorageConfig описывает настройки blob-хранилища.
 type BlobStorageConfig struct {
 	Provider  string `json:"provider"`
 	Path      string `json:"path"`
@@ -48,7 +47,7 @@ type BlobStorageConfig struct {
 	Region    string `json:"region"`
 }
 
-// UploadLimitsConfig содержит ограничения на загрузку бинарных файлов.
+// UploadLimitsConfig задаёт ограничения на бинарные payload.
 type UploadLimitsConfig struct {
 	MaxFileSize  int64 `json:"max_file_size"`
 	MaxChunkSize int64 `json:"max_chunk_size"`

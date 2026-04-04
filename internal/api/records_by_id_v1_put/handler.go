@@ -1,22 +1,18 @@
-// Package recordsbyidv1put реализует HTTP-ручку обновления записи.
-//
-// PUT /api/v1/records/{id}
-//
 //go:generate minimock -i .RecordService -o mocks -s _mock.go -g
 package recordsbyidv1put
 
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 
-	"github.com/hydra13/gophkeeper/internal/api/records_common"
+	recordscommon "github.com/hydra13/gophkeeper/internal/api/records_common"
 	"github.com/hydra13/gophkeeper/internal/middlewares"
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
-// UpdateRecordRequest — DTO для обновления записи.
 type UpdateRecordRequest struct {
 	Name           string         `json:"name"`
 	Metadata       string         `json:"metadata,omitempty"`
@@ -30,22 +26,17 @@ type UpdateRecordRequest struct {
 	Card           *CardPayload   `json:"card,omitempty"`
 }
 
-// LoginPayload — DTO для логин/пароль.
 type LoginPayload struct {
 	Login    string `json:"login"`
 	Password string `json:"password"`
 }
 
-// TextPayload — DTO для текстовых данных.
 type TextPayload struct {
 	Content string `json:"content"`
 }
 
-// BinaryPayload — DTO для бинарных данных (metadata-only).
-// Содержимое управляется через uploads-слой (task_13).
 type BinaryPayload struct{}
 
-// CardPayload — DTO для данных банковской карты.
 type CardPayload struct {
 	Number     string `json:"number"`
 	HolderName string `json:"holder_name"`
@@ -53,28 +44,23 @@ type CardPayload struct {
 	CVV        string `json:"cvv"`
 }
 
-// UpdateRecordResponse — DTO ответа при обновлении записи.
 type UpdateRecordResponse struct {
 	Record recordscommon.RecordDTO `json:"record"`
 }
 
-// RecordService — интерфейс бизнес-логики для работы с записями.
 type RecordService interface {
 	GetRecord(id int64) (*models.Record, error)
 	UpdateRecord(record *models.Record) error
 }
 
-// Handler — HTTP-обработчик для PUT /api/v1/records/{id}.
 type Handler struct {
 	service RecordService
 }
 
-// NewHandler создаёт новый обработчик.
 func NewHandler(service RecordService) *Handler {
 	return &Handler{service: service}
 }
 
-// Handle обновляет запись по идентификатору с проверкой ревизии.
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middlewares.UserIDFromContext(r.Context())
 	if !ok || userID <= 0 {
@@ -152,10 +138,11 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(resp)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		log.Printf("update record response encode failed: %v", err)
+	}
 }
 
-// buildPayload создаёт payload на основе типа записи и DTO.
 func buildPayload(rt models.RecordType, req *UpdateRecordRequest) (models.RecordPayload, error) {
 	switch rt {
 	case models.RecordTypeLogin:
@@ -169,8 +156,6 @@ func buildPayload(rt models.RecordType, req *UpdateRecordRequest) (models.Record
 		}
 		return models.TextPayload{Content: req.Text.Content}, nil
 	case models.RecordTypeBinary:
-		// Binary payload content управляется через uploads-слой (task_13).
-		// CRUD оперирует только metadata и payload_version как ссылкой на вложение.
 		return models.BinaryPayload{}, nil
 	case models.RecordTypeCard:
 		if req.Card == nil {

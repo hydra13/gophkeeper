@@ -1,2 +1,2 @@
-// Package uploads реализует загрузку и скачивание бинарных вложений по чанкам.
+// Package uploads управляет загрузкой и скачиванием бинарных payload.
 package uploads

@@ -38,7 +38,11 @@ func TestDefaultTLSCertFileFindsProjectCert(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Getwd(): %v", err)
 	}
-	defer os.Chdir(oldWD)
+	t.Cleanup(func() {
+		if err := os.Chdir(oldWD); err != nil {
+			t.Fatalf("restore wd: %v", err)
+		}
+	})
 
 	if err := os.Chdir(dir); err != nil {
 		t.Fatalf("Chdir(): %v", err)

@@ -17,7 +17,6 @@ const binaryChunkSize int64 = 64 * 1024
 
 var filterOptions = []string{"all", "login", "text", "binary", "card"}
 
-// App управляет экранами и состоянием TUI-клиента.
 type App struct {
 	core        *clientcore.ClientCore
 	application *tview.Application
@@ -30,7 +29,6 @@ type App struct {
 	filterDrop *tview.DropDown
 }
 
-// New создает TUI-приложение поверх клиентского ядра.
 func New(core *clientcore.ClientCore) *App {
 	pages := tview.NewPages()
 	application := tview.NewApplication()
@@ -50,7 +48,6 @@ func New(core *clientcore.ClientCore) *App {
 	}
 }
 
-// Run запускает TUI и показывает стартовый или основной экран в зависимости от авторизации.
 func (a *App) Run() error {
 	if a.core.IsAuthenticated() {
 		a.showMainScreen()

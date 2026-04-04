@@ -49,11 +49,11 @@ func TestRegister_RegistersAllServices(t *testing.T) {
 	info := g.GetServiceInfo()
 
 	expected := map[string]string{
-		"gophkeeper.v1.AuthService":   "auth",
-		"gophkeeper.v1.DataService":   "data",
-		"gophkeeper.v1.SyncService":   "sync",
+		"gophkeeper.v1.AuthService":    "auth",
+		"gophkeeper.v1.DataService":    "data",
+		"gophkeeper.v1.SyncService":    "sync",
 		"gophkeeper.v1.UploadsService": "uploads",
-		"gophkeeper.v1.HealthService": "health",
+		"gophkeeper.v1.HealthService":  "health",
 	}
 
 	for serviceName, label := range expected {

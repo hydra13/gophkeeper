@@ -17,6 +17,10 @@ import (
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
+type testContextKey string
+
+const wrappedStreamTestKey testContextKey = "test-key"
+
 func TestUnaryAuth_PublicMethod(t *testing.T) {
 	validator := &mockValidator{}
 	allowMethods := map[string]struct{}{
@@ -375,12 +379,12 @@ func TestWrappedStream_Context(t *testing.T) {
 	t.Parallel()
 
 	inner := &mockServerStream{ctx: context.Background()}
-	customCtx := context.WithValue(context.Background(), "test-key", "test-value")
+	customCtx := context.WithValue(context.Background(), wrappedStreamTestKey, "test-value")
 
 	wrapped := &wrappedStream{ServerStream: inner, ctx: customCtx}
 
 	require.Equal(t, customCtx, wrapped.Context())
-	require.Equal(t, "test-value", wrapped.Context().Value("test-key"))
+	require.Equal(t, "test-value", wrapped.Context().Value(wrappedStreamTestKey))
 }
 
 // ---------------------------------------------------------------------------

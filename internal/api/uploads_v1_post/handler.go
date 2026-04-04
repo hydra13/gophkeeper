@@ -1,56 +1,38 @@
-// Package uploads_v1_post реализует HTTP-ручку создания сессии загрузки.
-//
-// POST /api/v1/uploads
-//
 //go:generate minimock -i .UploadCreator -o mocks -s _mock.go -g
 package uploads_v1_post
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 )
 
-// Request — DTO для создания upload-сессии.
 type Request struct {
-	// UserID — идентификатор пользователя (из JWT-токена).
-	UserID int64 `json:"user_id"`
-	// RecordID — ссылка на запись типа binary, к которой относится загрузка.
-	RecordID int64 `json:"record_id"`
-	// TotalChunks — общее количество чанков.
+	UserID      int64 `json:"user_id"`
+	RecordID    int64 `json:"record_id"`
 	TotalChunks int64 `json:"total_chunks"`
-	// ChunkSize — размер одного чанка в байтах.
-	ChunkSize int64 `json:"chunk_size"`
-	// TotalSize — общий размер загружаемого файла в байтах.
-	TotalSize int64 `json:"total_size"`
-	// KeyVersion — версия ключа шифрования.
-	KeyVersion int64 `json:"key_version"`
+	ChunkSize   int64 `json:"chunk_size"`
+	TotalSize   int64 `json:"total_size"`
+	KeyVersion  int64 `json:"key_version"`
 }
 
-// Response — DTO ответа при создании upload-сессии.
 type Response struct {
-	// UploadID — идентификатор созданной upload-сессии.
-	UploadID int64 `json:"upload_id"`
-	// Status — текущий статус сессии ("pending").
-	Status string `json:"status"`
+	UploadID int64  `json:"upload_id"`
+	Status   string `json:"status"`
 }
 
-// UploadCreator — интерфейс сервиса создания upload-сессии.
 type UploadCreator interface {
-	// CreateSession создаёт новую upload-сессию.
 	CreateSession(userID, recordID, totalChunks, chunkSize, totalSize, keyVersion int64) (int64, error)
 }
 
-// Handler обрабатывает POST /api/v1/uploads.
 type Handler struct {
 	service UploadCreator
 }
 
-// NewHandler создаёт новый обработчик создания upload-сессии.
 func NewHandler(service UploadCreator) *Handler {
 	return &Handler{service: service}
 }
 
-// ServeHTTP создаёт upload-сессию для последующей передачи чанков.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -103,8 +85,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(Response{
+	if err := json.NewEncoder(w).Encode(Response{
 		UploadID: uploadID,
 		Status:   "pending",
-	})
+	}); err != nil {
+		log.Printf("create upload response encode failed: %v", err)
+	}
 }

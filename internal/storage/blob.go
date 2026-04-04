@@ -16,7 +16,7 @@ var (
 	}
 )
 
-// NewBlobStorage создаёт blob-хранилище по конфигурации провайдера.
+// NewBlobStorage создаёт blob-хранилище по конфигурации.
 func NewBlobStorage(cfg config.BlobStorageConfig) (repositories.BlobStorage, error) {
 	switch cfg.Provider {
 	case "local":

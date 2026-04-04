@@ -1,7 +1,3 @@
-// Package auth_register_v1_post реализует HTTP-ручку регистрации пользователя.
-//
-// POST /api/v1/auth/register
-//
 //go:generate minimock -i .UserService -o mocks -s _mock.go -g
 package auth_register_v1_post
 
@@ -16,29 +12,24 @@ import (
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
-// UserService определяет зависимости, необходимые для регистрации пользователя.
 type UserService interface {
 	Register(ctx context.Context, email, password string) (int64, error)
 }
 
-// RegisterRequest — DTO запроса на регистрацию.
 type RegisterRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
 
-// RegisterResponse — DTO успешного ответа регистрации.
 type RegisterResponse struct {
 	UserID int64 `json:"user_id"`
 }
 
-// Handler обрабатывает запросы регистрации пользователя.
 type Handler struct {
 	userService UserService
 	log         zerolog.Logger
 }
 
-// NewHandler создаёт новый Handler для регистрации.
 func NewHandler(userService UserService, log zerolog.Logger) *Handler {
 	return &Handler{
 		userService: userService,
@@ -46,18 +37,17 @@ func NewHandler(userService UserService, log zerolog.Logger) *Handler {
 	}
 }
 
-// Handle регистрирует пользователя и возвращает его идентификатор.
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	var req RegisterRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		h.log.Debug().Err(err).Msg("register: failed to decode request body")
-		writeError(w, http.StatusBadRequest, "invalid request body")
+		writeError(h.log, w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
 	if err := validateRegister(req); err != nil {
 		h.log.Debug().Err(err).Msg("register: validation failed")
-		writeError(w, http.StatusBadRequest, err.Error())
+		writeError(h.log, w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -67,7 +57,7 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, RegisterResponse{UserID: userID})
+	writeJSON(h.log, w, http.StatusCreated, RegisterResponse{UserID: userID})
 }
 
 func validateRegister(req RegisterRequest) error {
@@ -83,26 +73,30 @@ func validateRegister(req RegisterRequest) error {
 	return nil
 }
 
-func writeJSON(w http.ResponseWriter, status int, v interface{}) {
+func writeJSON(log zerolog.Logger, w http.ResponseWriter, status int, v interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v)
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		log.Error().Err(err).Msg("register response encode failed")
+	}
 }
 
-func writeError(w http.ResponseWriter, status int, message string) {
+func writeError(log zerolog.Logger, w http.ResponseWriter, status int, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(map[string]string{"error": message})
+	if err := json.NewEncoder(w).Encode(map[string]string{"error": message}); err != nil {
+		log.Error().Err(err).Msg("register error response encode failed")
+	}
 }
 
 func mapError(w http.ResponseWriter, log zerolog.Logger, err error, op string) {
 	switch {
 	case errors.Is(err, models.ErrEmailAlreadyExists):
-		writeError(w, http.StatusConflict, err.Error())
+		writeError(log, w, http.StatusConflict, err.Error())
 	case errors.Is(err, models.ErrInvalidCredentials):
-		writeError(w, http.StatusUnauthorized, err.Error())
+		writeError(log, w, http.StatusUnauthorized, err.Error())
 	default:
 		log.Error().Err(err).Str("op", op).Msg("internal error")
-		writeError(w, http.StatusInternalServerError, "internal error")
+		writeError(log, w, http.StatusInternalServerError, "internal error")
 	}
 }

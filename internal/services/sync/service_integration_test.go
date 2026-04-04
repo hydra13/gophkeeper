@@ -1,3 +1,6 @@
+//go:build integration
+// +build integration
+
 package sync
 
 import (
@@ -20,8 +23,8 @@ import (
 )
 
 func TestSyncPushPullHappyPath(t *testing.T) {
-	svc, repo, _ := setupSyncService(t)
-	user, _ := createUserAndKey(t, repo)
+	svc, repo, km := setupSyncService(t)
+	user, _ := createUserAndKey(t, repo, km)
 
 	changes := []models.PendingChange{
 		{
@@ -51,8 +54,8 @@ func TestSyncPushPullHappyPath(t *testing.T) {
 }
 
 func TestSyncConflictOnConcurrentUpdate(t *testing.T) {
-	svc, repo, _ := setupSyncService(t)
-	user, _ := createUserAndKey(t, repo)
+	svc, repo, km := setupSyncService(t)
+	user, _ := createUserAndKey(t, repo, km)
 
 	// Создаем запись через sync push
 	changes := []models.PendingChange{
@@ -116,8 +119,8 @@ func TestSyncConflictOnConcurrentUpdate(t *testing.T) {
 }
 
 func TestSyncSoftDelete(t *testing.T) {
-	svc, repo, _ := setupSyncService(t)
-	user, _ := createUserAndKey(t, repo)
+	svc, repo, km := setupSyncService(t)
+	user, _ := createUserAndKey(t, repo, km)
 
 	// Создаем запись
 	changes := []models.PendingChange{
@@ -163,8 +166,8 @@ func TestSyncSoftDelete(t *testing.T) {
 }
 
 func TestSyncIncrementalPull(t *testing.T) {
-	svc, repo, _ := setupSyncService(t)
-	user, _ := createUserAndKey(t, repo)
+	svc, repo, km := setupSyncService(t)
+	user, _ := createUserAndKey(t, repo, km)
 
 	// Создаем 3 записи последовательно
 	for i := 0; i < 3; i++ {
@@ -198,8 +201,8 @@ func TestSyncIncrementalPull(t *testing.T) {
 }
 
 func TestSyncResolveConflictLocal(t *testing.T) {
-	svc, repo, _ := setupSyncService(t)
-	user, _ := createUserAndKey(t, repo)
+	svc, repo, km := setupSyncService(t)
+	user, _ := createUserAndKey(t, repo, km)
 
 	// Создаем запись
 	changes := []models.PendingChange{
@@ -270,8 +273,8 @@ func TestSyncResolveConflictLocal(t *testing.T) {
 }
 
 func TestSyncResolveConflictServer(t *testing.T) {
-	svc, repo, _ := setupSyncService(t)
-	user, _ := createUserAndKey(t, repo)
+	svc, repo, km := setupSyncService(t)
+	user, _ := createUserAndKey(t, repo, km)
 
 	// Создаем запись
 	changes := []models.PendingChange{
@@ -337,8 +340,8 @@ func TestSyncResolveConflictServer(t *testing.T) {
 }
 
 func TestSyncRestoreAfterSoftDelete(t *testing.T) {
-	svc, repo, _ := setupSyncService(t)
-	user, _ := createUserAndKey(t, repo)
+	svc, repo, km := setupSyncService(t)
+	user, _ := createUserAndKey(t, repo, km)
 
 	// Создаем запись
 	changes := []models.PendingChange{
@@ -438,17 +441,13 @@ func setupSyncService(t *testing.T) (*Service, *dbrepo.Repository, *keys.Manager
 	return svc, repo, keyManager
 }
 
-func createUserAndKey(t *testing.T, repo *dbrepo.Repository) (*models.User, *models.KeyVersion) {
+func createUserAndKey(t *testing.T, repo *dbrepo.Repository, km *keys.Manager) (*models.User, *models.KeyVersion) {
 	t.Helper()
 	user := &models.User{
 		Email:        "sync-user-" + time.Now().Format("150405.000") + "@example.com",
 		PasswordHash: "hash",
 	}
 	require.NoError(t, repo.CreateUser(user))
-
-	masterKey := testMasterKey(t)
-	km, err := keys.NewManager(repo, masterKey)
-	require.NoError(t, err)
 	kv, err := km.CreateActive()
 	require.NoError(t, err)
 	return user, kv
@@ -480,8 +479,8 @@ func testMasterKey(t *testing.T) string {
 }
 
 func TestSyncStaleDeleteAfterUpdateReturnsConflict(t *testing.T) {
-	svc, repo, _ := setupSyncService(t)
-	user, _ := createUserAndKey(t, repo)
+	svc, repo, km := setupSyncService(t)
+	user, _ := createUserAndKey(t, repo, km)
 
 	// Создаем запись
 	changes := []models.PendingChange{
@@ -542,8 +541,8 @@ func TestSyncStaleDeleteAfterUpdateReturnsConflict(t *testing.T) {
 }
 
 func TestSyncDeleteThenRestoreViaUpdate(t *testing.T) {
-	svc, repo, _ := setupSyncService(t)
-	user, _ := createUserAndKey(t, repo)
+	svc, repo, km := setupSyncService(t)
+	user, _ := createUserAndKey(t, repo, km)
 
 	// Создаем запись
 	changes := []models.PendingChange{
@@ -608,8 +607,8 @@ func TestSyncDeleteThenRestoreViaUpdate(t *testing.T) {
 }
 
 func TestSyncDeleteConflictReturnsBothVersions(t *testing.T) {
-	svc, repo, _ := setupSyncService(t)
-	user, _ := createUserAndKey(t, repo)
+	svc, repo, km := setupSyncService(t)
+	user, _ := createUserAndKey(t, repo, km)
 
 	// Создаем запись
 	changes := []models.PendingChange{
@@ -673,8 +672,8 @@ func TestSyncDeleteConflictReturnsBothVersions(t *testing.T) {
 }
 
 func TestSyncUpdateConflictReturnsBothVersions(t *testing.T) {
-	svc, repo, _ := setupSyncService(t)
-	user, _ := createUserAndKey(t, repo)
+	svc, repo, km := setupSyncService(t)
+	user, _ := createUserAndKey(t, repo, km)
 
 	// Создаем запись
 	changes := []models.PendingChange{

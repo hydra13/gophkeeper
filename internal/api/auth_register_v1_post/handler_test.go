@@ -39,8 +39,8 @@ func TestHandler_Handle(t *testing.T) {
 			wantStatus: http.StatusCreated,
 		},
 		{
-			name:       "Invalid body",
-			body:       "not-json",
+			name: "Invalid body",
+			body: "not-json",
 			setupMock: func(mc *minimock.Controller) UserService {
 				return mocks.NewUserServiceMock(mc)
 			},
@@ -123,7 +123,9 @@ func TestHandler_Handle(t *testing.T) {
 			handler.Handle(rec, req)
 
 			resp := rec.Result()
-			defer resp.Body.Close()
+			t.Cleanup(func() {
+				require.NoError(t, resp.Body.Close())
+			})
 
 			assert.Equal(t, tt.wantStatus, resp.StatusCode)
 

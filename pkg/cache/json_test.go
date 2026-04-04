@@ -427,23 +427,23 @@ func TestFileStore_FlushAndReload_AllPayloadTypes(t *testing.T) {
 	require.NoError(t, err)
 
 	loginRec := &models.Record{
-		ID:        1, UserID: 1, Type: models.RecordTypeLogin, Name: "login-rec",
-		Payload: models.LoginPayload{Login: "u", Password: "p"},
+		ID: 1, UserID: 1, Type: models.RecordTypeLogin, Name: "login-rec",
+		Payload:  models.LoginPayload{Login: "u", Password: "p"},
 		DeviceID: "dev", Revision: 1, CreatedAt: time.Now(), UpdatedAt: time.Now(),
 	}
 	textRec := &models.Record{
-		ID:        2, UserID: 1, Type: models.RecordTypeText, Name: "text-rec",
-		Payload: models.TextPayload{Content: "text data"},
+		ID: 2, UserID: 1, Type: models.RecordTypeText, Name: "text-rec",
+		Payload:  models.TextPayload{Content: "text data"},
 		DeviceID: "dev", Revision: 1, CreatedAt: time.Now(), UpdatedAt: time.Now(),
 	}
 	binRec := &models.Record{
 		ID: 3, UserID: 1, Type: models.RecordTypeBinary, Name: "bin-rec",
-		Payload: models.BinaryPayload{Data: []byte{0x01, 0x02}},
+		Payload:  models.BinaryPayload{Data: []byte{0x01, 0x02}},
 		DeviceID: "dev", Revision: 1, PayloadVersion: 1, CreatedAt: time.Now(), UpdatedAt: time.Now(),
 	}
 	cardRec := &models.Record{
-		ID:        4, UserID: 1, Type: models.RecordTypeCard, Name: "card-rec",
-		Payload: models.CardPayload{Number: "4111", HolderName: "Test", ExpiryDate: "01/30", CVV: "000"},
+		ID: 4, UserID: 1, Type: models.RecordTypeCard, Name: "card-rec",
+		Payload:  models.CardPayload{Number: "4111", HolderName: "Test", ExpiryDate: "01/30", CVV: "000"},
 		DeviceID: "dev", Revision: 1, CreatedAt: time.Now(), UpdatedAt: time.Now(),
 	}
 
@@ -495,22 +495,22 @@ func TestFileStore_FlushAndReload_PendingOps(t *testing.T) {
 
 	rec := &models.Record{
 		ID: 1, UserID: 1, Type: models.RecordTypeLogin, Name: "p-rec",
-		Payload: models.LoginPayload{Login: "u", Password: "p"},
+		Payload:  models.LoginPayload{Login: "u", Password: "p"},
 		DeviceID: "dev", Revision: 1, CreatedAt: time.Now(), UpdatedAt: time.Now(),
 	}
 
-	store1.Pending().Enqueue(PendingOp{
+	require.NoError(t, store1.Pending().Enqueue(PendingOp{
 		ID: 1, RecordID: 1, Operation: OperationCreate,
 		Record: rec, BaseRevision: 0, CreatedAt: 1700000000,
-	})
-	store1.Pending().Enqueue(PendingOp{
+	}))
+	require.NoError(t, store1.Pending().Enqueue(PendingOp{
 		ID: 2, RecordID: 1, Operation: OperationUpdate,
 		Record: rec, BaseRevision: 1, CreatedAt: 1700000001,
-	})
-	store1.Pending().Enqueue(PendingOp{
+	}))
+	require.NoError(t, store1.Pending().Enqueue(PendingOp{
 		ID: 3, RecordID: 1, Operation: OperationDelete,
 		Record: nil, BaseRevision: 2, CreatedAt: 1700000002,
-	})
+	}))
 
 	require.NoError(t, store1.Flush())
 
@@ -562,10 +562,10 @@ func TestJsonToRecord_UnknownType_NoPayloadUnmarshal(t *testing.T) {
 
 func TestRecordToJSON_InvalidPayload(t *testing.T) {
 	rec := models.Record{
-		ID:      1,
-		Type:    models.RecordTypeLogin,
-		Name:    "bad",
-		Payload: models.LoginPayload{Login: "u", Password: "p"},
+		ID:       1,
+		Type:     models.RecordTypeLogin,
+		Name:     "bad",
+		Payload:  models.LoginPayload{Login: "u", Password: "p"},
 		DeviceID: "dev",
 	}
 

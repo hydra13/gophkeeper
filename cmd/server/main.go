@@ -25,17 +25,15 @@ import (
 	"github.com/hydra13/gophkeeper/internal/storage"
 )
 
-// applyMigrations allows tests to override migrations.Apply.
 var applyMigrations = migrations.Apply
 
-// openDB allows tests to override sql.Open+Ping.
 var openDB = func(dsn string) (*sql.DB, error) {
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {
 		return nil, err
 	}
 	if err := db.Ping(); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, err
 	}
 	return db, nil
@@ -78,7 +76,11 @@ func wireDeps(cfg *config.Config, log zerolog.Logger) (app.AppDeps, func(), erro
 	if err != nil {
 		return app.AppDeps{}, cleanup, fmt.Errorf("failed to connect to database: %w", err)
 	}
-	cleanup = func() { db.Close() }
+	cleanup = func() {
+		if err := db.Close(); err != nil {
+			log.Warn().Err(err).Msg("failed to close database connection")
+		}
+	}
 
 	if err := applyMigrations(db); err != nil {
 		return app.AppDeps{}, cleanup, fmt.Errorf("failed to apply database migrations: %w", err)

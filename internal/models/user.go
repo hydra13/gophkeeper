@@ -2,16 +2,11 @@ package models
 
 import "time"
 
-// User — зарегистрированный пользователь системы.
+// User описывает зарегистрированного пользователя.
 type User struct {
-	// ID — уникальный идентификатор пользователя.
-	ID int64
-	// Email — уникальный адрес электронной почты пользователя.
-	Email string
-	// PasswordHash — безопасный хеш пароля (bcrypt/argon2).
+	ID           int64
+	Email        string
 	PasswordHash string
-	// CreatedAt — время регистрации.
-	CreatedAt time.Time
-	// UpdatedAt — время последнего обновления профиля.
-	UpdatedAt time.Time
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }

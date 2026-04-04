@@ -14,7 +14,6 @@ import (
 	"github.com/hydra13/gophkeeper/internal/rpc/pbv1"
 )
 
-// SyncUseCase определяет операции синхронизации для gRPC слоя.
 type SyncUseCase interface {
 	Push(userID int64, deviceID string, changes []models.PendingChange) ([]models.RecordRevision, []models.SyncConflict, error)
 	Pull(userID int64, deviceID string, sinceRevision int64, limit int64) ([]models.RecordRevision, []models.Record, []models.SyncConflict, error)
@@ -29,7 +28,7 @@ type SyncService struct {
 	log     zerolog.Logger
 }
 
-// NewSyncService создаёт SyncService с зависимостями.
+// NewSyncService создаёт SyncService.
 func NewSyncService(useCase SyncUseCase, log zerolog.Logger) *SyncService {
 	return &SyncService{
 		useCase: useCase,
@@ -37,7 +36,6 @@ func NewSyncService(useCase SyncUseCase, log zerolog.Logger) *SyncService {
 	}
 }
 
-// Push отправляет локальные изменения клиента на сервер.
 func (s *SyncService) Push(ctx context.Context, req *pbv1.PushRequest) (*pbv1.PushResponse, error) {
 	userID, err := userIDFromContext(ctx)
 	if err != nil {
@@ -75,7 +73,6 @@ func (s *SyncService) Push(ctx context.Context, req *pbv1.PushRequest) (*pbv1.Pu
 	return resp, nil
 }
 
-// Pull возвращает изменения и конфликты после указанной ревизии.
 func (s *SyncService) Pull(ctx context.Context, req *pbv1.PullRequest) (*pbv1.PullResponse, error) {
 	userID, err := userIDFromContext(ctx)
 	if err != nil {
@@ -112,7 +109,6 @@ func (s *SyncService) Pull(ctx context.Context, req *pbv1.PullRequest) (*pbv1.Pu
 	return resp, nil
 }
 
-// GetConflicts возвращает открытые конфликты синхронизации пользователя.
 func (s *SyncService) GetConflicts(ctx context.Context, req *pbv1.GetConflictsRequest) (*pbv1.GetConflictsResponse, error) {
 	userID, err := userIDFromContext(ctx)
 	if err != nil {
@@ -129,7 +125,6 @@ func (s *SyncService) GetConflicts(ctx context.Context, req *pbv1.GetConflictsRe
 	}, nil
 }
 
-// ResolveConflict разрешает конфликт в пользу локальной или серверной версии.
 func (s *SyncService) ResolveConflict(ctx context.Context, req *pbv1.ResolveConflictRequest) (*pbv1.ResolveConflictResponse, error) {
 	userID, err := userIDFromContext(ctx)
 	if err != nil {
@@ -268,7 +263,6 @@ func protoToTime(ts *timestamppb.Timestamp) time.Time {
 	return ts.AsTime()
 }
 
-// mapSyncError маппит доменные ошибки синхронизации в gRPC status codes.
 func mapSyncError(err error) error {
 	switch {
 	case errors.Is(err, models.ErrRecordNotFound):

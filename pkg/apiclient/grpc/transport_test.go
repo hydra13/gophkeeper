@@ -2,6 +2,7 @@ package grpc
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -1135,14 +1136,28 @@ func TestTLSHandshake_WithDevCert(t *testing.T) {
 	// Start a TLS gRPC server on a random port.
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	defer lis.Close()
+	t.Cleanup(func() {
+		err := lis.Close()
+		if err != nil && !errors.Is(err, net.ErrClosed) {
+			require.NoError(t, err)
+		}
+	})
 
 	creds, err := credentials.NewServerTLSFromFile(certPath, keyPath)
 	require.NoError(t, err)
 
 	srv := grpc.NewServer(grpc.Creds(creds))
-	go srv.Serve(lis)
+	serveErrCh := make(chan error, 1)
+	go func() {
+		serveErrCh <- srv.Serve(lis)
+	}()
 	defer srv.Stop()
+	t.Cleanup(func() {
+		err := <-serveErrCh
+		if err != nil {
+			require.ErrorIs(t, err, grpc.ErrServerStopped)
+		}
+	})
 
 	// Connect client using the documented CA cert path.
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -1153,7 +1168,9 @@ func TestTLSHandshake_WithDevCert(t *testing.T) {
 		TLSCertFile: certPath,
 	})
 	require.NoError(t, err)
-	defer client.Close()
+	t.Cleanup(func() {
+		require.NoError(t, client.Close())
+	})
 }
 
 func TestTLSHandshake_WrongCertFails(t *testing.T) {
@@ -1167,14 +1184,28 @@ func TestTLSHandshake_WrongCertFails(t *testing.T) {
 	// Start TLS server with dev cert.
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	defer lis.Close()
+	t.Cleanup(func() {
+		err := lis.Close()
+		if err != nil && !errors.Is(err, net.ErrClosed) {
+			require.NoError(t, err)
+		}
+	})
 
 	creds, err := credentials.NewServerTLSFromFile(certPath, keyPath)
 	require.NoError(t, err)
 
 	srv := grpc.NewServer(grpc.Creds(creds))
-	go srv.Serve(lis)
+	serveErrCh := make(chan error, 1)
+	go func() {
+		serveErrCh <- srv.Serve(lis)
+	}()
 	defer srv.Stop()
+	t.Cleanup(func() {
+		err := <-serveErrCh
+		if err != nil {
+			require.ErrorIs(t, err, grpc.ErrServerStopped)
+		}
+	})
 
 	// Generate a different self-signed cert to use as CA (wrong trust bundle).
 	wrongCertPEM, _, err := generateTestCert()
@@ -1194,7 +1225,9 @@ func TestTLSHandshake_WrongCertFails(t *testing.T) {
 		TLSCertFile: wrongCertPath,
 	})
 	require.NoError(t, err)
-	defer client.Close()
+	t.Cleanup(func() {
+		require.NoError(t, client.Close())
+	})
 
 	// The TLS handshake error surfaces when making an actual RPC call.
 	_, err = client.Register(ctx, "test@example.com", "password")

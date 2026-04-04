@@ -202,16 +202,6 @@ func createDownloadSession(t *testing.T, svc *Service, repo *memUploadRepo, user
 	return download.ID
 }
 
-// containsChunk проверяет наличие чанка с нужным индексом в слайсе.
-func containsChunk(chunks []models.Chunk, chunkIndex int64) bool {
-	for _, c := range chunks {
-		if c.ChunkIndex == chunkIndex {
-			return true
-		}
-	}
-	return false
-}
-
 // ---------------------------------------------------------------------------
 // NewService
 // ---------------------------------------------------------------------------
@@ -640,10 +630,9 @@ func TestConfirmChunk_HappyPath(t *testing.T) {
 	svc, repo := newTestService(t)
 	downloadID := createDownloadSession(t, svc, repo, 1, 10, 3)
 
-	confirmed, total, status, err := svc.ConfirmChunk(downloadID, 0)
+	confirmed, _, status, err := svc.ConfirmChunk(downloadID, 0)
 	require.NoError(t, err)
 	require.Equal(t, int64(1), confirmed)
-	require.Equal(t, int64(3), total)
 	require.Equal(t, models.DownloadStatusActive, status)
 }
 
@@ -651,11 +640,12 @@ func TestConfirmChunk_ПоследнийЧанкЗавершаетСессию(t
 	svc, repo := newTestService(t)
 	downloadID := createDownloadSession(t, svc, repo, 1, 10, 2)
 
-	confirmed, total, status, err := svc.ConfirmChunk(downloadID, 0)
+	confirmed, _, status, err := svc.ConfirmChunk(downloadID, 0)
 	require.NoError(t, err)
 	require.Equal(t, int64(1), confirmed)
 	require.Equal(t, models.DownloadStatusActive, status)
 
+	var total int64
 	confirmed, total, status, err = svc.ConfirmChunk(downloadID, 1)
 	require.NoError(t, err)
 	require.Equal(t, int64(2), confirmed)

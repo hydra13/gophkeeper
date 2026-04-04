@@ -204,7 +204,9 @@ func TestResolveConfigPath_EmptyWhenNothingSet(t *testing.T) {
 	origWd, err := os.Getwd()
 	require.NoError(t, err)
 	require.NoError(t, os.Chdir(dir))
-	defer os.Chdir(origWd)
+	t.Cleanup(func() {
+		require.NoError(t, os.Chdir(origWd))
+	})
 
 	path := resolveConfigPath()
 	require.Equal(t, "", path)
@@ -388,7 +390,9 @@ func TestLoad_ValidationFailsOnEmptyConfig(t *testing.T) {
 	origWd, err := os.Getwd()
 	require.NoError(t, err)
 	require.NoError(t, os.Chdir(dir))
-	defer os.Chdir(origWd)
+	t.Cleanup(func() {
+		require.NoError(t, os.Chdir(origWd))
+	})
 
 	_, err = Load()
 	require.Error(t, err)

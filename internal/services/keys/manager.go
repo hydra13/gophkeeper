@@ -18,7 +18,6 @@ const (
 	nonceSizeGCM = 12
 )
 
-// Repository описывает операции хранения версий ключей.
 type Repository interface {
 	CreateKeyVersion(kv *models.KeyVersion) error
 	GetKeyVersion(version int64) (*models.KeyVersion, error)
@@ -27,7 +26,7 @@ type Repository interface {
 	UpdateKeyVersion(kv *models.KeyVersion) error
 }
 
-// Manager управляет версиями data keys и их статусами.
+// Manager управляет жизненным циклом версий ключей.
 type Manager struct {
 	repo      Repository
 	masterKey []byte
@@ -46,7 +45,6 @@ func NewManager(repo Repository, masterKey string) (*Manager, error) {
 	return &Manager{repo: repo, masterKey: parsed, rand: rand.Reader}, nil
 }
 
-// EnsureActive возвращает активную версию ключа, создавая её при отсутствии.
 func (m *Manager) EnsureActive() (*models.KeyVersion, error) {
 	active, err := m.repo.GetActiveKeyVersion()
 	if err == nil {
@@ -58,7 +56,6 @@ func (m *Manager) EnsureActive() (*models.KeyVersion, error) {
 	return m.createKeyVersion(models.KeyStatusActive)
 }
 
-// KeyForEncrypt возвращает data key для шифрования по версии (только active).
 func (m *Manager) KeyForEncrypt(version int64) ([]byte, error) {
 	kv, err := m.repo.GetKeyVersion(version)
 	if err != nil {
@@ -70,7 +67,6 @@ func (m *Manager) KeyForEncrypt(version int64) ([]byte, error) {
 	return m.unwrapDataKey(kv)
 }
 
-// KeyForDecrypt возвращает data key для расшифровки (active/deprecated).
 func (m *Manager) KeyForDecrypt(version int64) ([]byte, error) {
 	kv, err := m.repo.GetKeyVersion(version)
 	if err != nil {
@@ -82,12 +78,10 @@ func (m *Manager) KeyForDecrypt(version int64) ([]byte, error) {
 	return m.unwrapDataKey(kv)
 }
 
-// CreateActive создаёт новую активную версию ключа.
 func (m *Manager) CreateActive() (*models.KeyVersion, error) {
 	return m.createKeyVersion(models.KeyStatusActive)
 }
 
-// Deprecate переводит активный ключ в deprecated.
 func (m *Manager) Deprecate(version int64) error {
 	kv, err := m.repo.GetKeyVersion(version)
 	if err != nil {
@@ -99,7 +93,6 @@ func (m *Manager) Deprecate(version int64) error {
 	return m.repo.UpdateKeyVersion(kv)
 }
 
-// Retire переводит deprecated ключ в retired.
 func (m *Manager) Retire(version int64) error {
 	kv, err := m.repo.GetKeyVersion(version)
 	if err != nil {
@@ -111,7 +104,6 @@ func (m *Manager) Retire(version int64) error {
 	return m.repo.UpdateKeyVersion(kv)
 }
 
-// Rotate депрецирует активный ключ и создаёт новый active.
 func (m *Manager) Rotate() (*models.KeyVersion, error) {
 	active, err := m.repo.GetActiveKeyVersion()
 	if err == nil {

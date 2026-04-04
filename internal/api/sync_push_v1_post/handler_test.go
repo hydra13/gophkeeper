@@ -9,6 +9,7 @@ import (
 
 	recordscommon "github.com/hydra13/gophkeeper/internal/api/records_common"
 	"github.com/hydra13/gophkeeper/internal/models"
+	"github.com/stretchr/testify/require"
 )
 
 type mockSyncPusher struct {
@@ -116,7 +117,7 @@ func TestSyncPushHandler_WithConflicts(t *testing.T) {
 	}
 
 	var resp Response
-	json.NewDecoder(w.Body).Decode(&resp)
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
 	if len(resp.Conflicts) != 1 {
 		t.Fatalf("expected 1 conflict, got %d", len(resp.Conflicts))
 	}

@@ -16,10 +16,12 @@ import (
 	"github.com/hydra13/gophkeeper/pkg/cache"
 	"github.com/hydra13/gophkeeper/pkg/clientcore"
 	"github.com/hydra13/gophkeeper/pkg/clientcore/mocks"
+	"github.com/stretchr/testify/require"
 )
 
 // testEnv holds test environment with injected mock core.
 type testEnv struct {
+	t         *testing.T
 	core      *clientcore.ClientCore
 	transport *mocks.MockTransport
 	store     cache.Store
@@ -48,6 +50,7 @@ func setupTestEnv(t *testing.T) *testEnv {
 	})
 
 	env := &testEnv{
+		t:         t,
 		core:      core,
 		transport: transport,
 		store:     store,
@@ -115,23 +118,44 @@ func (e *testEnv) captureOutput(fn func()) {
 	e.stderr.Reset()
 
 	done := make(chan struct{})
+	errCh := make(chan error, 2)
 	go func() {
 		defer close(done)
 		var buf bytes.Buffer
-		buf.ReadFrom(rOut)
-		e.stdout.Write(buf.Bytes())
+		if _, err := buf.ReadFrom(rOut); err != nil {
+			errCh <- err
+			return
+		}
+		if _, err := e.stdout.Write(buf.Bytes()); err != nil {
+			errCh <- err
+		}
 	}()
 	go func() {
 		var buf bytes.Buffer
-		buf.ReadFrom(rErr)
-		e.stderr.Write(buf.Bytes())
+		if _, err := buf.ReadFrom(rErr); err != nil {
+			errCh <- err
+			return
+		}
+		if _, err := e.stderr.Write(buf.Bytes()); err != nil {
+			errCh <- err
+		}
 	}()
 
 	fn()
 
-	wOut.Close()
-	wErr.Close()
+	if err := wOut.Close(); err != nil {
+		e.t.Fatalf("close stdout pipe: %v", err)
+	}
+	if err := wErr.Close(); err != nil {
+		e.t.Fatalf("close stderr pipe: %v", err)
+	}
 	<-done
+	close(errCh)
+	for err := range errCh {
+		if err != nil {
+			e.t.Fatalf("capture output: %v", err)
+		}
+	}
 }
 
 // --- Smoke tests: direct entrypoint calls ---
@@ -141,7 +165,7 @@ func TestCLIRunRegister(t *testing.T) {
 
 	env.captureOutput(func() {
 		defer func() {
-			recover() // catch fatal panic
+			_ = recover() // catch fatal panic
 		}()
 		runRegister([]string{"user@example.com"})
 	})
@@ -158,7 +182,7 @@ func TestCLIRunLogin(t *testing.T) {
 	env := setupTestEnv(t)
 
 	env.captureOutput(func() {
-		defer func() { recover() }()
+		defer func() { _ = recover() }()
 		runLogin([]string{"user@example.com"})
 	})
 
@@ -177,7 +201,7 @@ func TestCLIRunLogout(t *testing.T) {
 	_ = env.core.Login(ctx, "user@example.com", "test-password")
 
 	env.captureOutput(func() {
-		defer func() { recover() }()
+		defer func() { _ = recover() }()
 		runLogout()
 	})
 
@@ -195,7 +219,7 @@ func TestCLIRunAddText(t *testing.T) {
 	_ = env.core.Login(ctx, "user@example.com", "test-password")
 
 	env.captureOutput(func() {
-		defer func() { recover() }()
+		defer func() { _ = recover() }()
 		// add text <name> <data>
 		runAdd([]string{"text", "my note", "hello world"})
 	})
@@ -216,7 +240,7 @@ func TestCLIRunAddLogin(t *testing.T) {
 
 	// readLineFunc returns "test-input" for all prompts, readPasswordFunc returns "test-password"
 	env.captureOutput(func() {
-		defer func() { recover() }()
+		defer func() { _ = recover() }()
 		// add login <name> — interactive prompts via readLine/readPassword
 		runAdd([]string{"login", "my site"})
 	})
@@ -254,7 +278,7 @@ func TestCLIRunAddBinary(t *testing.T) {
 	}
 
 	env.captureOutput(func() {
-		defer func() { recover() }()
+		defer func() { _ = recover() }()
 		// add binary <name> <file-path>
 		runAdd([]string{"binary", "file.bin", tmpFile})
 	})
@@ -294,7 +318,7 @@ func TestCLIRunList(t *testing.T) {
 	}
 
 	env.captureOutput(func() {
-		defer func() { recover() }()
+		defer func() { _ = recover() }()
 		runList(nil)
 	})
 
@@ -313,7 +337,7 @@ func TestCLIRunListEmpty(t *testing.T) {
 	_ = env.core.Login(ctx, "user@example.com", "test-password")
 
 	env.captureOutput(func() {
-		defer func() { recover() }()
+		defer func() { _ = recover() }()
 		runList(nil)
 	})
 
@@ -341,7 +365,7 @@ func TestCLIRunGet(t *testing.T) {
 	}
 
 	env.captureOutput(func() {
-		defer func() { recover() }()
+		defer func() { _ = recover() }()
 		runGet([]string{"id", "42"})
 	})
 
@@ -372,7 +396,7 @@ func TestCLIRunGetByName(t *testing.T) {
 	}
 
 	env.captureOutput(func() {
-		defer func() { recover() }()
+		defer func() { _ = recover() }()
 		runGet([]string{"name", "secret-text"})
 	})
 
@@ -412,7 +436,7 @@ func TestCLIRunGetBinary(t *testing.T) {
 	outPath := filepath.Join(t.TempDir(), "output.bin")
 
 	env.captureOutput(func() {
-		defer func() { recover() }()
+		defer func() { _ = recover() }()
 		runGet([]string{"id", "10", outPath})
 	})
 
@@ -447,7 +471,7 @@ func TestCLIRunUpdate(t *testing.T) {
 	}
 
 	env.captureOutput(func() {
-		defer func() { recover() }()
+		defer func() { _ = recover() }()
 		// update id <id> <name> — prompts for payload via readLine/readPassword
 		runUpdate([]string{"id", "5", "new-name"})
 	})
@@ -484,7 +508,7 @@ func TestCLIRunUpdateByName(t *testing.T) {
 	}
 
 	env.captureOutput(func() {
-		defer func() { recover() }()
+		defer func() { _ = recover() }()
 		runUpdate([]string{"name", "old-name", "new-name", "after"})
 	})
 
@@ -531,7 +555,7 @@ func TestCLIRunUpdateBinary(t *testing.T) {
 	}
 
 	env.captureOutput(func() {
-		defer func() { recover() }()
+		defer func() { _ = recover() }()
 		runUpdate([]string{"id", "5", "new-name", tmpFile})
 	})
 
@@ -555,7 +579,7 @@ func TestCLIRunDelete(t *testing.T) {
 	_ = env.core.Login(ctx, "user@example.com", "test-password")
 
 	env.captureOutput(func() {
-		defer func() { recover() }()
+		defer func() { _ = recover() }()
 		runDelete([]string{"id", "1"})
 	})
 
@@ -580,7 +604,7 @@ func TestCLIRunDeleteByName(t *testing.T) {
 	})
 
 	env.captureOutput(func() {
-		defer func() { recover() }()
+		defer func() { _ = recover() }()
 		runDelete([]string{"name", "delete-me"})
 	})
 
@@ -598,7 +622,7 @@ func TestCLIRunSync(t *testing.T) {
 	_ = env.core.Login(ctx, "user@example.com", "test-password")
 
 	env.captureOutput(func() {
-		defer func() { recover() }()
+		defer func() { _ = recover() }()
 		runSync()
 	})
 
@@ -617,7 +641,7 @@ func TestCLIRunRegisterError(t *testing.T) {
 	}
 
 	env.captureOutput(func() {
-		defer func() { recover() }()
+		defer func() { _ = recover() }()
 		runRegister([]string{"user@example.com"})
 	})
 
@@ -633,7 +657,7 @@ func TestCLIRunGetInvalidSelector(t *testing.T) {
 	env := setupTestEnv(t)
 
 	env.captureOutput(func() {
-		defer func() { recover() }()
+		defer func() { _ = recover() }()
 		runGet([]string{"unknown", "value"})
 	})
 
@@ -661,7 +685,7 @@ func TestCLIRunGetAmbiguousName(t *testing.T) {
 	})
 
 	env.captureOutput(func() {
-		defer func() { recover() }()
+		defer func() { _ = recover() }()
 		runGet([]string{"name", "duplicate-name"})
 	})
 
@@ -677,7 +701,7 @@ func TestCLIRunGetInvalidID(t *testing.T) {
 	env := setupTestEnv(t)
 
 	env.captureOutput(func() {
-		defer func() { recover() }()
+		defer func() { _ = recover() }()
 		runGet([]string{"id", "not-a-number"})
 	})
 
@@ -690,7 +714,7 @@ func TestCLIRunDeleteInvalidID(t *testing.T) {
 	env := setupTestEnv(t)
 
 	env.captureOutput(func() {
-		defer func() { recover() }()
+		defer func() { _ = recover() }()
 		runDelete([]string{"id", "abc"})
 	})
 
@@ -1038,7 +1062,7 @@ func TestCLIRunAddTextWithMetadata(t *testing.T) {
 	}
 
 	env.captureOutput(func() {
-		defer func() { recover() }()
+		defer func() { _ = recover() }()
 		runAdd([]string{"text", "my note", "hello world", "--metadata", "important note"})
 	})
 
@@ -1068,7 +1092,7 @@ func TestCLIRunAddTextWithoutMetadata(t *testing.T) {
 	}
 
 	env.captureOutput(func() {
-		defer func() { recover() }()
+		defer func() { _ = recover() }()
 		runAdd([]string{"text", "my note", "hello world"})
 	})
 
@@ -1110,7 +1134,7 @@ func TestCLIRunUpdateMetadata(t *testing.T) {
 	}
 
 	env.captureOutput(func() {
-		defer func() { recover() }()
+		defer func() { _ = recover() }()
 		runUpdate([]string{"id", "5", "new-name", "new content", "--metadata", "new meta"})
 	})
 
@@ -1152,7 +1176,7 @@ func TestCLIRunUpdateClearMetadata(t *testing.T) {
 	}
 
 	env.captureOutput(func() {
-		defer func() { recover() }()
+		defer func() { _ = recover() }()
 		runUpdate([]string{"id", "5", "new-name", "new content", "--metadata", ""})
 	})
 
@@ -1194,7 +1218,7 @@ func TestCLIRunUpdatePreservesMetadataWithoutFlag(t *testing.T) {
 	}
 
 	env.captureOutput(func() {
-		defer func() { recover() }()
+		defer func() { _ = recover() }()
 		runUpdate([]string{"id", "5", "new-name", "new content"})
 	})
 
@@ -1223,7 +1247,7 @@ func TestCLIRunGetWithMetadata(t *testing.T) {
 	}
 
 	env.captureOutput(func() {
-		defer func() { recover() }()
+		defer func() { _ = recover() }()
 		runGet([]string{"id", "42"})
 	})
 
@@ -1255,7 +1279,7 @@ func TestCLIRunAddLoginWithMetadata(t *testing.T) {
 	}
 
 	env.captureOutput(func() {
-		defer func() { recover() }()
+		defer func() { _ = recover() }()
 		runAdd([]string{"login", "my site", "--metadata", "work credentials"})
 	})
 
@@ -1286,7 +1310,7 @@ func TestCLIRunAddCardWithMetadata(t *testing.T) {
 	}
 
 	env.captureOutput(func() {
-		defer func() { recover() }()
+		defer func() { _ = recover() }()
 		runAdd([]string{"card", "my card", "4111111111111111", "--metadata", "main card"})
 	})
 
@@ -1330,7 +1354,7 @@ func TestCLIRunUpdateMetadataOnly(t *testing.T) {
 	}
 
 	env.captureOutput(func() {
-		defer func() { recover() }()
+		defer func() { _ = recover() }()
 		// update id <id> <name> --metadata <text> — no data, no payload change
 		runUpdate([]string{"id", "5", "old-name", "--metadata", "new meta only"})
 	})
@@ -1381,7 +1405,7 @@ func TestCLIRunUpdateMetadataOnlyBinary(t *testing.T) {
 	}
 
 	env.captureOutput(func() {
-		defer func() { recover() }()
+		defer func() { _ = recover() }()
 		// update id <id> <name> --metadata <text> — no file path, binary payload preserved
 		runUpdate([]string{"id", "5", "old-name", "--metadata", "binary meta"})
 	})
@@ -1432,7 +1456,7 @@ func TestCLIRunUpdateClearMetadataOnly(t *testing.T) {
 	}
 
 	env.captureOutput(func() {
-		defer func() { recover() }()
+		defer func() { _ = recover() }()
 		// update id <id> <name> --metadata "" — clear metadata, no payload change
 		runUpdate([]string{"id", "5", "old-name", "--metadata", ""})
 	})
@@ -1471,9 +1495,10 @@ func TestPrintRecordWithMetadata(t *testing.T) {
 
 	printRecord(rec)
 
-	w.Close()
+	require.NoError(t, w.Close())
 	os.Stdout = old
-	buf.ReadFrom(r)
+	_, err := buf.ReadFrom(r)
+	require.NoError(t, err)
 	output := buf.String()
 
 	if !strings.Contains(output, "Metadata: some metadata") {
@@ -1498,9 +1523,10 @@ func TestPrintRecordWithEmptyMetadata(t *testing.T) {
 
 	printRecord(rec)
 
-	w.Close()
+	require.NoError(t, w.Close())
 	os.Stdout = old
-	buf.ReadFrom(r)
+	_, err := buf.ReadFrom(r)
+	require.NoError(t, err)
 	output := buf.String()
 
 	if !strings.Contains(output, "Metadata:") {
@@ -1525,9 +1551,10 @@ func TestPrintRecordWithMultilineMetadata(t *testing.T) {
 
 	printRecord(rec)
 
-	w.Close()
+	require.NoError(t, w.Close())
 	os.Stdout = old
-	buf.ReadFrom(r)
+	_, err := buf.ReadFrom(r)
+	require.NoError(t, err)
 	output := buf.String()
 
 	if !strings.Contains(output, "Metadata: line1\nline2\nline3") {
@@ -1552,9 +1579,10 @@ func TestPrintRecordShortWithMetadata(t *testing.T) {
 
 	printRecordShort(rec)
 
-	w.Close()
+	require.NoError(t, w.Close())
 	os.Stdout = old
-	buf.ReadFrom(r)
+	_, err := buf.ReadFrom(r)
+	require.NoError(t, err)
 	output := buf.String()
 
 	if !strings.Contains(output, "some info") {
@@ -1578,9 +1606,10 @@ func TestPrintRecordShortWithoutMetadata(t *testing.T) {
 
 	printRecordShort(rec)
 
-	w.Close()
+	require.NoError(t, w.Close())
 	os.Stdout = old
-	buf.ReadFrom(r)
+	_, err := buf.ReadFrom(r)
+	require.NoError(t, err)
 	output := buf.String()
 
 	if strings.Contains(output, "\t\t") {
@@ -1626,7 +1655,11 @@ func TestDefaultTLSCertFile(t *testing.T) {
 		if err := os.Chdir(tmpDir); err != nil {
 			t.Fatalf("chdir: %v", err)
 		}
-		t.Cleanup(func() { os.Chdir(origDir) })
+		t.Cleanup(func() {
+			if err := os.Chdir(origDir); err != nil {
+				t.Fatalf("restore wd: %v", err)
+			}
+		})
 
 		got := defaultTLSCertFile()
 		if got != "" {
@@ -1649,7 +1682,11 @@ func TestDefaultTLSCertFile(t *testing.T) {
 		if err := os.Chdir(tmpDir); err != nil {
 			t.Fatalf("chdir: %v", err)
 		}
-		t.Cleanup(func() { os.Chdir(origDir) })
+		t.Cleanup(func() {
+			if err := os.Chdir(origDir); err != nil {
+				t.Fatalf("restore wd: %v", err)
+			}
+		})
 
 		got := defaultTLSCertFile()
 		if got != "configs/certs/dev.crt" {
@@ -1666,7 +1703,11 @@ func TestDefaultNewCoreNoCertError(t *testing.T) {
 	if err := os.Chdir(tmpDir); err != nil {
 		t.Fatalf("chdir: %v", err)
 	}
-	t.Cleanup(func() { os.Chdir(origDir) })
+	t.Cleanup(func() {
+		if err := os.Chdir(origDir); err != nil {
+			t.Fatalf("restore wd: %v", err)
+		}
+	})
 
 	_, _, err := defaultNewCore()
 	if err == nil {
@@ -1710,7 +1751,7 @@ func TestCLIRunListWithMetadata(t *testing.T) {
 	})
 
 	env.captureOutput(func() {
-		defer func() { recover() }()
+		defer func() { _ = recover() }()
 		runList(nil)
 	})
 

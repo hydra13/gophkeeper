@@ -1,60 +1,41 @@
-// Package recordsv1post реализует HTTP-ручку создания записи.
-//
-// POST /api/v1/records
-//
 //go:generate minimock -i .RecordService -o mocks -s _mock.go -g
 package recordsv1post
 
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 
-	"github.com/hydra13/gophkeeper/internal/api/records_common"
+	recordscommon "github.com/hydra13/gophkeeper/internal/api/records_common"
 	"github.com/hydra13/gophkeeper/internal/middlewares"
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
-// CreateRecordRequest — DTO для создания записи.
 type CreateRecordRequest struct {
-	// Type — тип секрета: "login", "text", "binary", "card".
-	Type string `json:"type"`
-	// Name — пользовательское название записи.
-	Name string `json:"name"`
-	// Metadata — произвольная текстовая метаинформация.
-	Metadata string `json:"metadata,omitempty"`
-	// DeviceID — идентификатор устройства.
-	DeviceID string `json:"device_id"`
-	// KeyVersion — версия серверного ключа шифрования.
-	KeyVersion int64 `json:"key_version"`
-	// PayloadVersion — версия payload (для binary записей).
-	PayloadVersion int64 `json:"payload_version,omitempty"`
-	// Login — данные для типа "login".
-	Login *LoginPayload `json:"login,omitempty"`
-	// Text — данные для типа "text".
-	Text *TextPayload `json:"text,omitempty"`
-	// Binary — данные для типа "binary".
-	Binary *BinaryPayload `json:"binary,omitempty"`
-	// Card — данные для типа "card".
-	Card *CardPayload `json:"card,omitempty"`
+	Type           string         `json:"type"`
+	Name           string         `json:"name"`
+	Metadata       string         `json:"metadata,omitempty"`
+	DeviceID       string         `json:"device_id"`
+	KeyVersion     int64          `json:"key_version"`
+	PayloadVersion int64          `json:"payload_version,omitempty"`
+	Login          *LoginPayload  `json:"login,omitempty"`
+	Text           *TextPayload   `json:"text,omitempty"`
+	Binary         *BinaryPayload `json:"binary,omitempty"`
+	Card           *CardPayload   `json:"card,omitempty"`
 }
 
-// LoginPayload — DTO для логин/пароль.
 type LoginPayload struct {
 	Login    string `json:"login"`
 	Password string `json:"password"`
 }
 
-// TextPayload — DTO для текстовых данных.
 type TextPayload struct {
 	Content string `json:"content"`
 }
 
-// BinaryPayload — DTO для бинарных данных (metadata-only).
-// Содержимое управляется через uploads-слой (task_13).
 type BinaryPayload struct{}
 
-// CardPayload — DTO для данных банковской карты.
 type CardPayload struct {
 	Number     string `json:"number"`
 	HolderName string `json:"holder_name"`
@@ -62,27 +43,22 @@ type CardPayload struct {
 	CVV        string `json:"cvv"`
 }
 
-// CreateRecordResponse — DTO ответа при создании записи.
 type CreateRecordResponse struct {
 	Record recordscommon.RecordDTO `json:"record"`
 }
 
-// RecordService — интерфейс бизнес-логики для работы с записями.
 type RecordService interface {
 	CreateRecord(record *models.Record) error
 }
 
-// Handler — HTTP-обработчик для POST /api/v1/records.
 type Handler struct {
 	service RecordService
 }
 
-// NewHandler создаёт новый обработчик.
 func NewHandler(service RecordService) *Handler {
 	return &Handler{service: service}
 }
 
-// Handle создаёт новую запись текущего пользователя.
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	var req CreateRecordRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -96,7 +72,6 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// UserID извлекается из контекста middleware аутентификации.
 	userID, ok := middlewares.UserIDFromContext(r.Context())
 	if !ok || userID <= 0 {
 		recordscommon.WriteError(w, http.StatusUnauthorized, "unauthorized")
@@ -118,10 +93,11 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(resp)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		log.Printf("create record response encode failed: %v", err)
+	}
 }
 
-// requestToRecord преобразует DTO в доменную модель.
 func requestToRecord(req *CreateRecordRequest) (*models.Record, error) {
 	rt := models.RecordType(req.Type)
 	if !models.ValidRecordTypes[rt] {
@@ -151,8 +127,6 @@ func requestToRecord(req *CreateRecordRequest) (*models.Record, error) {
 		if req.PayloadVersion <= 0 {
 			return nil, models.ErrInvalidPayloadVersion
 		}
-		// Binary payload content управляется через uploads-слой (task_13).
-		// CRUD оперирует только metadata и payload_version как ссылкой на вложение.
 		payload = models.BinaryPayload{}
 	case models.RecordTypeCard:
 		if req.Card == nil {

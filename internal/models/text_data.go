@@ -1,11 +1,11 @@
 package models
 
-// TextPayload — произвольные текстовые данные.
+// TextPayload хранит произвольный текст записи.
 type TextPayload struct {
 	Content string
 }
 
-// RecordType возвращает тип записи text.
+// RecordType возвращает тип payload.
 func (p TextPayload) RecordType() RecordType {
 	return RecordTypeText
 }

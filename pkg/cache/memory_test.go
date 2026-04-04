@@ -78,7 +78,7 @@ func TestFileStore_PendingQueue(t *testing.T) {
 	err := pq.Enqueue(PendingOp{
 		RecordID:  1,
 		Operation: OperationCreate,
-		Record: &models.Record{ID: 1, Name: "test"},
+		Record:    &models.Record{ID: 1, Name: "test"},
 	})
 	require.NoError(t, err)
 	assert.Equal(t, 1, pq.Len())
@@ -104,7 +104,7 @@ func TestFileStore_PendingQueue(t *testing.T) {
 	assert.Equal(t, 0, pq.Len())
 
 	// Clear
-	pq.Enqueue(PendingOp{RecordID: 3, Operation: OperationDelete})
+	require.NoError(t, pq.Enqueue(PendingOp{RecordID: 3, Operation: OperationDelete}))
 	pq.Clear()
 	assert.Equal(t, 0, pq.Len())
 }
@@ -142,14 +142,14 @@ func TestFileStore_TransferState(t *testing.T) {
 
 	// Save completed
 	tr.Status = TransferStatusCompleted
-	ts.Save(tr)
+	require.NoError(t, ts.Save(tr))
 	active = ts.ListActive()
 	assert.Len(t, active, 0)
 	assert.Len(t, ts.ListPending(), 0)
 
 	// Save paused
 	tr.Status = TransferStatusPaused
-	ts.Save(tr)
+	require.NoError(t, ts.Save(tr))
 	assert.Len(t, ts.ListPending(), 1)
 
 	// Delete
@@ -158,8 +158,8 @@ func TestFileStore_TransferState(t *testing.T) {
 	assert.False(t, ok)
 
 	// Clear
-	ts.Save(Transfer{ID: 2, Status: TransferStatusActive})
-	ts.Save(Transfer{ID: 3, Status: TransferStatusActive})
+	require.NoError(t, ts.Save(Transfer{ID: 2, Status: TransferStatusActive}))
+	require.NoError(t, ts.Save(Transfer{ID: 3, Status: TransferStatusActive}))
 	ts.Clear()
 	active = ts.ListActive()
 	assert.Len(t, active, 0)
@@ -219,15 +219,15 @@ func TestFileStore_FlushAndReload(t *testing.T) {
 		Type:    models.RecordTypeText,
 		Payload: models.TextPayload{Content: "hello"},
 	})
-	store1.Pending().Enqueue(PendingOp{
+	require.NoError(t, store1.Pending().Enqueue(PendingOp{
 		RecordID:  1,
 		Operation: OperationCreate,
-	})
-	store1.Auth().Set(AuthData{
+	}))
+	require.NoError(t, store1.Auth().Set(AuthData{
 		AccessToken: "saved-token",
 		UserID:      1,
-	})
-	store1.Sync().SetLastRevision(10)
+	}))
+	require.NoError(t, store1.Sync().SetLastRevision(10))
 
 	require.NoError(t, store1.Flush())
 

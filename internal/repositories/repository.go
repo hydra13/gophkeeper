@@ -2,7 +2,7 @@ package repositories
 
 import "github.com/hydra13/gophkeeper/internal/models"
 
-// Repository — объединённый интерфейс хранилища данных.
+// Repository объединяет все контракты слоя хранения.
 type Repository interface {
 	UserRepository
 	RecordRepository
@@ -12,7 +12,7 @@ type Repository interface {
 	KeyVersionRepository
 }
 
-// BlobStorage — интерфейс хранения бинарных данных (payload/chunks).
+// BlobStorage хранит бинарные данные вне основной БД.
 type BlobStorage interface {
 	Save(path string, data []byte) error
 	Read(path string) ([]byte, error)
@@ -20,14 +20,14 @@ type BlobStorage interface {
 	Exists(path string) (bool, error)
 }
 
-// UserRepository — операции с пользователями.
+// UserRepository работает с пользователями.
 type UserRepository interface {
 	CreateUser(user *models.User) error
 	GetUserByEmail(email string) (*models.User, error)
 	GetUserByID(id int64) (*models.User, error)
 }
 
-// RecordRepository — операции с записями секретов.
+// RecordRepository работает с записями.
 type RecordRepository interface {
 	CreateRecord(record *models.Record) error
 	GetRecord(id int64) (*models.Record, error)
@@ -36,7 +36,7 @@ type RecordRepository interface {
 	DeleteRecord(id int64) error
 }
 
-// SyncRepository — операции с ревизиями и конфликтами синхронизации.
+// SyncRepository хранит ревизии и конфликты синхронизации.
 type SyncRepository interface {
 	GetRevisions(userID int64, sinceRevision int64) ([]models.RecordRevision, error)
 	CreateRevision(rev *models.RecordRevision) error
@@ -46,7 +46,7 @@ type SyncRepository interface {
 	ResolveConflict(conflictID int64, resolution string) error
 }
 
-// SessionRepository — операции с device-aware сессиями.
+// SessionRepository работает с пользовательскими сессиями.
 type SessionRepository interface {
 	CreateSession(session *models.Session) error
 	GetSession(id int64) (*models.Session, error)
@@ -56,7 +56,7 @@ type SessionRepository interface {
 	UpdateLastSeenAt(id int64) error
 }
 
-// UploadRepository — операции с upload-сессиями и чанками.
+// UploadRepository хранит состояние загрузок и чанков.
 type UploadRepository interface {
 	CreateUploadSession(session *models.UploadSession) error
 	GetUploadSession(id int64) (*models.UploadSession, error)
@@ -66,7 +66,7 @@ type UploadRepository interface {
 	GetChunks(uploadID int64) ([]models.Chunk, error)
 }
 
-// KeyVersionRepository — операции с версиями ключей шифрования.
+// KeyVersionRepository работает с версиями ключей шифрования.
 type KeyVersionRepository interface {
 	CreateKeyVersion(kv *models.KeyVersion) error
 	GetKeyVersion(version int64) (*models.KeyVersion, error)

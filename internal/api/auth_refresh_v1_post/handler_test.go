@@ -39,8 +39,8 @@ func TestHandler_Handle(t *testing.T) {
 			wantStatus: http.StatusOK,
 		},
 		{
-			name:       "Invalid body",
-			body:       "not-json",
+			name: "Invalid body",
+			body: "not-json",
 			setupMock: func(mc *minimock.Controller) TokenService {
 				return mocks.NewTokenServiceMock(mc)
 			},
@@ -117,7 +117,7 @@ func TestHandler_Handle(t *testing.T) {
 			handler.Handle(rec, req)
 
 			resp := rec.Result()
-			defer resp.Body.Close()
+			defer func() { _ = resp.Body.Close() }()
 
 			assert.Equal(t, tt.wantStatus, resp.StatusCode)
 

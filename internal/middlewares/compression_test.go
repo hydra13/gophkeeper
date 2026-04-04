@@ -31,7 +31,9 @@ func TestCompression_GzipAccepted(t *testing.T) {
 
 	gr, err := gzip.NewReader(rec.Body)
 	require.NoError(t, err)
-	defer gr.Close()
+	t.Cleanup(func() {
+		require.NoError(t, gr.Close())
+	})
 
 	body, err := io.ReadAll(gr)
 	require.NoError(t, err)
@@ -115,7 +117,9 @@ func TestCompression_LargeBody(t *testing.T) {
 
 	gr, err := gzip.NewReader(rec.Body)
 	require.NoError(t, err)
-	defer gr.Close()
+	t.Cleanup(func() {
+		require.NoError(t, gr.Close())
+	})
 
 	body, err := io.ReadAll(gr)
 	require.NoError(t, err)

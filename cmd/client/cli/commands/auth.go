@@ -2,11 +2,9 @@ package commands
 
 import (
 	"context"
-	"fmt"
 	"time"
 )
 
-// RunRegister выполняет регистрацию пользователя.
 func (r *Runner) RunRegister(args []string) {
 	var email string
 
@@ -30,10 +28,9 @@ func (r *Runner) RunRegister(args []string) {
 		r.fatal(err)
 	}
 
-	fmt.Fprintln(r.deps.Stdout, "registered successfully")
+	r.println(r.deps.Stdout, "registered successfully")
 }
 
-// RunLogin выполняет вход пользователя.
 func (r *Runner) RunLogin(args []string) {
 	var email string
 
@@ -57,10 +54,9 @@ func (r *Runner) RunLogin(args []string) {
 		r.fatal(err)
 	}
 
-	fmt.Fprintln(r.deps.Stdout, "logged in successfully")
+	r.println(r.deps.Stdout, "logged in successfully")
 }
 
-// RunLogout завершает текущую пользовательскую сессию.
 func (r *Runner) RunLogout() {
 	core, cleanup, err := r.newCore()
 	if err != nil {
@@ -75,5 +71,5 @@ func (r *Runner) RunLogout() {
 		r.fatal(err)
 	}
 
-	fmt.Fprintln(r.deps.Stdout, "logged out")
+	r.println(r.deps.Stdout, "logged out")
 }

@@ -11,7 +11,6 @@ import (
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
-// RunList выводит список записей с необязательной фильтрацией по типу.
 func (r *Runner) RunList(args []string) {
 	core, cleanup, err := r.newCore()
 	if err != nil {
@@ -33,21 +32,22 @@ func (r *Runner) RunList(args []string) {
 	}
 
 	if len(records) == 0 {
-		fmt.Fprintln(r.deps.Stdout, "no records")
+		r.println(r.deps.Stdout, "no records")
 		return
 	}
 
-	fmt.Fprintf(r.deps.Stdout, "%-8s %-10s %-30s %-10s\t%s\n", "ID", "TYPE", "NAME", "REVISION", "METADATA")
+	r.printf(r.deps.Stdout, "%-8s %-10s %-30s %-10s\t%s\n", "ID", "TYPE", "NAME", "REVISION", "METADATA")
 	for _, record := range records {
-		PrintRecordShort(r.deps.Stdout, record)
+		if err := PrintRecordShort(r.deps.Stdout, record); err != nil {
+			r.fatal(err)
+		}
 	}
 }
 
-// RunGet выводит запись по имени или ID, а для бинарных данных может сохранить файл на диск.
 func (r *Runner) RunGet(args []string) {
 	if len(args) < 2 {
-		fmt.Fprintln(r.deps.Stderr, "Usage: gophkeeper-cli get name <name> [output-path]")
-		fmt.Fprintln(r.deps.Stderr, "   or: gophkeeper-cli get id <id> [output-path]")
+		r.println(r.deps.Stderr, "Usage: gophkeeper-cli get name <name> [output-path]")
+		r.println(r.deps.Stderr, "   or: gophkeeper-cli get id <id> [output-path]")
 		os.Exit(1)
 	}
 
@@ -77,20 +77,24 @@ func (r *Runner) RunGet(args []string) {
 		}
 
 		if outputPath == "" {
-			PrintRecord(r.deps.Stdout, rec)
-			fmt.Fprintf(r.deps.Stdout, "Data size: %d bytes\n", len(data))
-			fmt.Fprintln(r.deps.Stdout, "Use: gophkeeper-cli get id <id> <output-path> to save to file")
+			if err := PrintRecord(r.deps.Stdout, rec); err != nil {
+				r.fatal(err)
+			}
+			r.printf(r.deps.Stdout, "Data size: %d bytes\n", len(data))
+			r.println(r.deps.Stdout, "Use: gophkeeper-cli get id <id> <output-path> to save to file")
 			return
 		}
 
 		if err := os.WriteFile(outputPath, data, 0600); err != nil {
 			r.fatal(fmt.Errorf("write file %s: %w", outputPath, err))
 		}
-		fmt.Fprintf(r.deps.Stdout, "saved %d bytes to %s\n", len(data), outputPath)
+		r.printf(r.deps.Stdout, "saved %d bytes to %s\n", len(data), outputPath)
 		return
 	}
 
-	PrintRecord(r.deps.Stdout, rec)
+	if err := PrintRecord(r.deps.Stdout, rec); err != nil {
+		r.fatal(err)
+	}
 }
 
 func (r *Runner) resolveGetTarget(ctx context.Context, core interface {
@@ -156,15 +160,14 @@ func (r *Runner) resolveRecordIDByName(ctx context.Context, core interface {
 	}
 }
 
-// RunAdd создает новую запись указанного типа.
 func (r *Runner) RunAdd(args []string) {
 	metadata, _, args := ExtractMetadata(args)
 
 	if len(args) < 2 {
-		fmt.Fprintln(r.deps.Stderr, "Usage: gophkeeper-cli add <type> <name> [data] [--metadata <text>]")
-		fmt.Fprintln(r.deps.Stderr, "  type: login|text|binary|card")
-		fmt.Fprintln(r.deps.Stderr, "  binary: data=file-path")
-		fmt.Fprintln(r.deps.Stderr, "  other types: omit data to enter interactively")
+		r.println(r.deps.Stderr, "Usage: gophkeeper-cli add <type> <name> [data] [--metadata <text>]")
+		r.println(r.deps.Stderr, "  type: login|text|binary|card")
+		r.println(r.deps.Stderr, "  binary: data=file-path")
+		r.println(r.deps.Stderr, "  other types: omit data to enter interactively")
 		os.Exit(1)
 	}
 
@@ -224,18 +227,17 @@ func (r *Runner) RunAdd(args []string) {
 		}
 	}
 
-	fmt.Fprintf(r.deps.Stdout, "added: id=%d rev=%d\n", result.ID, result.Revision)
+	r.printf(r.deps.Stdout, "added: id=%d rev=%d\n", result.ID, result.Revision)
 }
 
-// RunUpdate обновляет запись, найденную по имени или ID.
 func (r *Runner) RunUpdate(args []string) {
 	metadata, metadataFound, args := ExtractMetadata(args)
 
 	if len(args) < 3 {
-		fmt.Fprintln(r.deps.Stderr, "Usage: gophkeeper-cli update name <name> <new-name> [data] [--metadata <text>]")
-		fmt.Fprintln(r.deps.Stderr, "   or: gophkeeper-cli update id <id> <new-name> [data] [--metadata <text>]")
-		fmt.Fprintln(r.deps.Stderr, "  binary: data=file-path")
-		fmt.Fprintln(r.deps.Stderr, "  --metadata \"\" to clear metadata")
+		r.println(r.deps.Stderr, "Usage: gophkeeper-cli update name <name> <new-name> [data] [--metadata <text>]")
+		r.println(r.deps.Stderr, "   or: gophkeeper-cli update id <id> <new-name> [data] [--metadata <text>]")
+		r.println(r.deps.Stderr, "  binary: data=file-path")
+		r.println(r.deps.Stderr, "  --metadata \"\" to clear metadata")
 		os.Exit(1)
 	}
 
@@ -308,14 +310,13 @@ func (r *Runner) RunUpdate(args []string) {
 		}
 	}
 
-	fmt.Fprintf(r.deps.Stdout, "updated: id=%d rev=%d\n", result.ID, result.Revision)
+	r.printf(r.deps.Stdout, "updated: id=%d rev=%d\n", result.ID, result.Revision)
 }
 
-// RunDelete удаляет запись, найденную по имени или ID.
 func (r *Runner) RunDelete(args []string) {
 	if len(args) < 2 {
-		fmt.Fprintln(r.deps.Stderr, "Usage: gophkeeper-cli delete name <name>")
-		fmt.Fprintln(r.deps.Stderr, "   or: gophkeeper-cli delete id <id>")
+		r.println(r.deps.Stderr, "Usage: gophkeeper-cli delete name <name>")
+		r.println(r.deps.Stderr, "   or: gophkeeper-cli delete id <id>")
 		os.Exit(1)
 	}
 
@@ -337,5 +338,5 @@ func (r *Runner) RunDelete(args []string) {
 		r.fatal(err)
 	}
 
-	fmt.Fprintln(r.deps.Stdout, "deleted")
+	r.println(r.deps.Stdout, "deleted")
 }

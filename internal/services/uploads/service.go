@@ -18,16 +18,15 @@ type UploadRepo interface {
 	GetChunks(uploadID int64) ([]models.Chunk, error)
 }
 
-// Service реализует бизнес-логику upload/download бинарных вложений.
+// Service управляет upload- и download-сессиями бинарных данных.
 type Service struct {
-	repo UploadRepo
-	mu   sync.RWMutex
-	// downloadSessions хранит активные download-сессии in-memory.
+	repo             UploadRepo
+	mu               sync.RWMutex
 	downloadSessions sync.Map
 	downloadSeq      atomic.Int64
 }
 
-// NewService создаёт новый uploads service.
+// NewService создаёт сервис загрузки бинарных payload.
 func NewService(repo UploadRepo) (*Service, error) {
 	if repo == nil {
 		return nil, errors.New("upload repository is required")
@@ -35,7 +34,6 @@ func NewService(repo UploadRepo) (*Service, error) {
 	return &Service{repo: repo}, nil
 }
 
-// CreateSession создаёт новую upload-сессию.
 func (s *Service) CreateSession(userID, recordID, totalChunks, chunkSize, totalSize, keyVersion int64) (int64, error) {
 	if userID <= 0 {
 		return 0, models.ErrInvalidUserID
@@ -70,7 +68,6 @@ func (s *Service) CreateSession(userID, recordID, totalChunks, chunkSize, totalS
 	return session.ID, nil
 }
 
-// GetUploadStatus возвращает статус upload-сессии по ID.
 func (s *Service) GetUploadStatus(uploadID int64) (*models.UploadStatusResponse, error) {
 	session, err := s.repo.GetUploadSession(uploadID)
 	if err != nil {
@@ -86,7 +83,6 @@ func (s *Service) GetUploadStatus(uploadID int64) (*models.UploadStatusResponse,
 	}, nil
 }
 
-// UploadChunk загружает один чанк в указанную upload-сессию.
 func (s *Service) UploadChunk(uploadID, chunkIndex int64, data []byte) (received, total int64, completed bool, missing []int64, err error) {
 	session, err := s.repo.GetUploadSession(uploadID)
 	if err != nil {
@@ -106,7 +102,6 @@ func (s *Service) UploadChunk(uploadID, chunkIndex int64, data []byte) (received
 		return 0, 0, false, nil, fmt.Errorf("save chunk: %w", err)
 	}
 
-	// Пере читаем сессию после сохранения чанка (репозиторий обновляет received_chunks и status)
 	updated, err := s.repo.GetUploadSession(uploadID)
 	if err != nil {
 		return session.ReceivedChunks, session.TotalChunks, session.IsCompleted(), session.MissingChunks(), nil
@@ -115,7 +110,6 @@ func (s *Service) UploadChunk(uploadID, chunkIndex int64, data []byte) (received
 	return updated.ReceivedChunks, updated.TotalChunks, updated.IsCompleted(), updated.MissingChunks(), nil
 }
 
-// DownloadChunk возвращает данные чанка для скачивания по upload-сессии.
 func (s *Service) DownloadChunk(uploadID, chunkIndex int64) (*models.ChunkDownloadResponse, error) {
 	session, err := s.repo.GetUploadSession(uploadID)
 	if err != nil {
@@ -155,13 +149,11 @@ func (s *Service) DownloadChunk(uploadID, chunkIndex int64) (*models.ChunkDownlo
 	}, nil
 }
 
-// CreateDownloadSession создаёт сессию скачивания по recordID (для gRPC).
 func (s *Service) CreateDownloadSession(userID, recordID int64) (*models.DownloadSession, error) {
 	if recordID <= 0 {
 		return nil, errors.New("record_id is required")
 	}
 
-	// Ищем завершённую upload-сессию для данной записи
 	session, err := s.findCompletedUploadByRecordID(recordID)
 	if err != nil {
 		return nil, err
@@ -182,7 +174,6 @@ func (s *Service) CreateDownloadSession(userID, recordID int64) (*models.Downloa
 	return download, nil
 }
 
-// DownloadChunkByID возвращает данные чанка по download-сессии (для gRPC).
 func (s *Service) DownloadChunkByID(downloadID, chunkIndex int64) (*models.Chunk, error) {
 	download, err := s.getDownloadSession(downloadID)
 	if err != nil {
@@ -197,7 +188,6 @@ func (s *Service) DownloadChunkByID(downloadID, chunkIndex int64) (*models.Chunk
 		return nil, models.ErrChunkOutOfRange
 	}
 
-	// Находим upload-сессию по recordID
 	upload, err := s.findCompletedUploadByRecordID(download.RecordID)
 	if err != nil {
 		return nil, err
@@ -216,7 +206,6 @@ func (s *Service) DownloadChunkByID(downloadID, chunkIndex int64) (*models.Chunk
 	return nil, fmt.Errorf("chunk %d not found", chunkIndex)
 }
 
-// ConfirmChunk подтверждает получение чанка клиентом в download-сессии.
 func (s *Service) ConfirmChunk(downloadID, chunkIndex int64) (confirmed, total int64, status models.DownloadStatus, err error) {
 	download, err := s.getDownloadSession(downloadID)
 	if err != nil {
@@ -233,12 +222,10 @@ func (s *Service) ConfirmChunk(downloadID, chunkIndex int64) (confirmed, total i
 	return download.ConfirmedChunks, download.TotalChunks, download.Status, nil
 }
 
-// GetDownloadStatus возвращает статус download-сессии.
 func (s *Service) GetDownloadStatus(downloadID int64) (*models.DownloadSession, error) {
 	return s.getDownloadSession(downloadID)
 }
 
-// GetUploadSessionByID возвращает upload-сессию по ID (для gRPC).
 func (s *Service) GetUploadSessionByID(uploadID int64) (*models.UploadSession, error) {
 	session, err := s.repo.GetUploadSession(uploadID)
 	if err != nil {
@@ -259,7 +246,6 @@ func (s *Service) getDownloadSession(id int64) (*models.DownloadSession, error) 
 	return download, nil
 }
 
-// findCompletedUploadByRecordID ищет завершённую upload-сессию по recordID.
 func (s *Service) findCompletedUploadByRecordID(recordID int64) (*models.UploadSession, error) {
 	session, err := s.repo.GetCompletedUploadByRecordID(recordID)
 	if err != nil {

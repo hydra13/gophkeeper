@@ -1,2 +1,2 @@
-// Package storage создаёт blob-хранилища и реализует локальный и S3-совместимый backend.
+// Package storage содержит реализации blob-хранилища.
 package storage

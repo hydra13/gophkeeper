@@ -104,7 +104,9 @@ func TestHandler_Handle(t *testing.T) {
 			handler.Handle(rec, req)
 
 			resp := rec.Result()
-			defer resp.Body.Close()
+			t.Cleanup(func() {
+				assert.NoError(t, resp.Body.Close())
+			})
 
 			assert.Equal(t, tt.wantStatus, resp.StatusCode)
 		})

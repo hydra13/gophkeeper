@@ -1,6 +1,5 @@
 package backend
 
-// AppInfo содержит сведения о desktop-клиенте и его окружении.
 type AppInfo struct {
 	AppName       string `json:"appName"`
 	Version       string `json:"version"`
@@ -8,7 +7,6 @@ type AppInfo struct {
 	CacheDir      string `json:"cacheDir"`
 }
 
-// SessionState описывает текущее состояние пользовательской сессии.
 type SessionState struct {
 	Authenticated bool   `json:"authenticated"`
 	Email         string `json:"email"`
@@ -19,7 +17,6 @@ type SessionState struct {
 	CacheDir      string `json:"cacheDir"`
 }
 
-// RecordPayloadDTO передает данные payload в формате, удобном для UI.
 type RecordPayloadDTO struct {
 	Login      string `json:"login,omitempty"`
 	Password   string `json:"password,omitempty"`
@@ -31,7 +28,6 @@ type RecordPayloadDTO struct {
 	BinarySize int    `json:"binarySize,omitempty"`
 }
 
-// RecordListItem описывает запись в списке записей desktop-клиента.
 type RecordListItem struct {
 	ID              int64            `json:"id"`
 	Type            string           `json:"type"`
@@ -43,7 +39,6 @@ type RecordListItem struct {
 	Payload         RecordPayloadDTO `json:"payload"`
 }
 
-// RecordDetails содержит полное представление записи для карточки просмотра.
 type RecordDetails struct {
 	ID             int64            `json:"id"`
 	Type           string           `json:"type"`
@@ -58,7 +53,6 @@ type RecordDetails struct {
 	Payload        RecordPayloadDTO `json:"payload"`
 }
 
-// RecordUpsertInput описывает данные для создания или обновления записи.
 type RecordUpsertInput struct {
 	ID       int64  `json:"id"`
 	Type     string `json:"type"`
@@ -76,7 +70,6 @@ type RecordUpsertInput struct {
 	FilePath string `json:"filePath"`
 }
 
-// SyncResult содержит результат ручной синхронизации.
 type SyncResult struct {
 	Message string `json:"message"`
 }

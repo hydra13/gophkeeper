@@ -8,7 +8,6 @@ import (
 
 const bcryptCost = 12
 
-// HashPassword создаёт безопасный bcrypt-хеш пароля.
 func HashPassword(password string) (string, error) {
 	if password == "" {
 		return "", errors.New("password is empty")
@@ -20,7 +19,6 @@ func HashPassword(password string) (string, error) {
 	return string(hash), nil
 }
 
-// ComparePassword проверяет пароль по bcrypt-хешу.
 func ComparePassword(hash string, password string) error {
 	if hash == "" || password == "" {
 		return errors.New("hash and password are required")

@@ -1,47 +1,31 @@
-// Package sync_pull_v1_post реализует HTTP-ручку получения изменений синхронизации.
-//
-// POST /api/v1/sync/pull
-//
 //go:generate minimock -i .SyncPuller -o mocks -s _mock.go -g
 package sync_pull_v1_post
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 
 	recordscommon "github.com/hydra13/gophkeeper/internal/api/records_common"
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
-// Request — DTO для запроса pull-синхронизации.
 type Request struct {
-	// UserID — идентификатор пользователя (из JWT-токена, проставляется middleware).
-	UserID int64 `json:"user_id"`
-	// DeviceID — устройство, запрашивающее изменения.
-	DeviceID string `json:"device_id"`
-	// SinceRevision — ревизия, начиная с которой клиент хочет получить изменения (0 = с начала).
-	SinceRevision int64 `json:"since_revision"`
-	// Limit — максимальное количество изменений в ответе.
-	Limit int64 `json:"limit"`
+	UserID        int64  `json:"user_id"`
+	DeviceID      string `json:"device_id"`
+	SinceRevision int64  `json:"since_revision"`
+	Limit         int64  `json:"limit"`
 }
 
-// RecordRevisionDTO — DTO одной изменённой записи в ответе pull.
 type RecordRevisionDTO struct {
-	// ID — идентификатор ревизии.
-	ID int64 `json:"id"`
-	// RecordID — идентификатор записи.
-	RecordID int64 `json:"record_id"`
-	// UserID — владелец записи.
-	UserID int64 `json:"user_id"`
-	// Revision — ревизия записи.
-	Revision int64 `json:"revision"`
-	// DeviceID — устройство, инициировавшее изменение.
+	ID       int64  `json:"id"`
+	RecordID int64  `json:"record_id"`
+	UserID   int64  `json:"user_id"`
+	Revision int64  `json:"revision"`
 	DeviceID string `json:"device_id"`
-	// Deleted — признак soft delete.
-	Deleted bool `json:"deleted"`
+	Deleted  bool   `json:"deleted"`
 }
 
-// SyncConflictDTO — DTO конфликта синхронизации.
 type SyncConflictDTO struct {
 	ID             int64                    `json:"id"`
 	UserID         int64                    `json:"user_id"`
@@ -54,37 +38,26 @@ type SyncConflictDTO struct {
 	ServerRecord   *recordscommon.RecordDTO `json:"server_record,omitempty"`
 }
 
-// Response — DTO для ответа pull-синхронизации.
 type Response struct {
-	// Changes — список изменений после курсора.
-	Changes []RecordRevisionDTO `json:"changes"`
-	// Records — полные данные изменённых записей.
-	Records []recordscommon.RecordDTO `json:"records"`
-	// Conflicts — список конфликтов.
-	Conflicts []SyncConflictDTO `json:"conflicts,omitempty"`
-	// NextRevision — новый курсор для следующего запроса.
-	NextRevision int64 `json:"next_revision"`
-	// HasMore — признак наличия ещё изменений.
-	HasMore bool `json:"has_more"`
+	Changes      []RecordRevisionDTO       `json:"changes"`
+	Records      []recordscommon.RecordDTO `json:"records"`
+	Conflicts    []SyncConflictDTO         `json:"conflicts,omitempty"`
+	NextRevision int64                     `json:"next_revision"`
+	HasMore      bool                      `json:"has_more"`
 }
 
-// SyncPuller — интерфейс сервиса pull-синхронизации.
 type SyncPuller interface {
-	// Pull возвращает изменения для пользователя начиная с указанного курсора.
 	Pull(userID int64, deviceID string, sinceRevision int64, limit int64) ([]models.RecordRevision, []models.Record, []models.SyncConflict, error)
 }
 
-// Handler обрабатывает POST /api/v1/sync/pull.
 type Handler struct {
 	service SyncPuller
 }
 
-// NewHandler создаёт новый обработчик pull-синхронизации.
 func NewHandler(service SyncPuller) *Handler {
 	return &Handler{service: service}
 }
 
-// ServeHTTP возвращает изменения, записи и конфликты после указанной ревизии.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -170,5 +143,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		log.Printf("sync pull response encode failed: %v", err)
+	}
 }

@@ -1,47 +1,37 @@
-// Package recordsbyidv1delete реализует HTTP-ручку мягкого удаления записи.
-//
-// DELETE /api/v1/records/{id}
-//
 //go:generate minimock -i .RecordService -o mocks -s _mock.go -g
 package recordsbyidv1delete
 
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 
-	"github.com/hydra13/gophkeeper/internal/api/records_common"
+	recordscommon "github.com/hydra13/gophkeeper/internal/api/records_common"
 	"github.com/hydra13/gophkeeper/internal/middlewares"
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
-// DeleteRecordRequest — DTO запроса на удаление записи.
 type DeleteRecordRequest struct {
-	// DeviceID — идентификатор устройства, выполняющего удаление.
 	DeviceID string `json:"device_id"`
 }
 
-// DeleteRecordResponse — DTO ответа при удалении записи.
 type DeleteRecordResponse struct{}
 
-// RecordService — интерфейс бизнес-логики для работы с записями.
 type RecordService interface {
 	GetRecord(id int64) (*models.Record, error)
 	DeleteRecord(id int64, deviceID string) error
 }
 
-// Handler — HTTP-обработчик для DELETE /api/v1/records/{id}.
 type Handler struct {
 	service RecordService
 }
 
-// NewHandler создаёт новый обработчик.
 func NewHandler(service RecordService) *Handler {
 	return &Handler{service: service}
 }
 
-// Handle помечает запись как удалённую.
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middlewares.UserIDFromContext(r.Context())
 	if !ok || userID <= 0 {
@@ -69,10 +59,11 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	record, err := h.service.GetRecord(id)
 	if err != nil {
 		if errors.Is(err, models.ErrRecordNotFound) {
-			// Delete is idempotent: record doesn't exist or already soft-deleted.
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			json.NewEncoder(w).Encode(DeleteRecordResponse{})
+			if err := json.NewEncoder(w).Encode(DeleteRecordResponse{}); err != nil {
+				log.Printf("delete record response encode failed: %v", err)
+			}
 			return
 		}
 		if recordscommon.MapRecordError(w, err) {
@@ -90,7 +81,9 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	if record.IsDeleted() {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(DeleteRecordResponse{})
+		if err := json.NewEncoder(w).Encode(DeleteRecordResponse{}); err != nil {
+			log.Printf("delete already deleted response encode failed: %v", err)
+		}
 		return
 	}
 
@@ -106,5 +99,7 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(resp)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		log.Printf("delete record final response encode failed: %v", err)
+	}
 }

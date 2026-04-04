@@ -32,7 +32,7 @@ type TokenManager interface {
 	ValidateToken(token string) (int64, int64, error)
 }
 
-// Service реализует полный auth use-case: register, login, refresh, logout, logout-all-devices.
+// Service реализует прикладную логику аутентификации.
 type Service struct {
 	users      UserRepo
 	sessions   SessionRepo
@@ -41,7 +41,7 @@ type Service struct {
 	now        func() time.Time
 }
 
-// NewService создаёт новый auth service.
+// NewService создаёт сервис аутентификации.
 func NewService(
 	usersRepo UserRepo,
 	sessionsRepo SessionRepo,
@@ -69,7 +69,6 @@ func NewService(
 	}, nil
 }
 
-// Register регистрирует нового пользователя.
 func (s *Service) Register(ctx context.Context, email, password string) (int64, error) {
 	hash, err := passwords.HashPassword(password)
 	if err != nil {
@@ -85,7 +84,6 @@ func (s *Service) Register(ctx context.Context, email, password string) (int64, 
 	return user.ID, nil
 }
 
-// Login проверяет учётные данные, создаёт сессию и возвращает пару токенов.
 func (s *Service) Login(ctx context.Context, email, password, deviceID, deviceName, clientType string) (string, string, error) {
 	user, err := s.users.GetUserByEmail(email)
 	if err != nil {
@@ -125,7 +123,6 @@ func (s *Service) Login(ctx context.Context, email, password, deviceID, deviceNa
 	return accessToken, refreshToken, nil
 }
 
-// Refresh обновляет пару токенов по refresh-токену.
 func (s *Service) Refresh(ctx context.Context, refreshToken string) (string, string, error) {
 	session, err := s.sessions.GetSessionByRefreshToken(refreshToken)
 	if err != nil {
@@ -138,7 +135,6 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (string, str
 		return "", "", models.ErrSessionRevoked
 	}
 
-	// Отзываем старую сессию.
 	if err := s.sessions.RevokeSession(session.ID); err != nil {
 		return "", "", err
 	}
@@ -170,7 +166,6 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (string, str
 	return accessToken, newRefreshToken, nil
 }
 
-// Logout отзывает сессию по access-токену.
 func (s *Service) Logout(ctx context.Context, accessToken string) error {
 	_, sessionID, err := s.jwt.ValidateToken(accessToken)
 	if err != nil {
@@ -179,19 +174,15 @@ func (s *Service) Logout(ctx context.Context, accessToken string) error {
 	return s.sessions.RevokeSession(sessionID)
 }
 
-// LogoutAllDevices отзывает все сессии пользователя.
 func (s *Service) LogoutAllDevices(ctx context.Context, userID int64) error {
 	return s.sessions.RevokeSessionsByUser(userID)
 }
 
-// ValidateToken проверяет access-токен и возвращает userID.
 func (s *Service) ValidateToken(token string) (int64, error) {
 	userID, _, err := s.jwt.ValidateToken(token)
 	return userID, err
 }
 
-// ValidateSession проверяет access-токен, валидирует серверную сессию
-// и обновляет last_seen_at. Возвращает userID.
 func (s *Service) ValidateSession(token string) (int64, error) {
 	userID, sessionID, err := s.jwt.ValidateToken(token)
 	if err != nil {

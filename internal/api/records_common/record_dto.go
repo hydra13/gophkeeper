@@ -1,4 +1,3 @@
-// Package recordscommon содержит общие DTO и transport-хелперы для HTTP-ручек записей.
 package recordscommon
 
 import (
@@ -7,22 +6,17 @@ import (
 
 const timeLayout = "2006-01-02T15:04:05Z"
 
-// LoginPayloadDTO описывает payload записи с логином и паролем.
 type LoginPayloadDTO struct {
 	Login    string `json:"login"`
 	Password string `json:"password"`
 }
 
-// TextPayloadDTO описывает payload записи с произвольным текстом.
 type TextPayloadDTO struct {
 	Content string `json:"content"`
 }
 
-// BinaryPayloadDTO описывает payload бинарной записи без содержимого файла.
-// Содержимое передаётся через uploads-слой.
 type BinaryPayloadDTO struct{}
 
-// CardPayloadDTO описывает payload записи с данными банковской карты.
 type CardPayloadDTO struct {
 	Number     string `json:"number"`
 	HolderName string `json:"holder_name"`
@@ -30,7 +24,6 @@ type CardPayloadDTO struct {
 	CVV        string `json:"cvv"`
 }
 
-// RecordDTO описывает запись в transport-представлении HTTP API.
 type RecordDTO struct {
 	ID             int64       `json:"id"`
 	UserID         int64       `json:"user_id"`
@@ -47,7 +40,6 @@ type RecordDTO struct {
 	Payload        interface{} `json:"payload"`
 }
 
-// RecordToDTO преобразует доменную модель в RecordDTO.
 func RecordToDTO(r models.Record) RecordDTO {
 	dto := RecordDTO{
 		ID:             r.ID,

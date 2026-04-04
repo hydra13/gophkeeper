@@ -23,13 +23,12 @@ type SessionRepo interface {
 	CreateSession(session *models.Session) error
 }
 
-// TokenGenerator отвечает за выпуск токенов.
 type TokenGenerator interface {
 	NewAccessToken(userID int64) (string, error)
 	NewRefreshToken() (string, error)
 }
 
-// Service реализует регистрацию и логин пользователей.
+// Service реализует регистрацию и вход пользователя.
 type Service struct {
 	users      UserRepo
 	sessions   SessionRepo
@@ -38,7 +37,7 @@ type Service struct {
 	now        func() time.Time
 }
 
-// NewService создаёт новый сервис пользователей.
+// NewService создаёт сервис пользователей.
 func NewService(usersRepo UserRepo, sessionsRepo SessionRepo, tokens TokenGenerator, sessionTTL time.Duration) (*Service, error) {
 	if usersRepo == nil {
 		return nil, errors.New("user repository is required")
@@ -61,7 +60,6 @@ func NewService(usersRepo UserRepo, sessionsRepo SessionRepo, tokens TokenGenera
 	}, nil
 }
 
-// Register регистрирует пользователя и сохраняет пароль в виде хеша.
 func (s *Service) Register(ctx context.Context, email, password string) (int64, error) {
 	hash, err := passwords.HashPassword(password)
 	if err != nil {
@@ -77,7 +75,6 @@ func (s *Service) Register(ctx context.Context, email, password string) (int64, 
 	return user.ID, nil
 }
 
-// Login проверяет пароль и создаёт новую сессию.
 func (s *Service) Login(ctx context.Context, email, password, deviceID, deviceName, clientType string) (string, string, error) {
 	user, err := s.users.GetUserByEmail(email)
 	if err != nil {

@@ -1,13 +1,13 @@
 package commands
 
 import (
+	"fmt"
 	"io"
 	"os"
 
 	"github.com/hydra13/gophkeeper/pkg/clientcore"
 )
 
-// Dependencies описывает внешние зависимости Runner.
 type Dependencies struct {
 	NewCore      func() (*clientcore.ClientCore, func(), error)
 	Fatal        func(error)
@@ -17,12 +17,10 @@ type Dependencies struct {
 	Stderr       io.Writer
 }
 
-// Runner выполняет команды CLI-клиента.
 type Runner struct {
 	deps Dependencies
 }
 
-// New создает Runner и подставляет стандартные stdout и stderr при необходимости.
 func New(deps Dependencies) *Runner {
 	if deps.Stdout == nil {
 		deps.Stdout = os.Stdout
@@ -47,4 +45,16 @@ func (r *Runner) readLine(prompt string) string {
 
 func (r *Runner) newCore() (*clientcore.ClientCore, func(), error) {
 	return r.deps.NewCore()
+}
+
+func (r *Runner) println(writer io.Writer, args ...interface{}) {
+	if _, err := fmt.Fprintln(writer, args...); err != nil {
+		r.fatal(fmt.Errorf("write output: %w", err))
+	}
+}
+
+func (r *Runner) printf(writer io.Writer, format string, args ...interface{}) {
+	if _, err := fmt.Fprintf(writer, format, args...); err != nil {
+		r.fatal(fmt.Errorf("write output: %w", err))
+	}
 }

@@ -72,8 +72,8 @@ func TestKeyVersionCanDecrypt(t *testing.T) {
 
 func TestKeyVersionFullLifecycle(t *testing.T) {
 	kv := &KeyVersion{
-		Version:  1,
-		Status:   KeyStatusActive,
+		Version: 1,
+		Status:  KeyStatusActive,
 	}
 
 	if !kv.IsActive() || !kv.CanDecrypt() {

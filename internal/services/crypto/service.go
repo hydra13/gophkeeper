@@ -10,30 +10,27 @@ import (
 )
 
 const (
-	// encryptedPrefix позволяет отличить шифротекст от legacy-данных.
 	encryptedPrefix = "GK1"
-	// nonceSize фиксирован для AES-GCM.
-	nonceSize = 12
+	nonceSize       = 12
 )
 
 var (
-	// ErrInvalidCiphertext сигнализирует о невалидном формате зашифрованных данных.
 	ErrInvalidCiphertext = errors.New("invalid ciphertext")
 )
 
-// KeyProvider предоставляет доступ к ключам шифрования по версии.
+// KeyProvider возвращает ключ шифрования по версии.
 type KeyProvider interface {
 	KeyForEncrypt(version int64) ([]byte, error)
 	KeyForDecrypt(version int64) ([]byte, error)
 }
 
-// CryptoService описывает операции шифрования и расшифровки данных.
+// CryptoService описывает операции шифрования payload.
 type CryptoService interface {
 	Encrypt(data []byte, keyVersion int64) ([]byte, error)
 	Decrypt(data []byte, keyVersion int64) ([]byte, error)
 }
 
-// Service реализует шифрование AES-256-GCM на data keys.
+// Service шифрует данные с префиксом версии ключа.
 type Service struct {
 	keys KeyProvider
 	rand io.Reader
@@ -44,7 +41,6 @@ func New(keys KeyProvider) *Service {
 	return &Service{keys: keys, rand: rand.Reader}
 }
 
-// Encrypt шифрует данные по указанной версии ключа.
 func (s *Service) Encrypt(data []byte, keyVersion int64) ([]byte, error) {
 	if s == nil || s.keys == nil {
 		return nil, errors.New("key provider is required")
@@ -73,7 +69,6 @@ func (s *Service) Encrypt(data []byte, keyVersion int64) ([]byte, error) {
 	return result, nil
 }
 
-// Decrypt расшифровывает данные по версии ключа.
 func (s *Service) Decrypt(data []byte, keyVersion int64) ([]byte, error) {
 	if s == nil || s.keys == nil {
 		return nil, errors.New("key provider is required")
@@ -107,7 +102,7 @@ func (s *Service) Decrypt(data []byte, keyVersion int64) ([]byte, error) {
 	return plaintext, nil
 }
 
-// HasEncryptedPrefix проверяет наличие префикса шифротекста.
+// HasEncryptedPrefix проверяет наличие префикса версии ключа в данных.
 func HasEncryptedPrefix(data []byte) bool {
 	return len(data) >= len(encryptedPrefix) && string(data[:len(encryptedPrefix)]) == encryptedPrefix
 }

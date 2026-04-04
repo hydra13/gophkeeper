@@ -6,28 +6,22 @@ import (
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
-// Transport — транспортно-независимый интерфейс общения с сервером GophKeeper.
-// Реализации: gRPC, HTTP REST.
-// Клиентский ядро (clientcore) работает только через этот интерфейс.
+// Transport описывает операции удалённого сервиса, доступные клиенту.
 type Transport interface {
-	// Auth
 	Register(ctx context.Context, email, password string) (userID int64, err error)
 	Login(ctx context.Context, email, password, deviceID, deviceName, clientType string) (accessToken, refreshToken string, err error)
 	Refresh(ctx context.Context, refreshToken string) (newAccess, newRefresh string, err error)
 	Logout(ctx context.Context) error
 
-	// Records
 	CreateRecord(ctx context.Context, record *models.Record) (*models.Record, error)
 	GetRecord(ctx context.Context, id int64) (*models.Record, error)
 	ListRecords(ctx context.Context, recordType models.RecordType, includeDeleted bool) ([]models.Record, error)
 	UpdateRecord(ctx context.Context, record *models.Record) (*models.Record, error)
 	DeleteRecord(ctx context.Context, id int64, deviceID string) error
 
-	// Sync
 	Pull(ctx context.Context, sinceRevision int64, deviceID string, limit int32) (*PullResult, error)
 	Push(ctx context.Context, changes []PendingChange, deviceID string) (*PushResult, error)
 
-	// Uploads
 	CreateUploadSession(ctx context.Context, recordID, totalChunks, chunkSize, totalSize, keyVersion int64) (uploadID int64, err error)
 	UploadChunk(ctx context.Context, uploadID, chunkIndex int64, data []byte) error
 	GetUploadStatus(ctx context.Context, uploadID int64) (*UploadStatus, error)
@@ -36,11 +30,10 @@ type Transport interface {
 	ConfirmChunk(ctx context.Context, downloadID, chunkIndex int64) error
 	GetDownloadStatus(ctx context.Context, downloadID int64) (*DownloadStatus, error)
 
-	// Token management
 	SetAccessToken(token string)
 }
 
-// PullResult — результат pull-операции синхронизации.
+// PullResult содержит результат pull-синхронизации.
 type PullResult struct {
 	Records      []models.Record
 	HasMore      bool
@@ -48,7 +41,7 @@ type PullResult struct {
 	Conflicts    []SyncConflictInfo
 }
 
-// SyncConflictInfo — информация о конфликте синхронизации.
+// SyncConflictInfo описывает конфликт синхронизации на транспортном уровне.
 type SyncConflictInfo struct {
 	ID             int64
 	RecordID       int64
@@ -60,27 +53,27 @@ type SyncConflictInfo struct {
 	ServerRecord   *models.Record
 }
 
-// PendingChange — локальное изменение для отправки на сервер.
+// PendingChange описывает локальное изменение для push-синхронизации.
 type PendingChange struct {
 	Record       *models.Record
 	Deleted      bool
 	BaseRevision int64
 }
 
-// PushResult — результат push-операции.
+// PushResult содержит результат отправки локальных изменений.
 type PushResult struct {
 	Accepted  []AcceptedChange
 	Conflicts []SyncConflictInfo
 }
 
-// AcceptedChange — принятое сервером изменение.
+// AcceptedChange описывает изменение, принятое сервером.
 type AcceptedChange struct {
 	RecordID int64
 	Revision int64
 	DeviceID string
 }
 
-// UploadStatus — статус upload-сессии.
+// UploadStatus описывает состояние upload-сессии.
 type UploadStatus struct {
 	UploadID       int64
 	Status         string
@@ -89,7 +82,7 @@ type UploadStatus struct {
 	MissingChunks  []int64
 }
 
-// DownloadStatus — статус download-сессии.
+// DownloadStatus описывает состояние download-сессии.
 type DownloadStatus struct {
 	DownloadID      int64
 	Status          string

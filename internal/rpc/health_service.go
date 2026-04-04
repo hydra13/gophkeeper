@@ -6,7 +6,7 @@ import (
 	"github.com/hydra13/gophkeeper/internal/rpc/pbv1"
 )
 
-// HealthService реализует gRPC health-check.
+// HealthService отвечает на проверки доступности сервиса.
 type HealthService struct {
 	pbv1.UnimplementedHealthServiceServer
 }
@@ -16,7 +16,6 @@ func NewHealthService() *HealthService {
 	return &HealthService{}
 }
 
-// HealthCheck возвращает статус доступности сервиса.
 func (s *HealthService) HealthCheck(context.Context, *pbv1.HealthCheckRequest) (*pbv1.HealthCheckResponse, error) {
 	return &pbv1.HealthCheckResponse{
 		Status: pbv1.HealthStatus_HEALTH_STATUS_OK,

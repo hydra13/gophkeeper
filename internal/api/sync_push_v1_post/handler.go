@@ -1,39 +1,27 @@
-// Package sync_push_v1_post реализует HTTP-ручку отправки локальных изменений на сервер.
-//
-// POST /api/v1/sync/push
-//
 //go:generate minimock -i .SyncPusher -o mocks -s _mock.go -g
 package sync_push_v1_post
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 
 	recordscommon "github.com/hydra13/gophkeeper/internal/api/records_common"
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
-// PendingChange — DTO одной локальной операции, отправляемой на сервер.
 type PendingChange struct {
-	// Record — полные данные записи (создание или обновление).
-	Record recordscommon.RecordDTO `json:"record"`
-	// Deleted — признак удаления записи.
-	Deleted bool `json:"deleted"`
-	// BaseRevision — ревизия, на основе которой было сделано изменение.
-	BaseRevision int64 `json:"base_revision"`
+	Record       recordscommon.RecordDTO `json:"record"`
+	Deleted      bool                    `json:"deleted"`
+	BaseRevision int64                   `json:"base_revision"`
 }
 
-// Request — DTO для запроса push-синхронизации.
 type Request struct {
-	// UserID — идентификатор пользователя (из JWT-токена).
-	UserID int64 `json:"user_id"`
-	// DeviceID — устройство, выполняющее push.
-	DeviceID string `json:"device_id"`
-	// Changes — список локальных операций для отправки на сервер.
-	Changes []PendingChange `json:"changes"`
+	UserID   int64           `json:"user_id"`
+	DeviceID string          `json:"device_id"`
+	Changes  []PendingChange `json:"changes"`
 }
 
-// RecordRevisionDTO — DTO изменённой записи (ревизии).
 type RecordRevisionDTO struct {
 	ID       int64  `json:"id"`
 	RecordID int64  `json:"record_id"`
@@ -42,7 +30,6 @@ type RecordRevisionDTO struct {
 	DeviceID string `json:"device_id"`
 }
 
-// SyncConflictDTO — DTO конфликта синхронизации.
 type SyncConflictDTO struct {
 	ID             int64                    `json:"id"`
 	UserID         int64                    `json:"user_id"`
@@ -55,32 +42,23 @@ type SyncConflictDTO struct {
 	ServerRecord   *recordscommon.RecordDTO `json:"server_record,omitempty"`
 }
 
-// Response — DTO для ответа push-синхронизации.
 type Response struct {
-	// Accepted — список принятых изменений с обновлёнными ревизиями.
-	Accepted []RecordRevisionDTO `json:"accepted"`
-	// Conflicts — список конфликтов (если есть).
-	Conflicts []SyncConflictDTO `json:"conflicts,omitempty"`
+	Accepted  []RecordRevisionDTO `json:"accepted"`
+	Conflicts []SyncConflictDTO   `json:"conflicts,omitempty"`
 }
 
-// SyncPusher — интерфейс сервиса push-синхронизации.
 type SyncPusher interface {
-	// Push отправляет локальные изменения на сервер.
-	// Возвращает принятые ревизии и список конфликтов.
 	Push(userID int64, deviceID string, changes []models.PendingChange) ([]models.RecordRevision, []models.SyncConflict, error)
 }
 
-// Handler обрабатывает POST /api/v1/sync/push.
 type Handler struct {
 	service SyncPusher
 }
 
-// NewHandler создаёт новый обработчик push-синхронизации.
 func NewHandler(service SyncPusher) *Handler {
 	return &Handler{service: service}
 }
 
-// ServeHTTP принимает локальные изменения и возвращает принятые ревизии и конфликты.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -144,7 +122,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		log.Printf("sync push response encode failed: %v", err)
+	}
 }
 
 func toDomainChanges(changes []PendingChange) []models.PendingChange {

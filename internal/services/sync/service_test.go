@@ -62,6 +62,7 @@ func TestPush_CreateChange(t *testing.T) {
 	rr.CreateRecordMock.Set(func(record *models.Record) error {
 		require.Equal(t, int64(1), record.UserID)
 		require.Equal(t, "my note", record.Name)
+		require.Equal(t, int64(1), record.Revision)
 		require.Equal(t, "device-1", record.DeviceID)
 		require.Equal(t, models.RecordTypeText, record.Type)
 		record.ID = 42
@@ -92,6 +93,7 @@ func TestPush_CreateChange_CreateRecordError(t *testing.T) {
 	rr := syncmocks.NewRecordRepoMock(mc)
 	svc := newTestService(t, sr, rr)
 
+	sr.GetMaxRevisionMock.Expect(1).Return(0, nil)
 	rr.CreateRecordMock.Return(errors.New("boom"))
 
 	accepted, conflicts, err := svc.Push(1, "device-1", []models.PendingChange{

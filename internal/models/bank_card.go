@@ -5,7 +5,7 @@ import (
 	"unicode"
 )
 
-// CardPayload — данные банковской карты.
+// CardPayload хранит данные банковской карты.
 type CardPayload struct {
 	Number     string
 	HolderName string
@@ -13,16 +13,12 @@ type CardPayload struct {
 	CVV        string
 }
 
-// RecordType возвращает тип записи card.
+// RecordType возвращает тип payload.
 func (p CardPayload) RecordType() RecordType {
 	return RecordTypeCard
 }
 
-// Validate проверяет корректность данных банковской карты:
-//   - Number: 13–19 цифр, проходит алгоритм Луна
-//   - HolderName: непустое значение
-//   - ExpiryDate: формат MM/YY, месяц 01–12
-//   - CVV: 3 или 4 цифры
+// Validate проверяет формат полей карты.
 func (p CardPayload) Validate() error {
 	if err := validateCardNumber(p.Number); err != nil {
 		return err
@@ -39,7 +35,6 @@ func (p CardPayload) Validate() error {
 	return nil
 }
 
-// validateCardNumber проверяет что номер карты состоит из 13–19 цифр и проходит Luhn.
 func validateCardNumber(number string) error {
 	if len(number) < 13 || len(number) > 19 {
 		return ErrInvalidCardNumber
@@ -55,7 +50,6 @@ func validateCardNumber(number string) error {
 	return nil
 }
 
-// luhnCheck проверяет номер карты по алгоритму Луна.
 func luhnCheck(number string) bool {
 	var sum int
 	parity := len(number) % 2
@@ -72,7 +66,6 @@ func luhnCheck(number string) bool {
 	return sum%10 == 0
 }
 
-// validateExpiryDate проверяет формат MM/YY и что месяц в диапазоне 01–12.
 func validateExpiryDate(expiry string) error {
 	if len(expiry) != 5 {
 		return ErrInvalidExpiryDate
@@ -92,7 +85,6 @@ func validateExpiryDate(expiry string) error {
 	return nil
 }
 
-// validateCVV проверяет что CVV состоит из 3 или 4 цифр.
 func validateCVV(cvv string) error {
 	if (len(cvv) != 3 && len(cvv) != 4) || !isDigits(cvv) {
 		return ErrInvalidCVV

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
@@ -21,14 +22,12 @@ const (
 	payloadPathTemplate = "payloads/%d/%d.bin"
 )
 
-// Repository реализация PostgreSQL хранилища.
 type Repository struct {
 	db     *sql.DB
 	blob   repositories.BlobStorage
 	crypto cryptosvc.CryptoService
 }
 
-// New создаёт PostgreSQL репозиторий.
 func New(db *sql.DB, blob repositories.BlobStorage) (*Repository, error) {
 	if db == nil {
 		return nil, errors.New("db instance is required")
@@ -39,7 +38,12 @@ func New(db *sql.DB, blob repositories.BlobStorage) (*Repository, error) {
 	return &Repository{db: db, blob: blob}, nil
 }
 
-// SetCrypto задаёт сервис шифрования для repository.
+func closeRows(rows *sql.Rows) {
+	if err := rows.Close(); err != nil {
+		log.Printf("database rows close failed: %v", err)
+	}
+}
+
 func (r *Repository) SetCrypto(service cryptosvc.CryptoService) {
 	r.crypto = service
 }
@@ -51,7 +55,6 @@ func (r *Repository) ensureCrypto() (cryptosvc.CryptoService, error) {
 	return r.crypto, nil
 }
 
-// CreateUser сохраняет нового пользователя.
 func (r *Repository) CreateUser(user *models.User) error {
 	if user == nil {
 		return errors.New("user is nil")
@@ -70,7 +73,6 @@ func (r *Repository) CreateUser(user *models.User) error {
 	return nil
 }
 
-// GetUserByEmail возвращает пользователя по email.
 func (r *Repository) GetUserByEmail(email string) (*models.User, error) {
 	row := r.db.QueryRowContext(context.Background(), `
 		SELECT id, email, password_hash, created_at, updated_at
@@ -80,7 +82,6 @@ func (r *Repository) GetUserByEmail(email string) (*models.User, error) {
 	return scanUser(row)
 }
 
-// GetUserByID возвращает пользователя по ID.
 func (r *Repository) GetUserByID(id int64) (*models.User, error) {
 	row := r.db.QueryRowContext(context.Background(), `
 		SELECT id, email, password_hash, created_at, updated_at
@@ -90,7 +91,6 @@ func (r *Repository) GetUserByID(id int64) (*models.User, error) {
 	return scanUser(row)
 }
 
-// CreateRecord сохраняет запись секрета.
 func (r *Repository) CreateRecord(record *models.Record) error {
 	if record == nil {
 		return errors.New("record is nil")
@@ -177,7 +177,6 @@ func (r *Repository) CreateRecord(record *models.Record) error {
 	return nil
 }
 
-// GetRecord возвращает запись по ID.
 func (r *Repository) GetRecord(id int64) (*models.Record, error) {
 	row := r.db.QueryRowContext(context.Background(), `
 		SELECT id, user_id, type, name, metadata, payload, revision, deleted_at,
@@ -188,9 +187,6 @@ func (r *Repository) GetRecord(id int64) (*models.Record, error) {
 	return r.scanRecord(row)
 }
 
-// ListRecords возвращает список записей пользователя с опциональной фильтрацией.
-// Если recordType не пустой — фильтрует по типу.
-// Если includeDeleted — включает soft-deleted записи.
 func (r *Repository) ListRecords(userID int64, recordType models.RecordType, includeDeleted bool) ([]models.Record, error) {
 	if _, err := r.ensureCrypto(); err != nil {
 		return nil, err
@@ -202,15 +198,12 @@ func (r *Repository) ListRecords(userID int64, recordType models.RecordType, inc
 		FROM records
 		WHERE user_id = $1`
 	args := []interface{}{userID}
-	argIdx := 2
-
 	if !includeDeleted {
-		query += fmt.Sprintf(" AND deleted_at IS NULL")
+		query += " AND deleted_at IS NULL"
 	}
 	if recordType != "" {
-		query += fmt.Sprintf(" AND type = $%d", argIdx)
+		query += " AND type = $2"
 		args = append(args, string(recordType))
-		argIdx++
 	}
 	query += " ORDER BY updated_at DESC"
 
@@ -218,7 +211,7 @@ func (r *Repository) ListRecords(userID int64, recordType models.RecordType, inc
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer closeRows(rows)
 
 	var records []models.Record
 	for rows.Next() {
@@ -234,7 +227,6 @@ func (r *Repository) ListRecords(userID int64, recordType models.RecordType, inc
 	return records, nil
 }
 
-// ListRecordsForReencrypt возвращает записи, зашифрованные неактуальным ключом.
 func (r *Repository) ListRecordsForReencrypt(activeVersion int64, limit int) ([]models.Record, error) {
 	if _, err := r.ensureCrypto(); err != nil {
 		return nil, err
@@ -253,7 +245,7 @@ func (r *Repository) ListRecordsForReencrypt(activeVersion int64, limit int) ([]
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer closeRows(rows)
 
 	var records []models.Record
 	for rows.Next() {
@@ -269,7 +261,6 @@ func (r *Repository) ListRecordsForReencrypt(activeVersion int64, limit int) ([]
 	return records, nil
 }
 
-// UpdateRecord обновляет существующую запись.
 func (r *Repository) UpdateRecord(record *models.Record) error {
 	if record == nil {
 		return errors.New("record is nil")
@@ -368,7 +359,6 @@ func (r *Repository) UpdateRecord(record *models.Record) error {
 	return nil
 }
 
-// ListPayloads возвращает сохранённые payloads записи.
 func (r *Repository) ListPayloads(recordID int64) ([]models.StoredPayload, error) {
 	rows, err := r.db.QueryContext(context.Background(), `
 		SELECT record_id, version, storage_path, size
@@ -379,7 +369,7 @@ func (r *Repository) ListPayloads(recordID int64) ([]models.StoredPayload, error
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer closeRows(rows)
 
 	var payloads []models.StoredPayload
 	for rows.Next() {
@@ -395,7 +385,6 @@ func (r *Repository) ListPayloads(recordID int64) ([]models.StoredPayload, error
 	return payloads, nil
 }
 
-// UpdatePayloadSize обновляет размер сохранённого payload.
 func (r *Repository) UpdatePayloadSize(recordID int64, version int64, size int64) error {
 	result, err := r.db.ExecContext(context.Background(), `
 		UPDATE payloads
@@ -415,7 +404,6 @@ func (r *Repository) UpdatePayloadSize(recordID int64, version int64, size int64
 	return nil
 }
 
-// DeleteRecord выполняет soft delete записи.
 func (r *Repository) DeleteRecord(id int64) error {
 	result, err := r.db.ExecContext(context.Background(), `
 		UPDATE records
@@ -447,7 +435,6 @@ func (r *Repository) DeleteRecord(id int64) error {
 	return nil
 }
 
-// GetRevisions возвращает ревизии после указанной.
 func (r *Repository) GetRevisions(userID int64, sinceRevision int64) ([]models.RecordRevision, error) {
 	rows, err := r.db.QueryContext(context.Background(), `
 		SELECT id, record_id, user_id, revision, device_id
@@ -458,7 +445,7 @@ func (r *Repository) GetRevisions(userID int64, sinceRevision int64) ([]models.R
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer closeRows(rows)
 
 	var revisions []models.RecordRevision
 	for rows.Next() {
@@ -474,7 +461,6 @@ func (r *Repository) GetRevisions(userID int64, sinceRevision int64) ([]models.R
 	return revisions, nil
 }
 
-// CreateRevision добавляет ревизию записи.
 func (r *Repository) CreateRevision(rev *models.RecordRevision) error {
 	if rev == nil {
 		return errors.New("revision is nil")
@@ -492,7 +478,6 @@ func (r *Repository) CreateRevision(rev *models.RecordRevision) error {
 	return nil
 }
 
-// GetMaxRevision возвращает максимальную ревизию пользователя (0 если ревизий нет).
 func (r *Repository) GetMaxRevision(userID int64) (int64, error) {
 	var rev int64
 	row := r.db.QueryRowContext(context.Background(), `
@@ -504,7 +489,6 @@ func (r *Repository) GetMaxRevision(userID int64) (int64, error) {
 	return rev, nil
 }
 
-// GetConflicts возвращает нерешённые конфликты пользователя.
 func (r *Repository) GetConflicts(userID int64) ([]models.SyncConflict, error) {
 	rows, err := r.db.QueryContext(context.Background(), `
 		SELECT id, user_id, record_id, local_revision, server_revision, resolved, resolution, local_record, server_record
@@ -515,7 +499,7 @@ func (r *Repository) GetConflicts(userID int64) ([]models.SyncConflict, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer closeRows(rows)
 
 	var conflicts []models.SyncConflict
 	for rows.Next() {
@@ -558,7 +542,6 @@ func (r *Repository) GetConflicts(userID int64) ([]models.SyncConflict, error) {
 	return conflicts, nil
 }
 
-// CreateConflict сохраняет конфликт синхронизации.
 func (r *Repository) CreateConflict(conflict *models.SyncConflict) error {
 	if conflict == nil {
 		return errors.New("conflict is nil")
@@ -571,11 +554,12 @@ func (r *Repository) CreateConflict(conflict *models.SyncConflict) error {
 	if err != nil {
 		return fmt.Errorf("marshal server record: %w", err)
 	}
-	_, err = r.db.ExecContext(context.Background(), `
+	row := r.db.QueryRowContext(context.Background(), `
 		INSERT INTO sync_conflicts (
 			user_id, record_id, local_revision, server_revision, resolved, resolution, local_record, server_record, created_at, updated_at
 		)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
+		RETURNING id
 	`,
 		conflict.UserID,
 		conflict.RecordID,
@@ -586,10 +570,9 @@ func (r *Repository) CreateConflict(conflict *models.SyncConflict) error {
 		localJSON,
 		serverJSON,
 	)
-	return err
+	return row.Scan(&conflict.ID)
 }
 
-// ResolveConflict помечает конфликт разрешённым.
 func (r *Repository) ResolveConflict(conflictID int64, resolution string) error {
 	result, err := r.db.ExecContext(context.Background(), `
 		UPDATE sync_conflicts
@@ -609,7 +592,6 @@ func (r *Repository) ResolveConflict(conflictID int64, resolution string) error 
 	return nil
 }
 
-// CreateSession сохраняет пользовательскую сессию.
 func (r *Repository) CreateSession(session *models.Session) error {
 	if session == nil {
 		return errors.New("session is nil")
@@ -634,7 +616,6 @@ func (r *Repository) CreateSession(session *models.Session) error {
 	return row.Scan(&session.ID, &session.CreatedAt)
 }
 
-// GetSession возвращает сессию по ID.
 func (r *Repository) GetSession(id int64) (*models.Session, error) {
 	row := r.db.QueryRowContext(context.Background(), `
 		SELECT id, user_id, device_id, device_name, client_type, refresh_token,
@@ -645,7 +626,6 @@ func (r *Repository) GetSession(id int64) (*models.Session, error) {
 	return scanSession(row)
 }
 
-// GetSessionByRefreshToken возвращает сессию по refresh-токену.
 func (r *Repository) GetSessionByRefreshToken(token string) (*models.Session, error) {
 	row := r.db.QueryRowContext(context.Background(), `
 		SELECT id, user_id, device_id, device_name, client_type, refresh_token,
@@ -656,7 +636,6 @@ func (r *Repository) GetSessionByRefreshToken(token string) (*models.Session, er
 	return scanSession(row)
 }
 
-// RevokeSession отзывает конкретную сессию.
 func (r *Repository) RevokeSession(id int64) error {
 	_, err := r.db.ExecContext(context.Background(), `
 		UPDATE sessions SET revoked_at = NOW() WHERE id = $1 AND revoked_at IS NULL
@@ -664,7 +643,6 @@ func (r *Repository) RevokeSession(id int64) error {
 	return err
 }
 
-// RevokeSessionsByUser отзывает все активные сессии пользователя.
 func (r *Repository) RevokeSessionsByUser(userID int64) error {
 	_, err := r.db.ExecContext(context.Background(), `
 		UPDATE sessions SET revoked_at = NOW()
@@ -673,7 +651,6 @@ func (r *Repository) RevokeSessionsByUser(userID int64) error {
 	return err
 }
 
-// UpdateLastSeenAt обновляет время последней активности.
 func (r *Repository) UpdateLastSeenAt(id int64) error {
 	_, err := r.db.ExecContext(context.Background(), `
 		UPDATE sessions SET last_seen_at = NOW() WHERE id = $1
@@ -681,7 +658,6 @@ func (r *Repository) UpdateLastSeenAt(id int64) error {
 	return err
 }
 
-// CreateUploadSession создаёт новую upload-сессию.
 func (r *Repository) CreateUploadSession(session *models.UploadSession) error {
 	if session == nil {
 		return errors.New("upload session is nil")
@@ -709,7 +685,6 @@ func (r *Repository) CreateUploadSession(session *models.UploadSession) error {
 	return row.Scan(&session.ID)
 }
 
-// GetUploadSession возвращает upload-сессию по ID.
 func (r *Repository) GetUploadSession(id int64) (*models.UploadSession, error) {
 	row := r.db.QueryRowContext(context.Background(), `
 		SELECT id, record_id, user_id, status, total_chunks, received_chunks, chunk_size, total_size, key_version
@@ -740,7 +715,7 @@ func (r *Repository) GetUploadSession(id int64) (*models.UploadSession, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer chunksRows.Close()
+	defer closeRows(chunksRows)
 
 	session.ReceivedChunkSet = make(map[int64]bool)
 	for chunksRows.Next() {
@@ -757,7 +732,6 @@ func (r *Repository) GetUploadSession(id int64) (*models.UploadSession, error) {
 	return &session, nil
 }
 
-// GetCompletedUploadByRecordID возвращает завершённую upload-сессию по recordID.
 func (r *Repository) GetCompletedUploadByRecordID(recordID int64) (*models.UploadSession, error) {
 	row := r.db.QueryRowContext(context.Background(), `
 		SELECT id, record_id, user_id, status, total_chunks, received_chunks, chunk_size, total_size, key_version
@@ -790,7 +764,7 @@ func (r *Repository) GetCompletedUploadByRecordID(recordID int64) (*models.Uploa
 	if err != nil {
 		return nil, err
 	}
-	defer chunksRows.Close()
+	defer closeRows(chunksRows)
 
 	session.ReceivedChunkSet = make(map[int64]bool)
 	for chunksRows.Next() {
@@ -807,7 +781,6 @@ func (r *Repository) GetCompletedUploadByRecordID(recordID int64) (*models.Uploa
 	return &session, nil
 }
 
-// UpdateUploadSession обновляет состояние upload-сессии.
 func (r *Repository) UpdateUploadSession(session *models.UploadSession) error {
 	if session == nil {
 		return errors.New("upload session is nil")
@@ -844,7 +817,6 @@ func (r *Repository) UpdateUploadSession(session *models.UploadSession) error {
 	return nil
 }
 
-// SaveChunk сохраняет чанк и обновляет состояние upload-сессии атомарно.
 func (r *Repository) SaveChunk(chunk *models.Chunk) error {
 	if chunk == nil {
 		return errors.New("chunk is nil")
@@ -944,7 +916,6 @@ func (r *Repository) SaveChunk(chunk *models.Chunk) error {
 	return nil
 }
 
-// GetChunks возвращает все чанки для upload-сессии.
 func (r *Repository) GetChunks(uploadID int64) ([]models.Chunk, error) {
 	crypto, err := r.ensureCrypto()
 	if err != nil {
@@ -971,7 +942,7 @@ func (r *Repository) GetChunks(uploadID int64) ([]models.Chunk, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer closeRows(rows)
 
 	var chunks []models.Chunk
 	for rows.Next() {
@@ -1010,7 +981,6 @@ func (r *Repository) GetChunks(uploadID int64) ([]models.Chunk, error) {
 	return chunks, nil
 }
 
-// CreateKeyVersion сохраняет новую версию ключа.
 func (r *Repository) CreateKeyVersion(kv *models.KeyVersion) error {
 	if kv == nil {
 		return errors.New("key version is nil")
@@ -1023,7 +993,6 @@ func (r *Repository) CreateKeyVersion(kv *models.KeyVersion) error {
 	return row.Scan(&kv.ID, &kv.CreatedAt)
 }
 
-// GetKeyVersion возвращает конкретную версию ключа.
 func (r *Repository) GetKeyVersion(version int64) (*models.KeyVersion, error) {
 	row := r.db.QueryRowContext(context.Background(), `
 		SELECT id, version, status, encrypted_key, key_nonce, created_at, deprecated_at, retired_at
@@ -1033,7 +1002,6 @@ func (r *Repository) GetKeyVersion(version int64) (*models.KeyVersion, error) {
 	return scanKeyVersion(row)
 }
 
-// GetActiveKeyVersion возвращает активную версию ключа.
 func (r *Repository) GetActiveKeyVersion() (*models.KeyVersion, error) {
 	row := r.db.QueryRowContext(context.Background(), `
 		SELECT id, version, status, encrypted_key, key_nonce, created_at, deprecated_at, retired_at
@@ -1045,7 +1013,6 @@ func (r *Repository) GetActiveKeyVersion() (*models.KeyVersion, error) {
 	return scanKeyVersion(row)
 }
 
-// ListKeyVersions возвращает список версий ключей.
 func (r *Repository) ListKeyVersions() ([]models.KeyVersion, error) {
 	rows, err := r.db.QueryContext(context.Background(), `
 		SELECT id, version, status, encrypted_key, key_nonce, created_at, deprecated_at, retired_at
@@ -1055,7 +1022,7 @@ func (r *Repository) ListKeyVersions() ([]models.KeyVersion, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer closeRows(rows)
 
 	var versions []models.KeyVersion
 	for rows.Next() {
@@ -1071,7 +1038,6 @@ func (r *Repository) ListKeyVersions() ([]models.KeyVersion, error) {
 	return versions, nil
 }
 
-// UpdateKeyVersion обновляет статус версии ключа.
 func (r *Repository) UpdateKeyVersion(kv *models.KeyVersion) error {
 	if kv == nil {
 		return errors.New("key version is nil")
@@ -1210,8 +1176,6 @@ func splitRecordPayload(record *models.Record) ([]byte, []byte, error) {
 	}
 	switch record.Payload.(type) {
 	case models.BinaryPayload, *models.BinaryPayload:
-		// Binary payload lifecycle is managed by uploads layer (task_13).
-		// Records CRUD stores only payload_version as a reference to the attachment.
 		return nil, nil, nil
 	default:
 		data, err := json.Marshal(record.Payload)
@@ -1311,22 +1275,20 @@ func nullIfEmpty(value string) sql.NullString {
 	return sql.NullString{String: value, Valid: true}
 }
 
-// conflictRecordJSON — вспомогательная структура для JSON-сериализации Record в контексте конфликта.
-// Payload сериализуется как конкретный тип, а не как интерфейс.
 type conflictRecordJSON struct {
-	ID             int64              `json:"id"`
-	UserID         int64              `json:"user_id"`
-	Type           string             `json:"type"`
-	Name           string             `json:"name"`
-	Metadata       string             `json:"metadata"`
-	Payload        json.RawMessage    `json:"payload"`
-	Revision       int64              `json:"revision"`
-	DeletedAt      *time.Time         `json:"deleted_at,omitempty"`
-	DeviceID       string             `json:"device_id"`
-	KeyVersion     int64              `json:"key_version"`
-	PayloadVersion int64              `json:"payload_version"`
-	CreatedAt      time.Time          `json:"created_at"`
-	UpdatedAt      time.Time          `json:"updated_at"`
+	ID             int64           `json:"id"`
+	UserID         int64           `json:"user_id"`
+	Type           string          `json:"type"`
+	Name           string          `json:"name"`
+	Metadata       string          `json:"metadata"`
+	Payload        json.RawMessage `json:"payload"`
+	Revision       int64           `json:"revision"`
+	DeletedAt      *time.Time      `json:"deleted_at,omitempty"`
+	DeviceID       string          `json:"device_id"`
+	KeyVersion     int64           `json:"key_version"`
+	PayloadVersion int64           `json:"payload_version"`
+	CreatedAt      time.Time       `json:"created_at"`
+	UpdatedAt      time.Time       `json:"updated_at"`
 }
 
 func marshalConflictRecord(record *models.Record) ([]byte, error) {
