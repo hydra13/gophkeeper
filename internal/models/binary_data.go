@@ -1,13 +1,11 @@
 package models
 
-import "time"
+// BinaryPayload представляет бинарную запись.
+type BinaryPayload struct {
+	Data []byte
+}
 
-type BinaryData struct {
-	ID        int64
-	UserID    int64
-	Data      []byte
-	Name      string
-	Metadata  string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+// RecordType возвращает тип payload.
+func (p BinaryPayload) RecordType() RecordType {
+	return RecordTypeBinary
 }

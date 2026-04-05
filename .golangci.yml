@@ -1,12 +1,24 @@
+version: "2"
+
 run:
   timeout: 5m
 
 linters:
   enable:
-    - gofmt
-    - goimports
     - govet
     - errcheck
     - staticcheck
     - ineffassign
-    - typecheck
+  exclusions:
+    rules:
+      - path: _grpc\.pb\.go
+        linters:
+          - govet
+          - errcheck
+          - staticcheck
+          - ineffassign
+
+formatters:
+  enable:
+    - gofmt
+    - goimports

@@ -1,14 +1,12 @@
 package models
 
-import "time"
+// LoginPayload хранит логин и пароль записи.
+type LoginPayload struct {
+	Login    string
+	Password string
+}
 
-type LoginPassword struct {
-	ID        int64
-	UserID    int64
-	Login     string
-	Password  string
-	Name      string
-	Metadata  string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+// RecordType возвращает тип payload.
+func (p LoginPayload) RecordType() RecordType {
+	return RecordTypeLogin
 }

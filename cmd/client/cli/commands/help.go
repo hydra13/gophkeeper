@@ -1,0 +1,26 @@
+package commands
+
+func (r *Runner) PrintUsage() {
+	r.println(r.deps.Stderr, "Usage: gophkeeper-cli <command> [args]")
+	r.println(r.deps.Stderr)
+	r.println(r.deps.Stderr, "Commands:")
+	r.println(r.deps.Stderr, "  register                           Register new user")
+	r.println(r.deps.Stderr, "  login                              Login")
+	r.println(r.deps.Stderr, "  logout                             Logout")
+	r.println(r.deps.Stderr, "  list     [type]                    List records (login|text|binary|card)")
+	r.println(r.deps.Stderr, "  get      name <name> [path]        Get record by name")
+	r.println(r.deps.Stderr, "  get      id <id> [path]            Get record by ID")
+	r.println(r.deps.Stderr, "                                    binary: save to path")
+	r.println(r.deps.Stderr, "  add      <type> <name> [data]      Add new record")
+	r.println(r.deps.Stderr, "                                    binary: data=file-path")
+	r.println(r.deps.Stderr, "                                    --metadata <text>  set metadata")
+	r.println(r.deps.Stderr, "  update   name <name> <new-name>    Update record by name")
+	r.println(r.deps.Stderr, "  update   id <id> <new-name>        Update record by ID")
+	r.println(r.deps.Stderr, "                                    binary: data=file-path")
+	r.println(r.deps.Stderr, "                                    --metadata <text>  set metadata")
+	r.println(r.deps.Stderr, "                                    --metadata \"\"      clear metadata")
+	r.println(r.deps.Stderr, "  delete   name <name>               Delete record by name")
+	r.println(r.deps.Stderr, "  delete   id <id>                   Delete record by ID")
+	r.println(r.deps.Stderr, "  sync                               Sync with server")
+	r.println(r.deps.Stderr, "  version                            Show version")
+}

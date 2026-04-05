@@ -1,0 +1,139 @@
+:root {
+  color: #122033;
+  background:
+    radial-gradient(circle at top left, rgba(22, 93, 255, 0.14), transparent 30%),
+    radial-gradient(circle at bottom right, rgba(32, 201, 151, 0.18), transparent 34%),
+    linear-gradient(180deg, #f9fbff 0%, #eef3fb 100%);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  min-height: 100vh;
+}
+
+.desktop-shell {
+  min-height: 100vh;
+  background: transparent;
+}
+
+.center-stage {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 32px;
+}
+
+.hero-card,
+.auth-card,
+.panel-card {
+  border-radius: 24px !important;
+  box-shadow: 0 22px 80px rgba(18, 32, 51, 0.08);
+  background: rgba(255, 255, 255, 0.92) !important;
+  backdrop-filter: blur(14px);
+}
+
+.hero-card {
+  width: min(760px, 100%);
+}
+
+.hero-title {
+  margin-top: 12px !important;
+  margin-bottom: 12px !important;
+}
+
+.hero-copy {
+  font-size: 16px;
+  max-width: 58ch;
+}
+
+.auth-card {
+  width: min(520px, 100%);
+}
+
+.workspace-layout {
+  min-height: 100vh;
+  background: transparent !important;
+}
+
+.workspace-header {
+  height: auto;
+  min-height: 88px;
+  padding: 20px 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  background:
+    linear-gradient(120deg, rgba(9, 30, 66, 0.94), rgba(22, 93, 255, 0.88)),
+    #0f2745 !important;
+}
+
+.workspace-content {
+  padding: 24px;
+}
+
+.toolbar-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.workspace-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(360px, 0.8fr);
+  gap: 20px;
+}
+
+.selected-row > td {
+  background: rgba(22, 93, 255, 0.08) !important;
+}
+
+.muted {
+  color: rgba(18, 32, 51, 0.72);
+}
+
+.floating-alert {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  width: min(420px, calc(100vw - 48px));
+}
+
+@media (max-width: 1080px) {
+  .workspace-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .workspace-header {
+    padding: 18px;
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .workspace-content {
+    padding: 16px;
+  }
+
+  .center-stage {
+    padding: 16px;
+  }
+}

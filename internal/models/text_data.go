@@ -1,13 +1,11 @@
 package models
 
-import "time"
+// TextPayload хранит произвольный текст записи.
+type TextPayload struct {
+	Content string
+}
 
-type TextData struct {
-	ID        int64
-	UserID    int64
-	Content   string
-	Name      string
-	Metadata  string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+// RecordType возвращает тип payload.
+func (p TextPayload) RecordType() RecordType {
+	return RecordTypeText
 }

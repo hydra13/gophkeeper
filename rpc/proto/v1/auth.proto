@@ -1,0 +1,73 @@
+syntax = "proto3";
+
+package gophkeeper.v1;
+
+option go_package = "github.com/hydra13/gophkeeper/internal/rpc/pbv1";
+
+// AuthService — аутентификация: регистрация, логин, обновление токена, logout.
+service AuthService {
+  // Register — регистрация нового пользователя.
+  rpc Register(RegisterRequest) returns (RegisterResponse);
+  // Login — аутентификация с получением access и refresh токенов.
+  rpc Login(LoginRequest) returns (LoginResponse);
+  // Refresh — обновление пары токенов по refresh_token.
+  rpc Refresh(RefreshRequest) returns (RefreshResponse);
+  // Logout — отзыв текущей сессии.
+  rpc Logout(LogoutRequest) returns (LogoutResponse);
+}
+
+// RegisterRequest — запрос на регистрацию.
+message RegisterRequest {
+  // email — уникальный адрес электронной почты пользователя.
+  string email = 1;
+  // password — пароль (минимум 8 символов).
+  string password = 2;
+}
+
+// RegisterResponse — ответ регистрации.
+message RegisterResponse {
+  // user_id — идентификатор созданного пользователя.
+  int64 user_id = 1;
+}
+
+// LoginRequest — запрос на логин.
+message LoginRequest {
+  // email — адрес электронной почты.
+  string email = 1;
+  // password — пароль.
+  string password = 2;
+  // device_id — идентификатор устройства клиента.
+  string device_id = 3;
+  // device_name — понятное имя устройства (например, "MacBook Pro").
+  string device_name = 4;
+  // client_type — тип клиента (cli, desktop, web).
+  string client_type = 5;
+}
+
+// LoginResponse — ответ логина.
+message LoginResponse {
+  // access_token — JWT access-токен.
+  string access_token = 1;
+  // refresh_token — refresh-токен для обновления access-токена.
+  string refresh_token = 2;
+}
+
+// RefreshRequest — запрос на обновление токена.
+message RefreshRequest {
+  // refresh_token — действующий refresh-токен.
+  string refresh_token = 1;
+}
+
+// RefreshResponse — ответ обновления токена.
+message RefreshResponse {
+  // access_token — новый JWT access-токен.
+  string access_token = 1;
+  // refresh_token — новый refresh-токен.
+  string refresh_token = 2;
+}
+
+// LogoutRequest — запрос на logout (access_token передаётся в metadata).
+message LogoutRequest {}
+
+// LogoutResponse — ответ logout.
+message LogoutResponse {}

@@ -2,18 +2,30 @@
   "server": {
     "address": ":8080",
     "grpc_address": ":9090",
-    "enable_https": false,
-    "tls_cert_file": "",
-    "tls_key_file": ""
+    "tls_cert_file": "configs/certs/dev.crt",
+    "tls_key_file": "configs/certs/dev.key"
   },
   "database": {
-    "dsn": "postgres://user:password@localhost:5432/gophkeeper?sslmode=disable"
+    "dsn": "postgres://user:password@localhost:5432/gophkeeper?sslmode=require"
   },
   "auth": {
     "jwt_secret": "your-secret-key-change-in-production",
-    "token_duration": "24h"
+    "token_duration": 86400000000000
   },
   "crypto": {
-    "master_key": "32-byte-master-key-change-in-production"
+    "master_key": "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
+  },
+  "blob": {
+    "provider": "s3",
+    "endpoint": "https://s3.example.com",
+    "bucket": "gophkeeper",
+    "access_key": "your-access-key",
+    "secret_key": "your-secret-key",
+    "region": "us-east-1"
+  },
+  "upload": {
+    "max_file_size": 10485760,
+    "max_chunk_size": 1048576,
+    "max_total_size": 52428800
   }
 }

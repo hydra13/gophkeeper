@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+package gophkeeper.v1;
+
+option go_package = "github.com/hydra13/gophkeeper/internal/rpc/pbv1";
+
+// RecordType — тип хранимой записи секрета.
+enum RecordType {
+  RECORD_TYPE_UNSPECIFIED = 0;
+  RECORD_TYPE_LOGIN = 1;
+  RECORD_TYPE_TEXT = 2;
+  RECORD_TYPE_BINARY = 3;
+  RECORD_TYPE_CARD = 4;
+}
+
+// UploadStatus — состояние upload-сессии.
+enum UploadStatus {
+  UPLOAD_STATUS_UNSPECIFIED = 0;
+  UPLOAD_STATUS_PENDING = 1;
+  UPLOAD_STATUS_COMPLETED = 2;
+  UPLOAD_STATUS_ABORTED = 3;
+}
+
+// DownloadStatus — состояние download-сессии.
+enum DownloadStatus {
+  DOWNLOAD_STATUS_UNSPECIFIED = 0;
+  DOWNLOAD_STATUS_ACTIVE = 1;
+  DOWNLOAD_STATUS_COMPLETED = 2;
+  DOWNLOAD_STATUS_ABORTED = 3;
+}
+
+// ConflictResolution — стратегия разрешения конфликта синхронизации.
+enum ConflictResolution {
+  CONFLICT_RESOLUTION_UNSPECIFIED = 0;
+  CONFLICT_RESOLUTION_LOCAL = 1;
+  CONFLICT_RESOLUTION_SERVER = 2;
+}
+
+// HealthStatus — статус сервиса для health-check.
+enum HealthStatus {
+  HEALTH_STATUS_UNSPECIFIED = 0;
+  HEALTH_STATUS_OK = 1;
+  HEALTH_STATUS_ERROR = 2;
+}
