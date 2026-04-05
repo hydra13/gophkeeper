@@ -7,30 +7,20 @@ import (
 // Store объединяет все разделы клиентского кеша.
 type Store interface {
 	Records() RecordCache
-
 	Pending() PendingQueue
-
 	Transfers() TransferState
-
 	Auth() AuthStore
-
 	Sync() SyncState
-
 	Flush() error
 }
 
 // RecordCache хранит записи в локальном кеше.
 type RecordCache interface {
 	Get(id int64) (*models.Record, bool)
-
 	GetAll() []models.Record
-
 	Put(record *models.Record)
-
 	PutAll(records []models.Record)
-
 	Delete(id int64)
-
 	Clear()
 }
 
@@ -56,13 +46,9 @@ type PendingOp struct {
 // PendingQueue хранит операции, ожидающие отправки на сервер.
 type PendingQueue interface {
 	Enqueue(op PendingOp) error
-
 	DequeueAll() ([]PendingOp, error)
-
 	Peek() ([]PendingOp, error)
-
 	Len() int
-
 	Clear()
 }
 
@@ -100,17 +86,11 @@ type Transfer struct {
 // TransferState хранит состояние незавершённых передач.
 type TransferState interface {
 	Save(t Transfer) error
-
 	Get(id int64) (Transfer, bool)
-
 	GetByRecord(recordID int64) (Transfer, bool)
-
 	Delete(id int64)
-
 	ListActive() []Transfer
-
 	ListPending() []Transfer
-
 	Clear()
 }
 
@@ -126,9 +106,7 @@ type AuthData struct {
 // AuthStore хранит токены и сведения о текущем пользователе.
 type AuthStore interface {
 	Get() (*AuthData, bool)
-
 	Set(data AuthData) error
-
 	Clear()
 }
 
@@ -140,6 +118,5 @@ type SyncData struct {
 // SyncState хранит последнюю полученную ревизию.
 type SyncState interface {
 	Get() SyncData
-
 	SetLastRevision(rev int64) error
 }
