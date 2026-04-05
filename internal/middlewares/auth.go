@@ -8,21 +8,25 @@ import (
 	"github.com/rs/zerolog"
 )
 
+// TokenValidator проверяет токен сессии.
 type TokenValidator interface {
 	ValidateSession(token string) (int64, error)
 }
 
 type userIDContextKey struct{}
 
+// UserIDFromContext возвращает идентификатор пользователя из контекста.
 func UserIDFromContext(ctx context.Context) (int64, bool) {
 	userID, ok := ctx.Value(userIDContextKey{}).(int64)
 	return userID, ok
 }
 
+// ContextWithUserID сохраняет идентификатор пользователя в контексте.
 func ContextWithUserID(ctx context.Context, userID int64) context.Context {
 	return context.WithValue(ctx, userIDContextKey{}, userID)
 }
 
+// Auth проверяет bearer-токен и добавляет user_id в контекст.
 func Auth(validator TokenValidator, log zerolog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

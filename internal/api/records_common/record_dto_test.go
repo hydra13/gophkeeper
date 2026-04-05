@@ -1,4 +1,4 @@
-package recordscommon
+package records_common
 
 import (
 	"testing"

@@ -1,4 +1,4 @@
-package recordscommon
+package records_common
 
 import (
 	"github.com/hydra13/gophkeeper/internal/models"
@@ -6,17 +6,21 @@ import (
 
 const timeLayout = "2006-01-02T15:04:05Z"
 
+// LoginPayloadDTO описывает login-payload в API.
 type LoginPayloadDTO struct {
 	Login    string `json:"login"`
 	Password string `json:"password"`
 }
 
+// TextPayloadDTO описывает text-payload в API.
 type TextPayloadDTO struct {
 	Content string `json:"content"`
 }
 
+// BinaryPayloadDTO описывает binary-payload в API.
 type BinaryPayloadDTO struct{}
 
+// CardPayloadDTO описывает card-payload в API.
 type CardPayloadDTO struct {
 	Number     string `json:"number"`
 	HolderName string `json:"holder_name"`
@@ -24,6 +28,7 @@ type CardPayloadDTO struct {
 	CVV        string `json:"cvv"`
 }
 
+// RecordDTO описывает запись в API.
 type RecordDTO struct {
 	ID             int64       `json:"id"`
 	UserID         int64       `json:"user_id"`
@@ -40,6 +45,7 @@ type RecordDTO struct {
 	Payload        interface{} `json:"payload"`
 }
 
+// RecordToDTO преобразует запись модели в DTO.
 func RecordToDTO(r models.Record) RecordDTO {
 	dto := RecordDTO{
 		ID:             r.ID,

@@ -12,24 +12,29 @@ import (
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
+// UserService описывает регистрацию пользователя.
 type UserService interface {
 	Register(ctx context.Context, email, password string) (int64, error)
 }
 
+// RegisterRequest описывает запрос на регистрацию.
 type RegisterRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
 
+// RegisterResponse описывает ответ на регистрацию.
 type RegisterResponse struct {
 	UserID int64 `json:"user_id"`
 }
 
+// Handler обрабатывает регистрацию пользователя.
 type Handler struct {
 	userService UserService
 	log         zerolog.Logger
 }
 
+// NewHandler создаёт обработчик регистрации.
 func NewHandler(userService UserService, log zerolog.Logger) *Handler {
 	return &Handler{
 		userService: userService,
@@ -37,6 +42,7 @@ func NewHandler(userService UserService, log zerolog.Logger) *Handler {
 	}
 }
 
+// Handle регистрирует пользователя.
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	var req RegisterRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

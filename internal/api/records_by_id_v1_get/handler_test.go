@@ -1,4 +1,4 @@
-package recordsbyidv1get
+package records_by_id_v1_get
 
 import (
 	"errors"

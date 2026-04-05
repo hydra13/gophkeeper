@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	recordscommon "github.com/hydra13/gophkeeper/internal/api/records_common"
+	recordsCommon "github.com/hydra13/gophkeeper/internal/api/records_common"
 	"github.com/hydra13/gophkeeper/internal/models"
 	"github.com/stretchr/testify/require"
 )
@@ -36,7 +36,7 @@ func TestSyncPushHandler_Success(t *testing.T) {
 		DeviceID: "device-1",
 		Changes: []PendingChange{
 			{
-				Record: recordscommon.RecordDTO{
+				Record: recordsCommon.RecordDTO{
 					ID:         1,
 					UserID:     1,
 					Type:       "text",
@@ -46,7 +46,7 @@ func TestSyncPushHandler_Success(t *testing.T) {
 					KeyVersion: 1,
 					CreatedAt:  "2024-01-01T00:00:00Z",
 					UpdatedAt:  "2024-01-01T00:00:00Z",
-					Payload:    recordscommon.TextPayloadDTO{Content: "payload"},
+					Payload:    recordsCommon.TextPayloadDTO{Content: "payload"},
 				},
 				BaseRevision: 1,
 			},
@@ -90,7 +90,7 @@ func TestSyncPushHandler_WithConflicts(t *testing.T) {
 		DeviceID: "device-1",
 		Changes: []PendingChange{
 			{
-				Record: recordscommon.RecordDTO{
+				Record: recordsCommon.RecordDTO{
 					ID:         1,
 					UserID:     1,
 					Type:       "text",
@@ -100,7 +100,7 @@ func TestSyncPushHandler_WithConflicts(t *testing.T) {
 					KeyVersion: 1,
 					CreatedAt:  "2024-01-01T00:00:00Z",
 					UpdatedAt:  "2024-01-01T00:00:00Z",
-					Payload:    recordscommon.TextPayloadDTO{Content: "payload"},
+					Payload:    recordsCommon.TextPayloadDTO{Content: "payload"},
 				},
 				BaseRevision: 3,
 			},
@@ -213,7 +213,7 @@ func TestSyncPushHandler_ServiceError(t *testing.T) {
 		DeviceID: "d",
 		Changes: []PendingChange{
 			{
-				Record: recordscommon.RecordDTO{
+				Record: recordsCommon.RecordDTO{
 					ID:         1,
 					UserID:     1,
 					Type:       "text",
@@ -223,7 +223,7 @@ func TestSyncPushHandler_ServiceError(t *testing.T) {
 					KeyVersion: 1,
 					CreatedAt:  "2024-01-01T00:00:00Z",
 					UpdatedAt:  "2024-01-01T00:00:00Z",
-					Payload:    recordscommon.TextPayloadDTO{Content: "payload"},
+					Payload:    recordsCommon.TextPayloadDTO{Content: "payload"},
 				},
 				BaseRevision: 1,
 			},

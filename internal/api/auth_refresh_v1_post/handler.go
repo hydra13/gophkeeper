@@ -12,24 +12,29 @@ import (
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
+// TokenService описывает обновление токенов.
 type TokenService interface {
 	Refresh(ctx context.Context, refreshToken string) (newAccessToken, newRefreshToken string, err error)
 }
 
+// RefreshRequest описывает запрос на обновление токенов.
 type RefreshRequest struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
+// RefreshResponse описывает ответ с новыми токенами.
 type RefreshResponse struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
 }
 
+// Handler обрабатывает обновление токенов.
 type Handler struct {
 	tokenService TokenService
 	log          zerolog.Logger
 }
 
+// NewHandler создаёт обработчик обновления токенов.
 func NewHandler(tokenService TokenService, log zerolog.Logger) *Handler {
 	return &Handler{
 		tokenService: tokenService,
@@ -37,6 +42,7 @@ func NewHandler(tokenService TokenService, log zerolog.Logger) *Handler {
 	}
 }
 
+// Handle обновляет пару токенов.
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	var req RefreshRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

@@ -2,6 +2,7 @@ package models
 
 import "errors"
 
+// Ошибки пользователя.
 var (
 	ErrUserNotFound       = errors.New("user not found")
 	ErrInvalidCredentials = errors.New("invalid credentials")
@@ -12,6 +13,7 @@ var (
 	ErrInvalidUserID      = errors.New("invalid user id")
 )
 
+// Ошибки записи.
 var (
 	ErrRecordNotFound        = errors.New("record not found")
 	ErrNilPayload            = errors.New("payload is required")
@@ -25,12 +27,14 @@ var (
 	ErrInvalidPayloadVersion = errors.New("payload_version must be positive for binary records")
 )
 
+// Ошибки конфликтов синхронизации.
 var (
 	ErrRevisionConflict          = errors.New("revision conflict")
 	ErrConflictAlreadyResolved   = errors.New("conflict already resolved")
 	ErrInvalidConflictResolution = errors.New("invalid conflict resolution")
 )
 
+// Ошибки банковской карты.
 var (
 	ErrInvalidCardNumber = errors.New("invalid card number")
 	ErrEmptyCardHolder   = errors.New("card holder name is required")
@@ -38,6 +42,7 @@ var (
 	ErrInvalidCVV        = errors.New("invalid CVV, expected 3 or 4 digits")
 )
 
+// Ошибки загрузки.
 var (
 	ErrUploadNotFound   = errors.New("upload session not found")
 	ErrUploadNotPending = errors.New("upload session is not pending")
@@ -48,6 +53,7 @@ var (
 	ErrChunkOutOfOrder  = errors.New("chunk order violated")
 )
 
+// Ошибки скачивания.
 var (
 	ErrDownloadNotFound      = errors.New("download session not found")
 	ErrDownloadCompleted     = errors.New("download session already completed")
@@ -56,6 +62,7 @@ var (
 	ErrChunkAlreadyConfirmed = errors.New("chunk already confirmed by client")
 )
 
+// Ошибки версий ключей.
 var (
 	ErrUnknownKeyVersion       = errors.New("unknown key version")
 	ErrKeyVersionNotActive     = errors.New("key version is not active")

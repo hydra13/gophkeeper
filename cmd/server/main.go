@@ -15,6 +15,7 @@ import (
 	"github.com/hydra13/gophkeeper/internal/app"
 	"github.com/hydra13/gophkeeper/internal/config"
 	"github.com/hydra13/gophkeeper/internal/migrations"
+	"github.com/hydra13/gophkeeper/internal/repositories"
 	dbrepo "github.com/hydra13/gophkeeper/internal/repositories/database"
 	authsvc "github.com/hydra13/gophkeeper/internal/services/auth"
 	cryptosvc "github.com/hydra13/gophkeeper/internal/services/crypto"
@@ -25,21 +26,29 @@ import (
 	"github.com/hydra13/gophkeeper/internal/storage"
 )
 
-var applyMigrations = migrations.Apply
-
-var openDB = func(dsn string) (*sql.DB, error) {
-	db, err := sql.Open("pgx", dsn)
-	if err != nil {
-		return nil, err
-	}
-	if err := db.Ping(); err != nil {
-		_ = db.Close()
-		return nil, err
-	}
-	return db, nil
+type wireDepsFactories struct {
+	applyMigrations func(*sql.DB) error
+	openDB          func(string) (*sql.DB, error)
+	newBlobStorage  func(config.BlobStorageConfig) (repositories.BlobStorage, error)
 }
 
-var newBlobStorage = storage.NewBlobStorage
+// Фабрики вынесены на уровень пакета, чтобы тесты могли подменять отдельные
+// шаги сборки зависимостей без вмешательства в main.
+var defaultWireDepsFactories = wireDepsFactories{
+	applyMigrations: migrations.Apply,
+	openDB: func(dsn string) (*sql.DB, error) {
+		db, err := sql.Open("pgx", dsn)
+		if err != nil {
+			return nil, err
+		}
+		if err := db.Ping(); err != nil {
+			_ = db.Close()
+			return nil, err
+		}
+		return db, nil
+	},
+	newBlobStorage: storage.NewBlobStorage,
+}
 
 func main() {
 	log := zerolog.New(os.Stdout).With().Timestamp().Logger()
@@ -66,13 +75,17 @@ func main() {
 }
 
 func wireDeps(cfg *config.Config, log zerolog.Logger) (app.AppDeps, func(), error) {
+	return wireDepsWithFactories(cfg, log, defaultWireDepsFactories)
+}
+
+func wireDepsWithFactories(cfg *config.Config, log zerolog.Logger, factories wireDepsFactories) (app.AppDeps, func(), error) {
 	var cleanup func()
 
 	if cfg.Database.DSN == "" {
 		return app.AppDeps{}, cleanup, errors.New("database DSN is required: set GK_DATABASE_DSN or configure database.dsn")
 	}
 
-	db, err := openDB(cfg.Database.DSN)
+	db, err := factories.openDB(cfg.Database.DSN)
 	if err != nil {
 		return app.AppDeps{}, cleanup, fmt.Errorf("failed to connect to database: %w", err)
 	}
@@ -82,11 +95,11 @@ func wireDeps(cfg *config.Config, log zerolog.Logger) (app.AppDeps, func(), erro
 		}
 	}
 
-	if err := applyMigrations(db); err != nil {
+	if err := factories.applyMigrations(db); err != nil {
 		return app.AppDeps{}, cleanup, fmt.Errorf("failed to apply database migrations: %w", err)
 	}
 
-	blob, err := newBlobStorage(cfg.Blob)
+	blob, err := factories.newBlobStorage(cfg.Blob)
 	if err != nil {
 		return app.AppDeps{}, cleanup, fmt.Errorf("failed to initialize blob storage: %w", err)
 	}

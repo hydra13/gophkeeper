@@ -1,4 +1,4 @@
-package recordsv1post
+package records_v1_post
 
 import (
 	"bytes"

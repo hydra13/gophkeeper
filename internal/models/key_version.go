@@ -8,6 +8,7 @@ import (
 // KeyStatus описывает жизненный цикл версии ключа.
 type KeyStatus string
 
+// Поддерживаемые состояния ключа.
 const (
 	KeyStatusActive     KeyStatus = "active"
 	KeyStatusDeprecated KeyStatus = "deprecated"

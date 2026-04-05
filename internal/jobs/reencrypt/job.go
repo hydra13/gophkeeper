@@ -15,6 +15,7 @@ const (
 	defaultInterval  = 30 * time.Second
 )
 
+// Repository описывает доступ к данным для переупаковки.
 type Repository interface {
 	ListRecordsForReencrypt(activeVersion int64, limit int) ([]models.Record, error)
 	UpdateRecord(record *models.Record) error
@@ -22,6 +23,7 @@ type Repository interface {
 	UpdatePayloadSize(recordID int64, version int64, size int64) error
 }
 
+// Job переупаковывает записи на актуальный ключ.
 type Job struct {
 	repo      Repository
 	blob      repositories.BlobStorage
@@ -34,8 +36,10 @@ type Job struct {
 	enabled   bool
 }
 
+// Option настраивает задачу.
 type Option func(*Job)
 
+// WithDeps задаёт зависимости задачи.
 func WithDeps(repo Repository, blob repositories.BlobStorage, crypto cryptosvc.CryptoService, keyManager *keys.Manager) Option {
 	return func(j *Job) {
 		j.repo = repo
@@ -46,18 +50,21 @@ func WithDeps(repo Repository, blob repositories.BlobStorage, crypto cryptosvc.C
 	}
 }
 
+// WithBatchSize задаёт размер батча.
 func WithBatchSize(size int) Option {
 	return func(j *Job) {
 		j.batchSize = size
 	}
 }
 
+// WithInterval задаёт интервал запуска.
 func WithInterval(interval time.Duration) Option {
 	return func(j *Job) {
 		j.interval = interval
 	}
 }
 
+// New создаёт задачу переупаковки.
 func New(opts ...Option) *Job {
 	job := &Job{
 		batchSize: defaultBatchSize,
@@ -71,6 +78,7 @@ func New(opts ...Option) *Job {
 	return job
 }
 
+// Start запускает фоновую задачу.
 func (j *Job) Start(ctx context.Context) error {
 	if !j.enabled {
 		return nil
@@ -94,6 +102,7 @@ func (j *Job) Start(ctx context.Context) error {
 	return nil
 }
 
+// Stop останавливает фоновую задачу.
 func (j *Job) Stop(ctx context.Context) error {
 	if !j.enabled {
 		return nil

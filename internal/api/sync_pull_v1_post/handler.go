@@ -6,10 +6,11 @@ import (
 	"log"
 	"net/http"
 
-	recordscommon "github.com/hydra13/gophkeeper/internal/api/records_common"
+	recordsCommon "github.com/hydra13/gophkeeper/internal/api/records_common"
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
+// Request описывает запрос на получение изменений.
 type Request struct {
 	UserID        int64  `json:"user_id"`
 	DeviceID      string `json:"device_id"`
@@ -17,6 +18,7 @@ type Request struct {
 	Limit         int64  `json:"limit"`
 }
 
+// RecordRevisionDTO описывает ревизию записи в ответе синхронизации.
 type RecordRevisionDTO struct {
 	ID       int64  `json:"id"`
 	RecordID int64  `json:"record_id"`
@@ -26,6 +28,7 @@ type RecordRevisionDTO struct {
 	Deleted  bool   `json:"deleted"`
 }
 
+// SyncConflictDTO описывает конфликт синхронизации.
 type SyncConflictDTO struct {
 	ID             int64                    `json:"id"`
 	UserID         int64                    `json:"user_id"`
@@ -34,30 +37,35 @@ type SyncConflictDTO struct {
 	ServerRevision int64                    `json:"server_revision"`
 	Resolved       bool                     `json:"resolved"`
 	Resolution     string                   `json:"resolution"`
-	LocalRecord    *recordscommon.RecordDTO `json:"local_record,omitempty"`
-	ServerRecord   *recordscommon.RecordDTO `json:"server_record,omitempty"`
+	LocalRecord    *recordsCommon.RecordDTO `json:"local_record,omitempty"`
+	ServerRecord   *recordsCommon.RecordDTO `json:"server_record,omitempty"`
 }
 
+// Response описывает ответ на получение изменений.
 type Response struct {
 	Changes      []RecordRevisionDTO       `json:"changes"`
-	Records      []recordscommon.RecordDTO `json:"records"`
+	Records      []recordsCommon.RecordDTO `json:"records"`
 	Conflicts    []SyncConflictDTO         `json:"conflicts,omitempty"`
 	NextRevision int64                     `json:"next_revision"`
 	HasMore      bool                      `json:"has_more"`
 }
 
+// SyncPuller описывает получение изменений синхронизации.
 type SyncPuller interface {
 	Pull(userID int64, deviceID string, sinceRevision int64, limit int64) ([]models.RecordRevision, []models.Record, []models.SyncConflict, error)
 }
 
+// Handler обрабатывает получение изменений синхронизации.
 type Handler struct {
 	service SyncPuller
 }
 
+// NewHandler создаёт обработчик получения изменений.
 func NewHandler(service SyncPuller) *Handler {
 	return &Handler{service: service}
 }
 
+// ServeHTTP возвращает изменения синхронизации.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -89,10 +97,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	recordByID := make(map[int64]models.Record, len(records))
-	recordsDTO := make([]recordscommon.RecordDTO, 0, len(records))
+	recordsDTO := make([]recordsCommon.RecordDTO, 0, len(records))
 	for _, rec := range records {
 		recordByID[rec.ID] = rec
-		recordsDTO = append(recordsDTO, recordscommon.RecordToDTO(rec))
+		recordsDTO = append(recordsDTO, recordsCommon.RecordToDTO(rec))
 	}
 
 	changes := make([]RecordRevisionDTO, 0, len(revs))
@@ -132,11 +140,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Resolution:     conflict.Resolution,
 		}
 		if conflict.LocalRecord != nil {
-			localDTO := recordscommon.RecordToDTO(*conflict.LocalRecord)
+			localDTO := recordsCommon.RecordToDTO(*conflict.LocalRecord)
 			dto.LocalRecord = &localDTO
 		}
 		if conflict.ServerRecord != nil {
-			serverDTO := recordscommon.RecordToDTO(*conflict.ServerRecord)
+			serverDTO := recordsCommon.RecordToDTO(*conflict.ServerRecord)
 			dto.ServerRecord = &serverDTO
 		}
 		resp.Conflicts = append(resp.Conflicts, dto)

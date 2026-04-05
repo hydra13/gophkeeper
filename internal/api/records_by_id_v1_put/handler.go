@@ -1,5 +1,5 @@
 //go:generate minimock -i .RecordService -o mocks -s _mock.go -g
-package recordsbyidv1put
+package records_by_id_v1_put
 
 import (
 	"encoding/json"
@@ -8,11 +8,12 @@ import (
 	"net/http"
 	"strconv"
 
-	recordscommon "github.com/hydra13/gophkeeper/internal/api/records_common"
+	recordsCommon "github.com/hydra13/gophkeeper/internal/api/records_common"
 	"github.com/hydra13/gophkeeper/internal/middlewares"
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
+// UpdateRecordRequest описывает запрос на обновление записи.
 type UpdateRecordRequest struct {
 	Name           string         `json:"name"`
 	Metadata       string         `json:"metadata,omitempty"`
@@ -26,17 +27,21 @@ type UpdateRecordRequest struct {
 	Card           *CardPayload   `json:"card,omitempty"`
 }
 
+// LoginPayload описывает payload с логином и паролем.
 type LoginPayload struct {
 	Login    string `json:"login"`
 	Password string `json:"password"`
 }
 
+// TextPayload описывает текстовый payload.
 type TextPayload struct {
 	Content string `json:"content"`
 }
 
+// BinaryPayload описывает бинарный payload.
 type BinaryPayload struct{}
 
+// CardPayload описывает payload банковской карты.
 type CardPayload struct {
 	Number     string `json:"number"`
 	HolderName string `json:"holder_name"`
@@ -44,65 +49,70 @@ type CardPayload struct {
 	CVV        string `json:"cvv"`
 }
 
+// UpdateRecordResponse описывает ответ с обновлённой записью.
 type UpdateRecordResponse struct {
-	Record recordscommon.RecordDTO `json:"record"`
+	Record recordsCommon.RecordDTO `json:"record"`
 }
 
+// RecordService описывает обновление записи.
 type RecordService interface {
 	GetRecord(id int64) (*models.Record, error)
 	UpdateRecord(record *models.Record) error
 }
 
+// Handler обрабатывает обновление записи.
 type Handler struct {
 	service RecordService
 }
 
+// NewHandler создаёт обработчик обновления записи.
 func NewHandler(service RecordService) *Handler {
 	return &Handler{service: service}
 }
 
+// Handle обновляет запись.
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middlewares.UserIDFromContext(r.Context())
 	if !ok || userID <= 0 {
-		recordscommon.WriteError(w, http.StatusUnauthorized, "unauthorized")
+		recordsCommon.WriteError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	idStr := r.PathValue("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil || id <= 0 {
-		recordscommon.WriteError(w, http.StatusBadRequest, "invalid record id")
+		recordsCommon.WriteError(w, http.StatusBadRequest, "invalid record id")
 		return
 	}
 
 	var req UpdateRecordRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		recordscommon.WriteError(w, http.StatusBadRequest, "invalid request body")
+		recordsCommon.WriteError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
 	existing, err := h.service.GetRecord(id)
 	if err != nil {
-		if recordscommon.MapRecordError(w, err) {
+		if recordsCommon.MapRecordError(w, err) {
 			return
 		}
-		recordscommon.WriteError(w, http.StatusInternalServerError, "internal error")
+		recordsCommon.WriteError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
 
 	if existing.UserID != userID {
-		recordscommon.WriteError(w, http.StatusForbidden, "access denied")
+		recordsCommon.WriteError(w, http.StatusForbidden, "access denied")
 		return
 	}
 
 	if existing.IsDeleted() {
-		recordscommon.WriteError(w, http.StatusBadRequest, "record is deleted")
+		recordsCommon.WriteError(w, http.StatusBadRequest, "record is deleted")
 		return
 	}
 
 	currentRevision := existing.Revision
 	if req.Revision <= currentRevision {
-		recordscommon.WriteConflict(w, "revision conflict", &req.Revision, &currentRevision)
+		recordsCommon.WriteConflict(w, "revision conflict", &req.Revision, &currentRevision)
 		return
 	}
 
@@ -114,26 +124,26 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 
 	payload, err := buildPayload(existing.Type, &req)
 	if err != nil {
-		recordscommon.WriteError(w, http.StatusBadRequest, err.Error())
+		recordsCommon.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	existing.Payload = payload
 
 	if err := existing.BumpRevision(req.Revision, req.DeviceID); err != nil {
-		recordscommon.WriteError(w, http.StatusBadRequest, err.Error())
+		recordsCommon.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	if err := h.service.UpdateRecord(existing); err != nil {
-		if recordscommon.MapRecordError(w, err) {
+		if recordsCommon.MapRecordError(w, err) {
 			return
 		}
-		recordscommon.WriteError(w, http.StatusInternalServerError, "internal error")
+		recordsCommon.WriteError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
 
 	resp := UpdateRecordResponse{
-		Record: recordscommon.RecordToDTO(*existing),
+		Record: recordsCommon.RecordToDTO(*existing),
 	}
 
 	w.Header().Set("Content-Type", "application/json")

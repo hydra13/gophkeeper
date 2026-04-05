@@ -8,6 +8,7 @@ import (
 // UploadStatus описывает состояние upload-сессии.
 type UploadStatus string
 
+// Поддерживаемые состояния загрузки.
 const (
 	UploadStatusPending   UploadStatus = "pending"
 	UploadStatusCompleted UploadStatus = "completed"
@@ -104,6 +105,7 @@ type Chunk struct {
 // DownloadStatus описывает состояние download-сессии.
 type DownloadStatus string
 
+// Поддерживаемые состояния скачивания.
 const (
 	DownloadStatusActive    DownloadStatus = "active"
 	DownloadStatusCompleted DownloadStatus = "completed"

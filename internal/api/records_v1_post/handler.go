@@ -1,5 +1,5 @@
 //go:generate minimock -i .RecordService -o mocks -s _mock.go -g
-package recordsv1post
+package records_v1_post
 
 import (
 	"encoding/json"
@@ -7,11 +7,12 @@ import (
 	"log"
 	"net/http"
 
-	recordscommon "github.com/hydra13/gophkeeper/internal/api/records_common"
+	recordsCommon "github.com/hydra13/gophkeeper/internal/api/records_common"
 	"github.com/hydra13/gophkeeper/internal/middlewares"
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
+// CreateRecordRequest описывает запрос на создание записи.
 type CreateRecordRequest struct {
 	Type           string         `json:"type"`
 	Name           string         `json:"name"`
@@ -25,17 +26,21 @@ type CreateRecordRequest struct {
 	Card           *CardPayload   `json:"card,omitempty"`
 }
 
+// LoginPayload описывает payload с логином и паролем.
 type LoginPayload struct {
 	Login    string `json:"login"`
 	Password string `json:"password"`
 }
 
+// TextPayload описывает текстовый payload.
 type TextPayload struct {
 	Content string `json:"content"`
 }
 
+// BinaryPayload описывает бинарный payload.
 type BinaryPayload struct{}
 
+// CardPayload описывает payload банковской карты.
 type CardPayload struct {
 	Number     string `json:"number"`
 	HolderName string `json:"holder_name"`
@@ -43,52 +48,57 @@ type CardPayload struct {
 	CVV        string `json:"cvv"`
 }
 
+// CreateRecordResponse описывает ответ с созданной записью.
 type CreateRecordResponse struct {
-	Record recordscommon.RecordDTO `json:"record"`
+	Record recordsCommon.RecordDTO `json:"record"`
 }
 
+// RecordService описывает создание записи.
 type RecordService interface {
 	CreateRecord(record *models.Record) error
 }
 
+// Handler обрабатывает создание записи.
 type Handler struct {
 	service RecordService
 }
 
+// NewHandler создаёт обработчик создания записи.
 func NewHandler(service RecordService) *Handler {
 	return &Handler{service: service}
 }
 
+// Handle создаёт запись.
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	var req CreateRecordRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		recordscommon.WriteError(w, http.StatusBadRequest, "invalid request body")
+		recordsCommon.WriteError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
 	record, err := requestToRecord(&req)
 	if err != nil {
-		recordscommon.WriteError(w, http.StatusBadRequest, err.Error())
+		recordsCommon.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	userID, ok := middlewares.UserIDFromContext(r.Context())
 	if !ok || userID <= 0 {
-		recordscommon.WriteError(w, http.StatusUnauthorized, "unauthorized")
+		recordsCommon.WriteError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	record.UserID = userID
 
 	if err := h.service.CreateRecord(record); err != nil {
-		if recordscommon.MapRecordError(w, err) {
+		if recordsCommon.MapRecordError(w, err) {
 			return
 		}
-		recordscommon.WriteError(w, http.StatusInternalServerError, "internal error")
+		recordsCommon.WriteError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
 
 	resp := CreateRecordResponse{
-		Record: recordscommon.RecordToDTO(*record),
+		Record: recordsCommon.RecordToDTO(*record),
 	}
 
 	w.Header().Set("Content-Type", "application/json")

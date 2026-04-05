@@ -10,18 +10,22 @@ import (
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
+// UploadStatusGetter описывает получение статуса загрузки.
 type UploadStatusGetter interface {
 	GetUploadStatus(uploadID int64) (*models.UploadStatusResponse, error)
 }
 
+// Handler обрабатывает получение статуса загрузки.
 type Handler struct {
 	service UploadStatusGetter
 }
 
+// NewHandler создаёт обработчик статуса загрузки.
 func NewHandler(service UploadStatusGetter) *Handler {
 	return &Handler{service: service}
 }
 
+// ServeHTTP возвращает статус загрузки.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)

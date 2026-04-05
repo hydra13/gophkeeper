@@ -1,4 +1,4 @@
-package recordsbyidv1put
+package records_by_id_v1_put
 
 import (
 	"bytes"

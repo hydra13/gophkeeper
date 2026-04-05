@@ -6,22 +6,25 @@ import (
 	"log"
 	"net/http"
 
-	recordscommon "github.com/hydra13/gophkeeper/internal/api/records_common"
+	recordsCommon "github.com/hydra13/gophkeeper/internal/api/records_common"
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
+// PendingChange описывает изменение для отправки.
 type PendingChange struct {
-	Record       recordscommon.RecordDTO `json:"record"`
+	Record       recordsCommon.RecordDTO `json:"record"`
 	Deleted      bool                    `json:"deleted"`
 	BaseRevision int64                   `json:"base_revision"`
 }
 
+// Request описывает запрос на отправку изменений.
 type Request struct {
 	UserID   int64           `json:"user_id"`
 	DeviceID string          `json:"device_id"`
 	Changes  []PendingChange `json:"changes"`
 }
 
+// RecordRevisionDTO описывает ревизию записи в ответе.
 type RecordRevisionDTO struct {
 	ID       int64  `json:"id"`
 	RecordID int64  `json:"record_id"`
@@ -30,6 +33,7 @@ type RecordRevisionDTO struct {
 	DeviceID string `json:"device_id"`
 }
 
+// SyncConflictDTO описывает конфликт синхронизации.
 type SyncConflictDTO struct {
 	ID             int64                    `json:"id"`
 	UserID         int64                    `json:"user_id"`
@@ -38,27 +42,32 @@ type SyncConflictDTO struct {
 	ServerRevision int64                    `json:"server_revision"`
 	Resolved       bool                     `json:"resolved"`
 	Resolution     string                   `json:"resolution"`
-	LocalRecord    *recordscommon.RecordDTO `json:"local_record,omitempty"`
-	ServerRecord   *recordscommon.RecordDTO `json:"server_record,omitempty"`
+	LocalRecord    *recordsCommon.RecordDTO `json:"local_record,omitempty"`
+	ServerRecord   *recordsCommon.RecordDTO `json:"server_record,omitempty"`
 }
 
+// Response описывает ответ на отправку изменений.
 type Response struct {
 	Accepted  []RecordRevisionDTO `json:"accepted"`
 	Conflicts []SyncConflictDTO   `json:"conflicts,omitempty"`
 }
 
+// SyncPusher описывает отправку изменений синхронизации.
 type SyncPusher interface {
 	Push(userID int64, deviceID string, changes []models.PendingChange) ([]models.RecordRevision, []models.SyncConflict, error)
 }
 
+// Handler обрабатывает отправку изменений синхронизации.
 type Handler struct {
 	service SyncPusher
 }
 
+// NewHandler создаёт обработчик отправки изменений.
 func NewHandler(service SyncPusher) *Handler {
 	return &Handler{service: service}
 }
 
+// ServeHTTP принимает изменения синхронизации.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -111,11 +120,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Resolution:     conflict.Resolution,
 		}
 		if conflict.LocalRecord != nil {
-			localDTO := recordscommon.RecordToDTO(*conflict.LocalRecord)
+			localDTO := recordsCommon.RecordToDTO(*conflict.LocalRecord)
 			dto.LocalRecord = &localDTO
 		}
 		if conflict.ServerRecord != nil {
-			serverDTO := recordscommon.RecordToDTO(*conflict.ServerRecord)
+			serverDTO := recordsCommon.RecordToDTO(*conflict.ServerRecord)
 			dto.ServerRecord = &serverDTO
 		}
 		resp.Conflicts = append(resp.Conflicts, dto)
@@ -139,7 +148,7 @@ func toDomainChanges(changes []PendingChange) []models.PendingChange {
 	return result
 }
 
-func dtoToDomainRecord(dto recordscommon.RecordDTO) *models.Record {
+func dtoToDomainRecord(dto recordsCommon.RecordDTO) *models.Record {
 	r := &models.Record{
 		ID:             dto.ID,
 		UserID:         dto.UserID,
@@ -154,7 +163,7 @@ func dtoToDomainRecord(dto recordscommon.RecordDTO) *models.Record {
 	return r
 }
 
-func dtoPayloadToDomain(dto recordscommon.RecordDTO) models.RecordPayload {
+func dtoPayloadToDomain(dto recordsCommon.RecordDTO) models.RecordPayload {
 	switch models.RecordType(dto.Type) {
 	case models.RecordTypeLogin:
 		if p, ok := dto.Payload.(map[string]interface{}); ok {

@@ -11,18 +11,22 @@ import (
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
+// ChunkDownloader описывает скачивание чанков.
 type ChunkDownloader interface {
 	DownloadChunk(uploadID, chunkIndex int64) (*models.ChunkDownloadResponse, error)
 }
 
+// Handler обрабатывает скачивание чанка.
 type Handler struct {
 	service ChunkDownloader
 }
 
+// NewHandler создаёт обработчик скачивания чанка.
 func NewHandler(service ChunkDownloader) *Handler {
 	return &Handler{service: service}
 }
 
+// ServeHTTP возвращает чанк загрузки.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)

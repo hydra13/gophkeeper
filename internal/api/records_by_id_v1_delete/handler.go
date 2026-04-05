@@ -1,5 +1,5 @@
 //go:generate minimock -i .RecordService -o mocks -s _mock.go -g
-package recordsbyidv1delete
+package records_by_id_v1_delete
 
 import (
 	"encoding/json"
@@ -8,51 +8,57 @@ import (
 	"net/http"
 	"strconv"
 
-	recordscommon "github.com/hydra13/gophkeeper/internal/api/records_common"
+	recordsCommon "github.com/hydra13/gophkeeper/internal/api/records_common"
 	"github.com/hydra13/gophkeeper/internal/middlewares"
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
+// DeleteRecordRequest описывает запрос на удаление записи.
 type DeleteRecordRequest struct {
 	DeviceID string `json:"device_id"`
 }
 
+// DeleteRecordResponse описывает ответ на удаление записи.
 type DeleteRecordResponse struct{}
 
+// RecordService описывает удаление записи.
 type RecordService interface {
 	GetRecord(id int64) (*models.Record, error)
 	DeleteRecord(id int64, deviceID string) error
 }
 
+// Handler обрабатывает удаление записи.
 type Handler struct {
 	service RecordService
 }
 
+// NewHandler создаёт обработчик удаления записи.
 func NewHandler(service RecordService) *Handler {
 	return &Handler{service: service}
 }
 
+// Handle удаляет запись.
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middlewares.UserIDFromContext(r.Context())
 	if !ok || userID <= 0 {
-		recordscommon.WriteError(w, http.StatusUnauthorized, "unauthorized")
+		recordsCommon.WriteError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	idStr := r.PathValue("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil || id <= 0 {
-		recordscommon.WriteError(w, http.StatusBadRequest, "invalid record id")
+		recordsCommon.WriteError(w, http.StatusBadRequest, "invalid record id")
 		return
 	}
 
 	var req DeleteRecordRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		recordscommon.WriteError(w, http.StatusBadRequest, "invalid request body")
+		recordsCommon.WriteError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 	if req.DeviceID == "" {
-		recordscommon.WriteError(w, http.StatusBadRequest, "device_id is required")
+		recordsCommon.WriteError(w, http.StatusBadRequest, "device_id is required")
 		return
 	}
 
@@ -66,15 +72,15 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 			}
 			return
 		}
-		if recordscommon.MapRecordError(w, err) {
+		if recordsCommon.MapRecordError(w, err) {
 			return
 		}
-		recordscommon.WriteError(w, http.StatusInternalServerError, "internal error")
+		recordsCommon.WriteError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
 
 	if record.UserID != userID {
-		recordscommon.WriteError(w, http.StatusForbidden, "access denied")
+		recordsCommon.WriteError(w, http.StatusForbidden, "access denied")
 		return
 	}
 
@@ -88,10 +94,10 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.service.DeleteRecord(id, req.DeviceID); err != nil {
-		if recordscommon.MapRecordError(w, err) {
+		if recordsCommon.MapRecordError(w, err) {
 			return
 		}
-		recordscommon.WriteError(w, http.StatusInternalServerError, "internal error")
+		recordsCommon.WriteError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
 

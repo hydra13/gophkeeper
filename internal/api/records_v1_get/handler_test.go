@@ -1,4 +1,4 @@
-package recordsv1get
+package records_v1_get
 
 import (
 	"encoding/json"

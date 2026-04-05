@@ -9,12 +9,14 @@ import (
 	"strings"
 )
 
+// ChunkRequest описывает запрос на загрузку чанка.
 type ChunkRequest struct {
 	UploadID   int64  `json:"upload_id"`
 	ChunkIndex int64  `json:"chunk_index"`
 	Data       []byte `json:"data"`
 }
 
+// ChunkResponse описывает ответ на загрузку чанка.
 type ChunkResponse struct {
 	UploadID       int64   `json:"upload_id"`
 	ReceivedChunks int64   `json:"received_chunks"`
@@ -23,18 +25,22 @@ type ChunkResponse struct {
 	MissingChunks  []int64 `json:"missing_chunks,omitempty"`
 }
 
+// ChunkUploader описывает загрузку чанков.
 type ChunkUploader interface {
 	UploadChunk(uploadID, chunkIndex int64, data []byte) (receivedChunks, totalChunks int64, completed bool, missingChunks []int64, err error)
 }
 
+// Handler обрабатывает загрузку чанка.
 type Handler struct {
 	service ChunkUploader
 }
 
+// NewHandler создаёт обработчик загрузки чанка.
 func NewHandler(service ChunkUploader) *Handler {
 	return &Handler{service: service}
 }
 
+// ServeHTTP принимает чанк загрузки.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)

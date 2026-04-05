@@ -13,21 +13,25 @@ import (
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
+// RecordService описывает получение записи.
 type RecordService interface {
 	GetRecord(id int64) (*models.Record, error)
 }
 
+// UploadService описывает скачивание бинарной записи.
 type UploadService interface {
 	CreateDownloadSession(userID, recordID int64) (*models.DownloadSession, error)
 	DownloadChunkByID(downloadID, chunkIndex int64) (*models.Chunk, error)
 	ConfirmChunk(downloadID, chunkIndex int64) (confirmed, total int64, status models.DownloadStatus, err error)
 }
 
+// Handler обрабатывает скачивание бинарной записи.
 type Handler struct {
 	records RecordService
 	uploads UploadService
 }
 
+// NewHandler создаёт обработчик скачивания бинарной записи.
 func NewHandler(records RecordService, uploads UploadService) *Handler {
 	return &Handler{
 		records: records,
@@ -35,6 +39,7 @@ func NewHandler(records RecordService, uploads UploadService) *Handler {
 	}
 }
 
+// Handle скачивает бинарную запись по частям.
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middlewares.UserIDFromContext(r.Context())
 	if !ok || userID <= 0 {

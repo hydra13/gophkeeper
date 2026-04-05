@@ -12,19 +12,24 @@ import (
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
+// TokenService описывает выход пользователя.
 type TokenService interface {
 	Logout(ctx context.Context, accessToken string) error
 }
 
+// LogoutRequest описывает запрос на выход.
 type LogoutRequest struct{}
 
+// LogoutResponse описывает ответ на выход.
 type LogoutResponse struct{}
 
+// Handler обрабатывает выход пользователя.
 type Handler struct {
 	tokenService TokenService
 	log          zerolog.Logger
 }
 
+// NewHandler создаёт обработчик выхода.
 func NewHandler(tokenService TokenService, log zerolog.Logger) *Handler {
 	return &Handler{
 		tokenService: tokenService,
@@ -32,6 +37,7 @@ func NewHandler(tokenService TokenService, log zerolog.Logger) *Handler {
 	}
 }
 
+// Handle выполняет выход пользователя.
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	token := extractBearerToken(r)
 	if token == "" {

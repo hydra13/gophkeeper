@@ -12,10 +12,12 @@ import (
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
+// UserService описывает вход пользователя.
 type UserService interface {
 	Login(ctx context.Context, email, password, deviceID, deviceName, clientType string) (accessToken, refreshToken string, err error)
 }
 
+// LoginRequest описывает запрос на вход.
 type LoginRequest struct {
 	Email      string `json:"email"`
 	Password   string `json:"password"`
@@ -24,16 +26,19 @@ type LoginRequest struct {
 	ClientType string `json:"client_type"`
 }
 
+// LoginResponse описывает ответ на вход.
 type LoginResponse struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
 }
 
+// Handler обрабатывает вход пользователя.
 type Handler struct {
 	userService UserService
 	log         zerolog.Logger
 }
 
+// NewHandler создаёт обработчик входа.
 func NewHandler(userService UserService, log zerolog.Logger) *Handler {
 	return &Handler{
 		userService: userService,
@@ -41,6 +46,7 @@ func NewHandler(userService UserService, log zerolog.Logger) *Handler {
 	}
 }
 
+// Handle выполняет вход пользователя.
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	var req LoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

@@ -42,6 +42,7 @@ type PendingChange struct {
 	BaseRevision int64
 }
 
+// Поддерживаемые стратегии разрешения конфликта.
 const (
 	ConflictResolutionLocal  = "local"
 	ConflictResolutionServer = "server"

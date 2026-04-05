@@ -14,6 +14,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// UnaryLogger логирует unary gRPC-вызовы.
 func UnaryLogger(log zerolog.Logger) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		start := time.Now()
@@ -27,6 +28,7 @@ func UnaryLogger(log zerolog.Logger) grpc.UnaryServerInterceptor {
 	}
 }
 
+// StreamLogger логирует stream gRPC-вызовы.
 func StreamLogger(log zerolog.Logger) grpc.StreamServerInterceptor {
 	return func(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		start := time.Now()
@@ -40,6 +42,7 @@ func StreamLogger(log zerolog.Logger) grpc.StreamServerInterceptor {
 	}
 }
 
+// UnaryRateLimit ограничивает unary gRPC-вызовы.
 func UnaryRateLimit(limiter *RateLimiter) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		if !limiter.Allow() {
@@ -49,6 +52,7 @@ func UnaryRateLimit(limiter *RateLimiter) grpc.UnaryServerInterceptor {
 	}
 }
 
+// StreamRateLimit ограничивает stream gRPC-вызовы.
 func StreamRateLimit(limiter *RateLimiter) grpc.StreamServerInterceptor {
 	return func(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		if !limiter.Allow() {
@@ -58,6 +62,7 @@ func StreamRateLimit(limiter *RateLimiter) grpc.StreamServerInterceptor {
 	}
 }
 
+// UnaryAuth проверяет токен в unary gRPC-вызовах.
 func UnaryAuth(validator TokenValidator, allowMethods map[string]struct{}) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		if _, ok := allowMethods[info.FullMethod]; ok {
@@ -76,6 +81,7 @@ func UnaryAuth(validator TokenValidator, allowMethods map[string]struct{}) grpc.
 	}
 }
 
+// StreamAuth проверяет токен в stream gRPC-вызовах.
 func StreamAuth(validator TokenValidator, allowMethods map[string]struct{}) grpc.StreamServerInterceptor {
 	return func(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		if _, ok := allowMethods[info.FullMethod]; ok {
@@ -104,6 +110,7 @@ func (w *wrappedStream) Context() context.Context {
 	return w.ctx
 }
 
+// RequireTLS отклоняет unary gRPC-вызовы без TLS.
 func RequireTLS() grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		if !hasTLS(ctx) {
@@ -113,6 +120,7 @@ func RequireTLS() grpc.UnaryServerInterceptor {
 	}
 }
 
+// RequireTLSStream отклоняет stream gRPC-вызовы без TLS.
 func RequireTLSStream() grpc.StreamServerInterceptor {
 	return func(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		if !hasTLS(stream.Context()) {

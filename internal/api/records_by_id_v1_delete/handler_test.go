@@ -1,4 +1,4 @@
-package recordsbyidv1delete
+package records_by_id_v1_delete
 
 import (
 	"bytes"

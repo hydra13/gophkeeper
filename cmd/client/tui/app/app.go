@@ -101,7 +101,7 @@ func (a *App) refreshRecords() error {
 		return err
 	}
 
-	a.state.records = records
+	a.state.records = visibleRecords(records)
 	a.reloadRecordList()
 	return nil
 }
@@ -296,13 +296,19 @@ func (a *App) showMainScreen() {
 			}
 			if err := a.refreshRecords(); err != nil {
 				a.showError(err)
+				return
 			}
+			a.setStatus(fmt.Sprintf("filter: %s | Tab/f focus filter, arrows choose, Enter apply", option))
 		})
+	a.filterDrop.SetCurrentOption(0)
+	a.filterDrop.SetDoneFunc(func(key tcell.Key) {
+		a.application.SetFocus(a.recordList)
+	})
 
 	toolbar := tview.NewFlex().
 		AddItem(a.filterDrop, 30, 0, false).
 		AddItem(tview.NewTextView().
-			SetText("Keys: l list  g get/save  a add  u update  d delete  s sync  o logout  q exit"), 0, 1, false)
+			SetText("Keys: Tab/f filter  l list  g get/save  a add  u update  d delete  s sync  o logout  q exit"), 0, 1, false)
 	toolbar.SetBorder(true).SetTitle(" Actions ")
 
 	a.recordList.SetBorder(true).SetTitle(" Records ")
@@ -319,9 +325,19 @@ func (a *App) showMainScreen() {
 	root.SetInputCapture(a.handleMainInput)
 	a.setRootPage("main", root)
 	a.application.SetFocus(a.recordList)
+	a.setStatus("Tab or f focuses the filter. Use arrows to pick a type and Enter to apply.")
 }
 
 func (a *App) handleMainInput(event *tcell.EventKey) *tcell.EventKey {
+	switch event.Key() {
+	case tcell.KeyTAB:
+		a.toggleMainFocus()
+		return nil
+	case tcell.KeyBacktab:
+		a.toggleMainFocus()
+		return nil
+	}
+
 	switch event.Rune() {
 	case 'q':
 		a.application.Stop()
@@ -351,8 +367,37 @@ func (a *App) handleMainInput(event *tcell.EventKey) *tcell.EventKey {
 	case 'o':
 		a.handleLogout()
 		return nil
+	case 'f':
+		if a.filterDrop != nil {
+			a.application.SetFocus(a.filterDrop)
+			a.setStatus("Filter focused. Use arrows to choose a type and Enter to apply.")
+		}
+		return nil
 	}
 	return event
+}
+
+func (a *App) toggleMainFocus() {
+	if a.application.GetFocus() == a.filterDrop {
+		a.application.SetFocus(a.recordList)
+		a.setStatus("Records list focused.")
+		return
+	}
+	if a.filterDrop != nil {
+		a.application.SetFocus(a.filterDrop)
+		a.setStatus("Filter focused. Use arrows to choose a type and Enter to apply.")
+	}
+}
+
+func visibleRecords(records []models.Record) []models.Record {
+	filtered := make([]models.Record, 0, len(records))
+	for _, rec := range records {
+		if rec.IsDeleted() {
+			continue
+		}
+		filtered = append(filtered, rec)
+	}
+	return filtered
 }
 
 func centered(p tview.Primitive, width, height int) tview.Primitive {

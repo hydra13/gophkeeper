@@ -12,6 +12,7 @@ import (
 	"github.com/hydra13/gophkeeper/internal/app"
 	"github.com/hydra13/gophkeeper/internal/config"
 	"github.com/hydra13/gophkeeper/internal/repositories"
+	"github.com/hydra13/gophkeeper/internal/storage"
 )
 
 func TestOpenDB_BadDriver(t *testing.T) {
@@ -50,26 +51,19 @@ func TestWireDeps_ForwardsBlobProviderConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			origApply := applyMigrations
-			origOpenDB := openDB
-			origBlob := newBlobStorage
-			t.Cleanup(func() {
-				applyMigrations = origApply
-				openDB = origOpenDB
-				newBlobStorage = origBlob
-			})
-
-			applyMigrations = func(_ *sql.DB) error { return nil }
-			openDB = func(dsn string) (*sql.DB, error) {
-				db, err := sql.Open("pgx", dsn)
-				if err != nil {
-					return nil, err
-				}
-				return db, nil
+			factories := wireDepsFactories{
+				applyMigrations: func(_ *sql.DB) error { return nil },
+				openDB: func(dsn string) (*sql.DB, error) {
+					db, err := sql.Open("pgx", dsn)
+					if err != nil {
+						return nil, err
+					}
+					return db, nil
+				},
 			}
 
 			var gotBlobCfg config.BlobStorageConfig
-			newBlobStorage = func(cfg config.BlobStorageConfig) (repositories.BlobStorage, error) {
+			factories.newBlobStorage = func(cfg config.BlobStorageConfig) (repositories.BlobStorage, error) {
 				gotBlobCfg = cfg
 				return stubBlobStorage{}, nil
 			}
@@ -90,7 +84,7 @@ func TestWireDeps_ForwardsBlobProviderConfig(t *testing.T) {
 			}
 			log := zerolog.Nop()
 
-			deps, cleanup, err := wireDeps(cfg, log)
+			deps, cleanup, err := wireDepsWithFactories(cfg, log, factories)
 			require.Error(t, err)
 			require.Contains(t, err.Error(), "jwt secret is required")
 			require.Equal(t, cfg.Blob, gotBlobCfg)
@@ -118,25 +112,19 @@ func TestWireDeps_InvalidDSN_Fails(t *testing.T) {
 }
 
 func TestWireDeps_MigrationFailure_Fails(t *testing.T) {
-	origApply := applyMigrations
-	origOpenDB := openDB
-	origBlob := newBlobStorage
-	t.Cleanup(func() {
-		applyMigrations = origApply
-		openDB = origOpenDB
-		newBlobStorage = origBlob
-	})
-
-	applyMigrations = func(_ *sql.DB) error {
-		return errors.New("migration boom")
-	}
-	openDB = func(dsn string) (*sql.DB, error) {
-		db, err := sql.Open("pgx", dsn)
-		if err != nil {
-			return nil, err
-		}
-		// Skip Ping — we want openDB to succeed so we reach applyMigrations.
-		return db, nil
+	factories := wireDepsFactories{
+		applyMigrations: func(_ *sql.DB) error {
+			return errors.New("migration boom")
+		},
+		openDB: func(dsn string) (*sql.DB, error) {
+			db, err := sql.Open("pgx", dsn)
+			if err != nil {
+				return nil, err
+			}
+			// Пропускаем Ping, чтобы дойти до шага миграций.
+			return db, nil
+		},
+		newBlobStorage: storage.NewBlobStorage,
 	}
 
 	cfg := &config.Config{
@@ -144,7 +132,7 @@ func TestWireDeps_MigrationFailure_Fails(t *testing.T) {
 	}
 	log := zerolog.Nop()
 
-	deps, cleanup, err := wireDeps(cfg, log)
+	deps, cleanup, err := wireDepsWithFactories(cfg, log, factories)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to apply database migrations")
 	if cleanup != nil {
@@ -154,25 +142,18 @@ func TestWireDeps_MigrationFailure_Fails(t *testing.T) {
 }
 
 func TestWireDeps_BlobStorageFailure_Fails(t *testing.T) {
-	origApply := applyMigrations
-	origOpenDB := openDB
-	origBlob := newBlobStorage
-	t.Cleanup(func() {
-		applyMigrations = origApply
-		openDB = origOpenDB
-		newBlobStorage = origBlob
-	})
-
-	applyMigrations = func(_ *sql.DB) error { return nil }
-	openDB = func(dsn string) (*sql.DB, error) {
-		db, err := sql.Open("pgx", dsn)
-		if err != nil {
-			return nil, err
-		}
-		return db, nil
-	}
-	newBlobStorage = func(config.BlobStorageConfig) (repositories.BlobStorage, error) {
-		return nil, errors.New("blob boom")
+	factories := wireDepsFactories{
+		applyMigrations: func(_ *sql.DB) error { return nil },
+		openDB: func(dsn string) (*sql.DB, error) {
+			db, err := sql.Open("pgx", dsn)
+			if err != nil {
+				return nil, err
+			}
+			return db, nil
+		},
+		newBlobStorage: func(config.BlobStorageConfig) (repositories.BlobStorage, error) {
+			return nil, errors.New("blob boom")
+		},
 	}
 
 	cfg := &config.Config{
@@ -181,7 +162,7 @@ func TestWireDeps_BlobStorageFailure_Fails(t *testing.T) {
 	}
 	log := zerolog.Nop()
 
-	deps, cleanup, err := wireDeps(cfg, log)
+	deps, cleanup, err := wireDepsWithFactories(cfg, log, factories)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to initialize blob storage")
 	require.Contains(t, err.Error(), "blob boom")

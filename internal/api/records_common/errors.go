@@ -1,4 +1,4 @@
-package recordscommon
+package records_common
 
 import (
 	"encoding/json"
@@ -9,20 +9,24 @@ import (
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
+// ErrorResponse описывает ответ с ошибкой.
 type ErrorResponse struct {
 	Error string `json:"error"`
 }
 
+// ConflictInfo описывает детали конфликта ревизий.
 type ConflictInfo struct {
 	LocalRevision  *int64 `json:"local_revision,omitempty"`
 	ServerRevision *int64 `json:"server_revision,omitempty"`
 }
 
+// ConflictResponse описывает ответ с конфликтом ревизий.
 type ConflictResponse struct {
 	Error    string        `json:"error"`
 	Conflict *ConflictInfo `json:"conflict,omitempty"`
 }
 
+// WriteError пишет ошибку API записи.
 func WriteError(w http.ResponseWriter, code int, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
@@ -31,6 +35,7 @@ func WriteError(w http.ResponseWriter, code int, message string) {
 	}
 }
 
+// WriteConflict пишет ответ о конфликте ревизий.
 func WriteConflict(w http.ResponseWriter, message string, localRevision, serverRevision *int64) {
 	var conflict *ConflictInfo
 	if localRevision != nil || serverRevision != nil {
@@ -47,6 +52,7 @@ func WriteConflict(w http.ResponseWriter, message string, localRevision, serverR
 	}
 }
 
+// MapRecordError преобразует доменную ошибку записи в HTTP-ответ.
 func MapRecordError(w http.ResponseWriter, err error) bool {
 	switch {
 	case errors.Is(err, models.ErrRecordNotFound):

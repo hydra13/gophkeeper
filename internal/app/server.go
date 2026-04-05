@@ -14,23 +14,23 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
-	"github.com/hydra13/gophkeeper/internal/api/auth_login_v1_post"
-	"github.com/hydra13/gophkeeper/internal/api/auth_logout_v1_post"
-	"github.com/hydra13/gophkeeper/internal/api/auth_refresh_v1_post"
-	"github.com/hydra13/gophkeeper/internal/api/auth_register_v1_post"
-	"github.com/hydra13/gophkeeper/internal/api/health_v1_get"
-	"github.com/hydra13/gophkeeper/internal/api/records_by_id_binary_v1_get"
+	authLoginV1Post "github.com/hydra13/gophkeeper/internal/api/auth_login_v1_post"
+	authLogoutV1Post "github.com/hydra13/gophkeeper/internal/api/auth_logout_v1_post"
+	authRefreshV1Post "github.com/hydra13/gophkeeper/internal/api/auth_refresh_v1_post"
+	authRegisterV1Post "github.com/hydra13/gophkeeper/internal/api/auth_register_v1_post"
+	healthV1Get "github.com/hydra13/gophkeeper/internal/api/health_v1_get"
+	recordsByIdBinaryV1Get "github.com/hydra13/gophkeeper/internal/api/records_by_id_binary_v1_get"
 	recordsByIdV1Delete "github.com/hydra13/gophkeeper/internal/api/records_by_id_v1_delete"
 	recordsByIdV1Get "github.com/hydra13/gophkeeper/internal/api/records_by_id_v1_get"
 	recordsByIdV1Put "github.com/hydra13/gophkeeper/internal/api/records_by_id_v1_put"
 	recordsV1Get "github.com/hydra13/gophkeeper/internal/api/records_v1_get"
 	recordsV1Post "github.com/hydra13/gophkeeper/internal/api/records_v1_post"
-	"github.com/hydra13/gophkeeper/internal/api/sync_pull_v1_post"
-	"github.com/hydra13/gophkeeper/internal/api/sync_push_v1_post"
-	"github.com/hydra13/gophkeeper/internal/api/uploads_by_id_chunks_v1_get"
-	"github.com/hydra13/gophkeeper/internal/api/uploads_by_id_chunks_v1_post"
-	"github.com/hydra13/gophkeeper/internal/api/uploads_by_id_v1_get"
-	"github.com/hydra13/gophkeeper/internal/api/uploads_v1_post"
+	syncPullV1Post "github.com/hydra13/gophkeeper/internal/api/sync_pull_v1_post"
+	syncPushV1Post "github.com/hydra13/gophkeeper/internal/api/sync_push_v1_post"
+	uploadsByIdChunksV1Get "github.com/hydra13/gophkeeper/internal/api/uploads_by_id_chunks_v1_get"
+	uploadsByIdChunksV1Post "github.com/hydra13/gophkeeper/internal/api/uploads_by_id_chunks_v1_post"
+	uploadsByIdV1Get "github.com/hydra13/gophkeeper/internal/api/uploads_by_id_v1_get"
+	uploadsV1Post "github.com/hydra13/gophkeeper/internal/api/uploads_v1_post"
 	"github.com/hydra13/gophkeeper/internal/config"
 	"github.com/hydra13/gophkeeper/internal/jobs/reencrypt"
 	"github.com/hydra13/gophkeeper/internal/middlewares"
@@ -44,6 +44,7 @@ const (
 	defaultRateWindow      = time.Second
 )
 
+// AuthService описывает операции аутентификации.
 type AuthService interface {
 	Register(ctx context.Context, email, password string) (int64, error)
 	Login(ctx context.Context, email, password, deviceID, deviceName, clientType string) (string, string, error)
@@ -53,6 +54,7 @@ type AuthService interface {
 	ValidateSession(token string) (int64, error)
 }
 
+// RecordService описывает операции с записями.
 type RecordService interface {
 	CreateRecord(record *models.Record) error
 	ListRecords(userID int64, recordType models.RecordType, includeDeleted bool) ([]models.Record, error)
@@ -61,6 +63,7 @@ type RecordService interface {
 	DeleteRecord(id int64, deviceID string) error
 }
 
+// SyncService описывает операции синхронизации.
 type SyncService interface {
 	Push(userID int64, deviceID string, changes []models.PendingChange) ([]models.RecordRevision, []models.SyncConflict, error)
 	Pull(userID int64, deviceID string, sinceRevision int64, limit int64) ([]models.RecordRevision, []models.Record, []models.SyncConflict, error)
@@ -68,6 +71,7 @@ type SyncService interface {
 	ResolveConflict(userID int64, conflictID int64, resolution string) (*models.Record, error)
 }
 
+// UploadService описывает операции загрузки и скачивания файлов.
 type UploadService interface {
 	CreateSession(userID, recordID, totalChunks, chunkSize, totalSize, keyVersion int64) (int64, error)
 	GetUploadStatus(uploadID int64) (*models.UploadStatusResponse, error)
@@ -80,6 +84,7 @@ type UploadService interface {
 	GetDownloadStatus(downloadID int64) (*models.DownloadSession, error)
 }
 
+// AppDeps хранит зависимости приложения.
 type AppDeps struct {
 	AuthService   AuthService
 	RecordService RecordService
@@ -102,6 +107,7 @@ func (d AppDeps) validate() error {
 	}
 }
 
+// Run запускает HTTP-, gRPC-серверы и фоновые задачи.
 func Run(ctx context.Context, cfg *config.Config, log zerolog.Logger, deps AppDeps) error {
 	if err := deps.validate(); err != nil {
 		return err
@@ -206,27 +212,27 @@ func buildHTTPServer(cfg *config.Config, log zerolog.Logger, limiter *middleware
 	syncService := deps.SyncService
 	uploadService := deps.UploadService
 
-	healthHandler := health_v1_get.NewHandler(&healthChecker{})
+	healthHandler := healthV1Get.NewHandler(&healthChecker{})
 
-	authRegisterHandler := auth_register_v1_post.NewHandler(authService, log)
-	authLoginHandler := auth_login_v1_post.NewHandler(authService, log)
-	authRefreshHandler := auth_refresh_v1_post.NewHandler(authService, log)
-	authLogoutHandler := auth_logout_v1_post.NewHandler(authService, log)
+	authRegisterHandler := authRegisterV1Post.NewHandler(authService, log)
+	authLoginHandler := authLoginV1Post.NewHandler(authService, log)
+	authRefreshHandler := authRefreshV1Post.NewHandler(authService, log)
+	authLogoutHandler := authLogoutV1Post.NewHandler(authService, log)
 
 	recordsPostHandler := recordsV1Post.NewHandler(recordService)
 	recordsGetHandler := recordsV1Get.NewHandler(recordService)
 	recordGetHandler := recordsByIdV1Get.NewHandler(recordService)
 	recordPutHandler := recordsByIdV1Put.NewHandler(recordService)
 	recordDeleteHandler := recordsByIdV1Delete.NewHandler(recordService)
-	recordBinaryHandler := records_by_id_binary_v1_get.NewHandler(recordService, uploadService)
+	recordBinaryHandler := recordsByIdBinaryV1Get.NewHandler(recordService, uploadService)
 
-	syncPushHandler := sync_push_v1_post.NewHandler(syncService)
-	syncPullHandler := sync_pull_v1_post.NewHandler(syncService)
+	syncPushHandler := syncPushV1Post.NewHandler(syncService)
+	syncPullHandler := syncPullV1Post.NewHandler(syncService)
 
-	uploadsStartHandler := uploads_v1_post.NewHandler(uploadService)
-	uploadStatusHandler := uploads_by_id_v1_get.NewHandler(uploadService)
-	uploadChunkHandler := uploads_by_id_chunks_v1_post.NewHandler(uploadService)
-	downloadChunkHandler := uploads_by_id_chunks_v1_get.NewHandler(uploadService)
+	uploadsStartHandler := uploadsV1Post.NewHandler(uploadService)
+	uploadStatusHandler := uploadsByIdV1Get.NewHandler(uploadService)
+	uploadChunkHandler := uploadsByIdChunksV1Post.NewHandler(uploadService)
+	downloadChunkHandler := uploadsByIdChunksV1Get.NewHandler(uploadService)
 
 	r := chi.NewRouter()
 

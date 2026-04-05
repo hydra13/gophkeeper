@@ -8,6 +8,7 @@ import (
 // RecordType определяет тип записи.
 type RecordType string
 
+// Поддерживаемые типы записей.
 const (
 	RecordTypeLogin  RecordType = "login"
 	RecordTypeText   RecordType = "text"

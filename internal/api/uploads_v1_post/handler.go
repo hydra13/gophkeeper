@@ -7,6 +7,7 @@ import (
 	"net/http"
 )
 
+// Request описывает запрос на создание загрузки.
 type Request struct {
 	UserID      int64 `json:"user_id"`
 	RecordID    int64 `json:"record_id"`
@@ -16,23 +17,28 @@ type Request struct {
 	KeyVersion  int64 `json:"key_version"`
 }
 
+// Response описывает ответ на создание загрузки.
 type Response struct {
 	UploadID int64  `json:"upload_id"`
 	Status   string `json:"status"`
 }
 
+// UploadCreator описывает создание сессии загрузки.
 type UploadCreator interface {
 	CreateSession(userID, recordID, totalChunks, chunkSize, totalSize, keyVersion int64) (int64, error)
 }
 
+// Handler обрабатывает создание загрузки.
 type Handler struct {
 	service UploadCreator
 }
 
+// NewHandler создаёт обработчик создания загрузки.
 func NewHandler(service UploadCreator) *Handler {
 	return &Handler{service: service}
 }
 
+// ServeHTTP создаёт сессию загрузки.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
