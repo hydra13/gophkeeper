@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/hydra13/gophkeeper/internal/api/responses"
 	"github.com/hydra13/gophkeeper/internal/middlewares"
 	"github.com/hydra13/gophkeeper/internal/models"
 )
@@ -43,13 +44,13 @@ func NewHandler(records RecordService, uploads UploadService) *Handler {
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middlewares.UserIDFromContext(r.Context())
 	if !ok || userID <= 0 {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		responses.Error(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil || id <= 0 {
-		http.Error(w, "invalid record id", http.StatusBadRequest)
+		responses.Error(w, http.StatusBadRequest, "invalid record id")
 		return
 	}
 
@@ -57,25 +58,25 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch {
 		case errors.Is(err, models.ErrRecordNotFound):
-			http.Error(w, "record not found", http.StatusNotFound)
+			responses.Error(w, http.StatusNotFound, "record not found")
 		default:
-			http.Error(w, "internal error", http.StatusInternalServerError)
+			responses.Error(w, http.StatusInternalServerError, "internal error")
 		}
 		return
 	}
 
 	if record.UserID != userID {
-		http.Error(w, "access denied", http.StatusForbidden)
+		responses.Error(w, http.StatusForbidden, "access denied")
 		return
 	}
 	if record.Type != models.RecordTypeBinary {
-		http.Error(w, "record is not binary", http.StatusBadRequest)
+		responses.Error(w, http.StatusBadRequest, "record is not binary")
 		return
 	}
 
 	download, err := h.uploads.CreateDownloadSession(userID, record.ID)
 	if err != nil {
-		http.Error(w, "create download session: "+err.Error(), http.StatusInternalServerError)
+		responses.Error(w, http.StatusInternalServerError, "create download session: "+err.Error())
 		return
 	}
 
@@ -83,13 +84,13 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	for chunkIndex := int64(0); chunkIndex < download.TotalChunks; chunkIndex++ {
 		chunk, err := h.uploads.DownloadChunkByID(download.ID, chunkIndex)
 		if err != nil {
-			http.Error(w, fmt.Sprintf("download chunk %d: %v", chunkIndex, err), http.StatusInternalServerError)
+			responses.Error(w, http.StatusInternalServerError, fmt.Sprintf("download chunk %d: %v", chunkIndex, err))
 			return
 		}
 		payload.Write(chunk.Data)
 
 		if _, _, _, err := h.uploads.ConfirmChunk(download.ID, chunkIndex); err != nil {
-			http.Error(w, fmt.Sprintf("confirm chunk %d: %v", chunkIndex, err), http.StatusInternalServerError)
+			responses.Error(w, http.StatusInternalServerError, fmt.Sprintf("confirm chunk %d: %v", chunkIndex, err))
 			return
 		}
 	}

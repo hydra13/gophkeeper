@@ -111,6 +111,12 @@ func TestHandler_Handle(t *testing.T) {
 			deleteErr: errors.New("db error"),
 			wantCode:  http.StatusInternalServerError,
 		},
+		{
+			name:     "invalid json body",
+			recordID: "1",
+			userID:   1,
+			wantCode: http.StatusBadRequest,
+		},
 	}
 
 	for _, tt := range tests {
@@ -125,7 +131,9 @@ func TestHandler_Handle(t *testing.T) {
 			handler := NewHandler(mock)
 
 			var body []byte
-			if tt.recordID != "abc" && tt.userID != 0 {
+			if tt.name == "invalid json body" {
+				body = []byte("{")
+			} else if tt.recordID != "abc" && tt.userID != 0 {
 				body, _ = json.Marshal(DeleteRecordRequest{DeviceID: tt.deviceID})
 			} else {
 				body, _ = json.Marshal(DeleteRecordRequest{DeviceID: tt.deviceID})

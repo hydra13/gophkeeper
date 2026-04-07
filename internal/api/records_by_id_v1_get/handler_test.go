@@ -1,6 +1,7 @@
 package records_by_id_v1_get
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/gojuno/minimock/v3"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/hydra13/gophkeeper/internal/api/records_by_id_v1_get/mocks"
 	"github.com/hydra13/gophkeeper/internal/middlewares"
@@ -128,4 +130,27 @@ func TestHandler_Handle(t *testing.T) {
 			assert.Equal(t, tt.wantCode, rec.Code, rec.Body.String())
 		})
 	}
+}
+
+func TestRecordToResponse(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+	resp := recordToResponse(&models.Record{
+		ID:         1,
+		UserID:     1,
+		Type:       models.RecordTypeText,
+		Name:       "note",
+		Revision:   2,
+		DeviceID:   "dev-1",
+		KeyVersion: 1,
+		Payload:    models.TextPayload{Content: "hello"},
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	})
+
+	body, err := json.Marshal(resp)
+	require.NoError(t, err)
+	require.Contains(t, string(body), `"record"`)
+	require.Contains(t, string(body), `"name":"note"`)
 }

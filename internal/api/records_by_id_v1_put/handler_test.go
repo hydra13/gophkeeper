@@ -11,6 +11,7 @@ import (
 
 	"github.com/hydra13/gophkeeper/internal/middlewares"
 	"github.com/hydra13/gophkeeper/internal/models"
+	"github.com/stretchr/testify/require"
 )
 
 func newActiveRecord() *models.Record {
@@ -191,6 +192,88 @@ func TestHandler_Handle(t *testing.T) {
 			if rec.Code != tt.wantCode {
 				t.Errorf("got status %d, want %d; body: %s", rec.Code, tt.wantCode, rec.Body.String())
 			}
+		})
+	}
+}
+
+func TestBuildPayload(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		rt      models.RecordType
+		req     UpdateRecordRequest
+		wantErr string
+	}{
+		{
+			name: "login success",
+			rt:   models.RecordTypeLogin,
+			req:  UpdateRecordRequest{Login: &LoginPayload{Login: "u", Password: "p"}},
+		},
+		{
+			name: "text success",
+			rt:   models.RecordTypeText,
+			req:  UpdateRecordRequest{Text: &TextPayload{Content: "text"}},
+		},
+		{
+			name: "binary success",
+			rt:   models.RecordTypeBinary,
+			req:  UpdateRecordRequest{Binary: &BinaryPayload{}},
+		},
+		{
+			name: "card success",
+			rt:   models.RecordTypeCard,
+			req: UpdateRecordRequest{
+				Card: &CardPayload{Number: "4111111111111111", HolderName: "Test", ExpiryDate: "12/30", CVV: "123"},
+			},
+		},
+		{
+			name:    "missing login payload",
+			rt:      models.RecordTypeLogin,
+			req:     UpdateRecordRequest{},
+			wantErr: "login payload is required",
+		},
+		{
+			name:    "missing text payload",
+			rt:      models.RecordTypeText,
+			req:     UpdateRecordRequest{},
+			wantErr: "text payload is required",
+		},
+		{
+			name:    "missing card payload",
+			rt:      models.RecordTypeCard,
+			req:     UpdateRecordRequest{},
+			wantErr: "card payload is required",
+		},
+		{
+			name: "invalid card payload",
+			rt:   models.RecordTypeCard,
+			req: UpdateRecordRequest{
+				Card: &CardPayload{Number: "123", HolderName: "Test", ExpiryDate: "12/30", CVV: "123"},
+			},
+			wantErr: "invalid card number",
+		},
+		{
+			name:    "invalid type",
+			rt:      models.RecordType("unknown"),
+			req:     UpdateRecordRequest{},
+			wantErr: "invalid record type",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			payload, err := buildPayload(tt.rt, &tt.req)
+			if tt.wantErr != "" {
+				require.EqualError(t, err, tt.wantErr)
+				require.Nil(t, payload)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, payload)
 		})
 	}
 }

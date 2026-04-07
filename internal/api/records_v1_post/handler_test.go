@@ -10,6 +10,7 @@ import (
 
 	"github.com/hydra13/gophkeeper/internal/middlewares"
 	"github.com/hydra13/gophkeeper/internal/models"
+	"github.com/stretchr/testify/require"
 )
 
 func TestHandler_Handle(t *testing.T) {
@@ -174,6 +175,129 @@ func TestHandler_Handle(t *testing.T) {
 			if rec.Code != tt.wantCode {
 				t.Errorf("got status %d, want %d; body: %s", rec.Code, tt.wantCode, rec.Body.String())
 			}
+		})
+	}
+}
+
+func TestRequestToRecord(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		req     CreateRecordRequest
+		wantErr string
+	}{
+		{
+			name: "login success",
+			req: CreateRecordRequest{
+				Type:     "login",
+				Name:     "Name",
+				DeviceID: "device-1",
+				Login:    &LoginPayload{Login: "user", Password: "pass"},
+			},
+		},
+		{
+			name: "text success",
+			req: CreateRecordRequest{
+				Type:     "text",
+				Name:     "Name",
+				DeviceID: "device-1",
+				Text:     &TextPayload{Content: "text"},
+			},
+		},
+		{
+			name: "binary success",
+			req: CreateRecordRequest{
+				Type:           "binary",
+				Name:           "Name",
+				DeviceID:       "device-1",
+				PayloadVersion: 1,
+				Binary:         &BinaryPayload{},
+			},
+		},
+		{
+			name: "card success",
+			req: CreateRecordRequest{
+				Type:     "card",
+				Name:     "Name",
+				DeviceID: "device-1",
+				Card:     &CardPayload{Number: "4111111111111111", HolderName: "Test", ExpiryDate: "12/30", CVV: "123"},
+			},
+		},
+		{
+			name: "invalid type",
+			req: CreateRecordRequest{
+				Type:     "nope",
+				Name:     "Name",
+				DeviceID: "device-1",
+			},
+			wantErr: "invalid record type",
+		},
+		{
+			name: "missing login payload",
+			req: CreateRecordRequest{
+				Type:     "login",
+				Name:     "Name",
+				DeviceID: "device-1",
+			},
+			wantErr: "login payload is required",
+		},
+		{
+			name: "missing text payload",
+			req: CreateRecordRequest{
+				Type:     "text",
+				Name:     "Name",
+				DeviceID: "device-1",
+			},
+			wantErr: "text payload is required",
+		},
+		{
+			name: "missing binary payload version",
+			req: CreateRecordRequest{
+				Type:     "binary",
+				Name:     "Name",
+				DeviceID: "device-1",
+				Binary:   &BinaryPayload{},
+			},
+			wantErr: models.ErrInvalidPayloadVersion.Error(),
+		},
+		{
+			name: "missing card payload",
+			req: CreateRecordRequest{
+				Type:     "card",
+				Name:     "Name",
+				DeviceID: "device-1",
+			},
+			wantErr: "card payload is required",
+		},
+		{
+			name: "invalid card payload",
+			req: CreateRecordRequest{
+				Type:     "card",
+				Name:     "Name",
+				DeviceID: "device-1",
+				Card:     &CardPayload{Number: "123", HolderName: "Test", ExpiryDate: "12/30", CVV: "123"},
+			},
+			wantErr: "invalid card number",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			record, err := requestToRecord(&tt.req)
+			if tt.wantErr != "" {
+				require.EqualError(t, err, tt.wantErr)
+				require.Nil(t, record)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, record)
+			require.Equal(t, tt.req.Name, record.Name)
+			require.Equal(t, tt.req.DeviceID, record.DeviceID)
+			require.Equal(t, models.RecordType(tt.req.Type), record.Type)
 		})
 	}
 }

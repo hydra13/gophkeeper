@@ -1,6 +1,7 @@
 package records_by_id_binary_v1_get
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -11,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/hydra13/gophkeeper/internal/api/records_by_id_binary_v1_get/mocks"
+	"github.com/hydra13/gophkeeper/internal/api/responses"
 	"github.com/hydra13/gophkeeper/internal/middlewares"
 	"github.com/hydra13/gophkeeper/internal/models"
 )
@@ -175,6 +177,14 @@ func TestHandler_Handle(t *testing.T) {
 			handler.Handle(rec, req)
 
 			assert.Equal(t, tt.wantCode, rec.Code, rec.Body.String())
+			if tt.wantCode == http.StatusOK {
+				return
+			}
+
+			require.Equal(t, "application/json", rec.Header().Get("Content-Type"))
+			var resp responses.ErrorResponse
+			require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
+			require.NotEmpty(t, resp.Error)
 		})
 	}
 }

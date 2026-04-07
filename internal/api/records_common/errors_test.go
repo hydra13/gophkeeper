@@ -9,50 +9,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/hydra13/gophkeeper/internal/api/responses"
 	"github.com/hydra13/gophkeeper/internal/models"
 )
-
-func TestWriteError(t *testing.T) {
-	t.Run("writes correct JSON response with status code", func(t *testing.T) {
-		rec := httptest.NewRecorder()
-
-		WriteError(rec, http.StatusBadRequest, "something went wrong")
-
-		require.Equal(t, http.StatusBadRequest, rec.Code)
-		require.Equal(t, "application/json", rec.Header().Get("Content-Type"))
-
-		var resp ErrorResponse
-		err := json.NewDecoder(rec.Body).Decode(&resp)
-		require.NoError(t, err)
-		require.Equal(t, "something went wrong", resp.Error)
-	})
-
-	t.Run("writes 500 status", func(t *testing.T) {
-		rec := httptest.NewRecorder()
-
-		WriteError(rec, http.StatusInternalServerError, "internal error")
-
-		require.Equal(t, http.StatusInternalServerError, rec.Code)
-
-		var resp ErrorResponse
-		err := json.NewDecoder(rec.Body).Decode(&resp)
-		require.NoError(t, err)
-		require.Equal(t, "internal error", resp.Error)
-	})
-
-	t.Run("writes 404 status", func(t *testing.T) {
-		rec := httptest.NewRecorder()
-
-		WriteError(rec, http.StatusNotFound, "not found")
-
-		require.Equal(t, http.StatusNotFound, rec.Code)
-
-		var resp ErrorResponse
-		err := json.NewDecoder(rec.Body).Decode(&resp)
-		require.NoError(t, err)
-		require.Equal(t, "not found", resp.Error)
-	})
-}
 
 func TestWriteConflict(t *testing.T) {
 	t.Run("writes HTTP 409 with nil revisions", func(t *testing.T) {
@@ -236,7 +195,7 @@ func TestMapRecordError(t *testing.T) {
 					require.NoError(t, err)
 					require.Equal(t, tt.expectedBody, resp.Error)
 				} else {
-					var resp ErrorResponse
+					var resp responses.ErrorResponse
 					err := json.NewDecoder(rec.Body).Decode(&resp)
 					require.NoError(t, err)
 					require.Equal(t, tt.expectedBody, resp.Error)

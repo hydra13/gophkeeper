@@ -112,6 +112,14 @@ func TestHandler_Handle(t *testing.T) {
 			},
 			wantCode: http.StatusInternalServerError,
 		},
+		{
+			name:   "invalid type filter",
+			userID: 1,
+			setupMock: func(mc *minimock.Controller) RecordService {
+				return mocks.NewRecordServiceMock(mc)
+			},
+			wantCode: http.StatusBadRequest,
+		},
 	}
 
 	for _, tt := range tests {
@@ -121,7 +129,11 @@ func TestHandler_Handle(t *testing.T) {
 			mc := minimock.NewController(t)
 			handler := NewHandler(tt.setupMock(mc))
 
-			req := httptest.NewRequest(http.MethodGet, "/api/v1/records", nil)
+			url := "/api/v1/records"
+			if tt.name == "invalid type filter" {
+				url = "/api/v1/records?type=unknown"
+			}
+			req := httptest.NewRequest(http.MethodGet, url, nil)
 			if tt.userID > 0 {
 				req = req.WithContext(middlewares.ContextWithUserID(req.Context(), tt.userID))
 			}

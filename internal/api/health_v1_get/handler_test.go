@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/hydra13/gophkeeper/internal/api/health_v1_get/mocks"
+	"github.com/hydra13/gophkeeper/internal/api/responses"
 )
 
 func TestHandler_ServeHTTP(t *testing.T) {
@@ -68,6 +69,9 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 			require.Equal(t, tt.wantCode, rec.Code)
 			if tt.wantStatus == "" {
+				var resp responses.ErrorResponse
+				require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
+				assert.Equal(t, "method not allowed", resp.Error)
 				return
 			}
 

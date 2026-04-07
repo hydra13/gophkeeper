@@ -4,10 +4,10 @@ package records_v1_post
 import (
 	"encoding/json"
 	"errors"
-	"log"
 	"net/http"
 
 	recordsCommon "github.com/hydra13/gophkeeper/internal/api/records_common"
+	"github.com/hydra13/gophkeeper/internal/api/responses"
 	"github.com/hydra13/gophkeeper/internal/middlewares"
 	"github.com/hydra13/gophkeeper/internal/models"
 )
@@ -72,19 +72,19 @@ func NewHandler(service RecordService) *Handler {
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	var req CreateRecordRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		recordsCommon.WriteError(w, http.StatusBadRequest, "invalid request body")
+		responses.Error(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
 	record, err := requestToRecord(&req)
 	if err != nil {
-		recordsCommon.WriteError(w, http.StatusBadRequest, err.Error())
+		responses.Error(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	userID, ok := middlewares.UserIDFromContext(r.Context())
 	if !ok || userID <= 0 {
-		recordsCommon.WriteError(w, http.StatusUnauthorized, "unauthorized")
+		responses.Error(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	record.UserID = userID
@@ -93,7 +93,7 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		if recordsCommon.MapRecordError(w, err) {
 			return
 		}
-		recordsCommon.WriteError(w, http.StatusInternalServerError, "internal error")
+		responses.Error(w, http.StatusInternalServerError, "internal error")
 		return
 	}
 
@@ -101,11 +101,7 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		Record: recordsCommon.RecordToDTO(*record),
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		log.Printf("create record response encode failed: %v", err)
-	}
+	responses.JSON(w, http.StatusCreated, resp)
 }
 
 func requestToRecord(req *CreateRecordRequest) (*models.Record, error) {

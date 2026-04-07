@@ -1,6 +1,8 @@
 package app
 
 import (
+	"context"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -99,4 +101,88 @@ func TestBuildHTTPServer_Success(t *testing.T) {
 	require.NotNil(t, srv)
 	require.Equal(t, ":0", srv.Addr)
 	require.NotNil(t, srv.Handler)
+}
+
+func TestBuildGRPCServer_Success(t *testing.T) {
+	authMock := mocks.NewAuthServiceMock(t)
+	recordMock := mocks.NewRecordServiceMock(t)
+	syncMock := mocks.NewSyncServiceMock(t)
+	uploadMock := mocks.NewUploadServiceMock(t)
+
+	deps := AppDeps{
+		AuthService:   authMock,
+		RecordService: recordMock,
+		SyncService:   syncMock,
+		UploadService: uploadMock,
+	}
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			GRPCAddress: ":0",
+			TLSCertFile: filepath.Join("..", "..", "configs", "certs", "dev.crt"),
+			TLSKeyFile:  filepath.Join("..", "..", "configs", "certs", "dev.key"),
+		},
+	}
+
+	grpcServer, listener, err := buildGRPCServer(cfg, zerolog.Nop(), middlewares.NewRateLimiter(100, time.Second), deps)
+	require.NoError(t, err)
+	require.NotNil(t, grpcServer)
+	require.NotNil(t, listener)
+
+	grpcServer.Stop()
+	require.NoError(t, listener.Close())
+}
+
+func TestBuildGRPCServer_InvalidTLS(t *testing.T) {
+	authMock := mocks.NewAuthServiceMock(t)
+	recordMock := mocks.NewRecordServiceMock(t)
+	syncMock := mocks.NewSyncServiceMock(t)
+	uploadMock := mocks.NewUploadServiceMock(t)
+
+	deps := AppDeps{
+		AuthService:   authMock,
+		RecordService: recordMock,
+		SyncService:   syncMock,
+		UploadService: uploadMock,
+	}
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			GRPCAddress: ":0",
+			TLSCertFile: "missing.crt",
+			TLSKeyFile:  "missing.key",
+		},
+	}
+
+	grpcServer, listener, err := buildGRPCServer(cfg, zerolog.Nop(), middlewares.NewRateLimiter(100, time.Second), deps)
+	require.Error(t, err)
+	require.Nil(t, grpcServer)
+	require.Nil(t, listener)
+}
+
+func TestRun_InvalidDeps(t *testing.T) {
+	err := Run(context.Background(), &config.Config{}, zerolog.Nop(), AppDeps{})
+	require.EqualError(t, err, "auth service dependency is required")
+}
+
+func TestRun_BuildGRPCServerFailure(t *testing.T) {
+	authMock := mocks.NewAuthServiceMock(t)
+	recordMock := mocks.NewRecordServiceMock(t)
+	syncMock := mocks.NewSyncServiceMock(t)
+	uploadMock := mocks.NewUploadServiceMock(t)
+
+	err := Run(context.Background(), &config.Config{
+		Server: config.ServerConfig{
+			Address:     ":0",
+			GRPCAddress: ":0",
+			TLSCertFile: "missing.crt",
+			TLSKeyFile:  "missing.key",
+		},
+	}, zerolog.Nop(), AppDeps{
+		AuthService:   authMock,
+		RecordService: recordMock,
+		SyncService:   syncMock,
+		UploadService: uploadMock,
+	})
+	require.Error(t, err)
 }

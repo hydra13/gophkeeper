@@ -2,9 +2,9 @@
 package health_v1_get
 
 import (
-	"encoding/json"
-	"log"
 	"net/http"
+
+	"github.com/hydra13/gophkeeper/internal/api/responses"
 )
 
 // Response описывает ответ health-check.
@@ -30,7 +30,7 @@ func NewHandler(checker HealthChecker) *Handler {
 // ServeHTTP возвращает состояние сервиса.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		responses.Error(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 
@@ -39,9 +39,5 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		status = "error"
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(Response{Status: status}); err != nil {
-		log.Printf("health response encode failed: %v", err)
-	}
+	responses.JSON(w, http.StatusOK, Response{Status: status})
 }

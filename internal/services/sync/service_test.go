@@ -476,3 +476,330 @@ func TestResolveConflict_NotFound(t *testing.T) {
 	require.ErrorIs(t, err, models.ErrRecordNotFound)
 	require.Nil(t, record)
 }
+
+func TestPush_DeleteChange_Errors(t *testing.T) {
+	t.Run("get record error", func(t *testing.T) {
+		mc := minimock.NewController(t)
+		sr := syncmocks.NewSyncRepoMock(mc)
+		rr := syncmocks.NewRecordRepoMock(mc)
+		svc := newTestService(t, sr, rr)
+
+		rr.GetRecordMock.Expect(21).Return(nil, errors.New("db boom"))
+
+		accepted, conflicts, err := svc.Push(1, "device-1", []models.PendingChange{{
+			Record: &models.Record{ID: 21}, Deleted: true, BaseRevision: 1,
+		}})
+
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "get record for delete")
+		require.Nil(t, accepted)
+		require.Nil(t, conflicts)
+	})
+
+	t.Run("wrong user returns not found", func(t *testing.T) {
+		mc := minimock.NewController(t)
+		sr := syncmocks.NewSyncRepoMock(mc)
+		rr := syncmocks.NewRecordRepoMock(mc)
+		svc := newTestService(t, sr, rr)
+
+		rr.GetRecordMock.Expect(21).Return(&models.Record{ID: 21, UserID: 2, Revision: 1}, nil)
+
+		accepted, conflicts, err := svc.Push(1, "device-1", []models.PendingChange{{
+			Record: &models.Record{ID: 21}, Deleted: true, BaseRevision: 1,
+		}})
+
+		require.ErrorIs(t, err, models.ErrRecordNotFound)
+		require.Nil(t, accepted)
+		require.Nil(t, conflicts)
+	})
+
+	t.Run("delete record error", func(t *testing.T) {
+		mc := minimock.NewController(t)
+		sr := syncmocks.NewSyncRepoMock(mc)
+		rr := syncmocks.NewRecordRepoMock(mc)
+		svc := newTestService(t, sr, rr)
+
+		rr.GetRecordMock.Expect(21).Return(&models.Record{ID: 21, UserID: 1, Revision: 1}, nil)
+		rr.DeleteRecordMock.Expect(21).Return(errors.New("delete boom"))
+
+		accepted, conflicts, err := svc.Push(1, "device-1", []models.PendingChange{{
+			Record: &models.Record{ID: 21}, Deleted: true, BaseRevision: 1,
+		}})
+
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "delete record")
+		require.Nil(t, accepted)
+		require.Nil(t, conflicts)
+	})
+
+	t.Run("create revision error", func(t *testing.T) {
+		mc := minimock.NewController(t)
+		sr := syncmocks.NewSyncRepoMock(mc)
+		rr := syncmocks.NewRecordRepoMock(mc)
+		svc := newTestService(t, sr, rr)
+
+		rr.GetRecordMock.Expect(21).Return(&models.Record{ID: 21, UserID: 1, Revision: 1}, nil)
+		rr.DeleteRecordMock.Expect(21).Return(nil)
+		sr.GetMaxRevisionMock.Expect(1).Return(1, nil)
+		sr.CreateRevisionMock.Return(errors.New("revision boom"))
+
+		accepted, conflicts, err := svc.Push(1, "device-1", []models.PendingChange{{
+			Record: &models.Record{ID: 21}, Deleted: true, BaseRevision: 1,
+		}})
+
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "create revision")
+		require.Nil(t, accepted)
+		require.Nil(t, conflicts)
+	})
+}
+
+func TestPush_CreateChange_Errors(t *testing.T) {
+	t.Run("next revision error", func(t *testing.T) {
+		mc := minimock.NewController(t)
+		sr := syncmocks.NewSyncRepoMock(mc)
+		rr := syncmocks.NewRecordRepoMock(mc)
+		svc := newTestService(t, sr, rr)
+
+		sr.GetMaxRevisionMock.Expect(1).Return(0, errors.New("revision boom"))
+
+		accepted, conflicts, err := svc.Push(1, "device-1", []models.PendingChange{
+			textChange(1, "my note", "device-1", 0),
+		})
+
+		require.Error(t, err)
+		require.Nil(t, accepted)
+		require.Nil(t, conflicts)
+	})
+
+	t.Run("validation error", func(t *testing.T) {
+		mc := minimock.NewController(t)
+		sr := syncmocks.NewSyncRepoMock(mc)
+		rr := syncmocks.NewRecordRepoMock(mc)
+		svc := newTestService(t, sr, rr)
+
+		sr.GetMaxRevisionMock.Expect(1).Return(0, nil)
+
+		accepted, conflicts, err := svc.Push(1, "device-1", []models.PendingChange{{
+			Record: &models.Record{
+				UserID: 1, Type: models.RecordTypeText, Name: "", DeviceID: "device-1", KeyVersion: 1, Payload: models.TextPayload{Content: "x"},
+			},
+		}})
+
+		require.Error(t, err)
+		require.ErrorIs(t, err, models.ErrEmptyRecordName)
+		require.Nil(t, accepted)
+		require.Nil(t, conflicts)
+	})
+
+	t.Run("create revision error", func(t *testing.T) {
+		mc := minimock.NewController(t)
+		sr := syncmocks.NewSyncRepoMock(mc)
+		rr := syncmocks.NewRecordRepoMock(mc)
+		svc := newTestService(t, sr, rr)
+
+		rr.CreateRecordMock.Set(func(record *models.Record) error {
+			record.ID = 42
+			return nil
+		})
+		sr.GetMaxRevisionMock.Expect(1).Return(0, nil)
+		sr.CreateRevisionMock.Return(errors.New("revision boom"))
+
+		accepted, conflicts, err := svc.Push(1, "device-1", []models.PendingChange{
+			textChange(1, "my note", "device-1", 0),
+		})
+
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "create revision")
+		require.Nil(t, accepted)
+		require.Nil(t, conflicts)
+	})
+}
+
+func TestPush_UpdateChange_ErrorsAndRestore(t *testing.T) {
+	t.Run("get record error", func(t *testing.T) {
+		mc := minimock.NewController(t)
+		sr := syncmocks.NewSyncRepoMock(mc)
+		rr := syncmocks.NewRecordRepoMock(mc)
+		svc := newTestService(t, sr, rr)
+
+		rr.GetRecordMock.Expect(11).Return(nil, errors.New("db boom"))
+
+		accepted, conflicts, err := svc.Push(1, "device-2", []models.PendingChange{{
+			Record:       &models.Record{ID: 11, UserID: 1, Type: models.RecordTypeText, Name: "updated", DeviceID: "device-2", KeyVersion: 1, Payload: models.TextPayload{Content: "after"}},
+			BaseRevision: 1,
+		}})
+
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "get record for update")
+		require.Nil(t, accepted)
+		require.Nil(t, conflicts)
+	})
+
+	t.Run("wrong user returns not found", func(t *testing.T) {
+		mc := minimock.NewController(t)
+		sr := syncmocks.NewSyncRepoMock(mc)
+		rr := syncmocks.NewRecordRepoMock(mc)
+		svc := newTestService(t, sr, rr)
+
+		rr.GetRecordMock.Expect(11).Return(&models.Record{ID: 11, UserID: 2, Revision: 1}, nil)
+
+		accepted, conflicts, err := svc.Push(1, "device-2", []models.PendingChange{{
+			Record:       &models.Record{ID: 11, UserID: 1, Type: models.RecordTypeText, Name: "updated", DeviceID: "device-2", KeyVersion: 1, Payload: models.TextPayload{Content: "after"}},
+			BaseRevision: 1,
+		}})
+
+		require.ErrorIs(t, err, models.ErrRecordNotFound)
+		require.Nil(t, accepted)
+		require.Nil(t, conflicts)
+	})
+
+	t.Run("restore deleted record", func(t *testing.T) {
+		mc := minimock.NewController(t)
+		sr := syncmocks.NewSyncRepoMock(mc)
+		rr := syncmocks.NewRecordRepoMock(mc)
+		svc := newTestService(t, sr, rr)
+
+		now := time.Now()
+		existing := &models.Record{
+			ID: 11, UserID: 1, Type: models.RecordTypeText, Name: "deleted", Revision: 1,
+			DeletedAt: &now, DeviceID: "device-1", KeyVersion: 1, Payload: models.TextPayload{Content: "before"},
+		}
+
+		rr.GetRecordMock.Expect(11).Return(existing, nil)
+		sr.GetMaxRevisionMock.Expect(1).Return(1, nil)
+		rr.UpdateRecordMock.Return(nil)
+		sr.CreateRevisionMock.Return(nil)
+
+		accepted, conflicts, err := svc.Push(1, "device-2", []models.PendingChange{{
+			Record:       &models.Record{ID: 11, UserID: 1, Type: models.RecordTypeText, Name: "updated", DeviceID: "device-2", KeyVersion: 1, Payload: models.TextPayload{Content: "after"}},
+			BaseRevision: 1,
+		}})
+
+		require.NoError(t, err)
+		require.Len(t, accepted, 1)
+		require.Empty(t, conflicts)
+		require.Nil(t, existing.DeletedAt)
+	})
+
+	t.Run("update record error", func(t *testing.T) {
+		mc := minimock.NewController(t)
+		sr := syncmocks.NewSyncRepoMock(mc)
+		rr := syncmocks.NewRecordRepoMock(mc)
+		svc := newTestService(t, sr, rr)
+
+		existing := &models.Record{
+			ID: 11, UserID: 1, Type: models.RecordTypeText, Name: "original", Revision: 1,
+			DeviceID: "device-1", KeyVersion: 1, Payload: models.TextPayload{Content: "before"},
+		}
+
+		rr.GetRecordMock.Expect(11).Return(existing, nil)
+		sr.GetMaxRevisionMock.Expect(1).Return(1, nil)
+		rr.UpdateRecordMock.Return(errors.New("update boom"))
+
+		accepted, conflicts, err := svc.Push(1, "device-2", []models.PendingChange{{
+			Record:       &models.Record{ID: 11, UserID: 1, Type: models.RecordTypeText, Name: "updated", DeviceID: "device-2", KeyVersion: 1, Payload: models.TextPayload{Content: "after"}},
+			BaseRevision: 1,
+		}})
+
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "update record")
+		require.Nil(t, accepted)
+		require.Nil(t, conflicts)
+	})
+}
+
+func TestPull_ErrorBranches(t *testing.T) {
+	t.Run("get revisions error", func(t *testing.T) {
+		mc := minimock.NewController(t)
+		sr := syncmocks.NewSyncRepoMock(mc)
+		rr := syncmocks.NewRecordRepoMock(mc)
+		svc := newTestService(t, sr, rr)
+
+		sr.GetRevisionsMock.Expect(1, 0).Return(nil, errors.New("boom"))
+
+		revisions, records, conflicts, err := svc.Pull(1, "device-1", 0, 0)
+		require.Error(t, err)
+		require.Nil(t, revisions)
+		require.Nil(t, records)
+		require.Nil(t, conflicts)
+	})
+
+	t.Run("get record error", func(t *testing.T) {
+		mc := minimock.NewController(t)
+		sr := syncmocks.NewSyncRepoMock(mc)
+		rr := syncmocks.NewRecordRepoMock(mc)
+		svc := newTestService(t, sr, rr)
+
+		sr.GetRevisionsMock.Expect(1, 0).Return([]models.RecordRevision{{RecordID: 10, UserID: 1, Revision: 1}}, nil)
+		rr.GetRecordMock.Expect(10).Return(nil, errors.New("boom"))
+
+		revisions, records, conflicts, err := svc.Pull(1, "device-1", 0, 0)
+		require.Error(t, err)
+		require.Nil(t, revisions)
+		require.Nil(t, records)
+		require.Nil(t, conflicts)
+	})
+
+	t.Run("get conflicts error", func(t *testing.T) {
+		mc := minimock.NewController(t)
+		sr := syncmocks.NewSyncRepoMock(mc)
+		rr := syncmocks.NewRecordRepoMock(mc)
+		svc := newTestService(t, sr, rr)
+
+		sr.GetRevisionsMock.Expect(1, 0).Return([]models.RecordRevision{}, nil)
+		sr.GetConflictsMock.Expect(1).Return(nil, errors.New("boom"))
+
+		revisions, records, conflicts, err := svc.Pull(1, "device-1", 0, 0)
+		require.Error(t, err)
+		require.Nil(t, revisions)
+		require.Nil(t, records)
+		require.Nil(t, conflicts)
+	})
+}
+
+func TestResolveConflict_ErrorBranches(t *testing.T) {
+	t.Run("get conflicts error", func(t *testing.T) {
+		mc := minimock.NewController(t)
+		sr := syncmocks.NewSyncRepoMock(mc)
+		rr := syncmocks.NewRecordRepoMock(mc)
+		svc := newTestService(t, sr, rr)
+
+		sr.GetConflictsMock.Expect(1).Return(nil, errors.New("boom"))
+
+		record, err := svc.ResolveConflict(1, 7, models.ConflictResolutionLocal)
+		require.Error(t, err)
+		require.Nil(t, record)
+	})
+
+	t.Run("resolve conflict repo error", func(t *testing.T) {
+		mc := minimock.NewController(t)
+		sr := syncmocks.NewSyncRepoMock(mc)
+		rr := syncmocks.NewRecordRepoMock(mc)
+		svc := newTestService(t, sr, rr)
+
+		sr.GetConflictsMock.Expect(1).Return([]models.SyncConflict{{
+			ID: 7, UserID: 1, RecordID: 33, LocalRecord: &models.Record{Type: models.RecordTypeText, Name: "x", DeviceID: "device-1", KeyVersion: 1, Payload: models.TextPayload{Content: "x"}}, ServerRecord: &models.Record{ID: 33},
+		}}, nil)
+		sr.ResolveConflictMock.Expect(7, models.ConflictResolutionLocal).Return(errors.New("boom"))
+
+		record, err := svc.ResolveConflict(1, 7, models.ConflictResolutionLocal)
+		require.Error(t, err)
+		require.Nil(t, record)
+	})
+
+	t.Run("invalid resolution after resolve", func(t *testing.T) {
+		mc := minimock.NewController(t)
+		sr := syncmocks.NewSyncRepoMock(mc)
+		rr := syncmocks.NewRecordRepoMock(mc)
+		svc := newTestService(t, sr, rr)
+
+		sr.GetConflictsMock.Expect(1).Return([]models.SyncConflict{{
+			ID: 7, UserID: 1, RecordID: 33, LocalRecord: &models.Record{Type: models.RecordTypeText, Name: "x", DeviceID: "device-1", KeyVersion: 1, Payload: models.TextPayload{Content: "x"}}, ServerRecord: &models.Record{ID: 33},
+		}}, nil)
+
+		record, err := svc.ResolveConflict(1, 7, "weird")
+		require.ErrorIs(t, err, models.ErrInvalidConflictResolution)
+		require.Nil(t, record)
+	})
+}

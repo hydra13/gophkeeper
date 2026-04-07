@@ -6,9 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"testing"
 	"time"
 
+	sqlmock "github.com/DATA-DOG/go-sqlmock"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -176,6 +179,23 @@ func newTestRepoNoCrypto() *Repository {
 		blob:   newMockBlobStorage(),
 		crypto: nil,
 	}
+}
+
+func newSQLMockRepo(t *testing.T) (*Repository, sqlmock.Sqlmock) {
+	t.Helper()
+
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, db.Close())
+	})
+
+	return &Repository{
+		db:     db,
+		blob:   newMockBlobStorage(),
+		crypto: &mockCryptoService{},
+	}, mock
 }
 
 // ---------------------------------------------------------------------------
@@ -1650,4 +1670,326 @@ func TestNullIfEmpty_Table(t *testing.T) {
 			assert.Equal(t, tt.wantStr, result.String)
 		})
 	}
+}
+
+func TestUpdatePayloadSize(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		repo, mock := newSQLMockRepo(t)
+		mock.ExpectExec(regexp.QuoteMeta(`
+		UPDATE payloads
+		SET size = $3
+		WHERE record_id = $1 AND version = $2
+	`)).
+			WithArgs(int64(1), int64(2), int64(128)).
+			WillReturnResult(sqlmock.NewResult(0, 1))
+
+		err := repo.UpdatePayloadSize(1, 2, 128)
+		require.NoError(t, err)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		repo, mock := newSQLMockRepo(t)
+		mock.ExpectExec(regexp.QuoteMeta(`
+		UPDATE payloads
+		SET size = $3
+		WHERE record_id = $1 AND version = $2
+	`)).
+			WithArgs(int64(1), int64(2), int64(128)).
+			WillReturnResult(sqlmock.NewResult(0, 0))
+
+		err := repo.UpdatePayloadSize(1, 2, 128)
+		require.EqualError(t, err, "payload not found")
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+}
+
+func TestDeleteRecord_DBPaths(t *testing.T) {
+	t.Run("success on first update", func(t *testing.T) {
+		repo, mock := newSQLMockRepo(t)
+		mock.ExpectExec(regexp.QuoteMeta(`
+		UPDATE records
+		SET deleted_at = NOW(), updated_at = NOW()
+		WHERE id = $1 AND deleted_at IS NULL
+	`)).
+			WithArgs(int64(10)).
+			WillReturnResult(sqlmock.NewResult(0, 1))
+
+		err := repo.DeleteRecord(10)
+		require.NoError(t, err)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("record not found", func(t *testing.T) {
+		repo, mock := newSQLMockRepo(t)
+		mock.ExpectExec(regexp.QuoteMeta(`
+		UPDATE records
+		SET deleted_at = NOW(), updated_at = NOW()
+		WHERE id = $1 AND deleted_at IS NULL
+	`)).
+			WithArgs(int64(10)).
+			WillReturnResult(sqlmock.NewResult(0, 0))
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT deleted_at FROM records WHERE id = $1`)).
+			WithArgs(int64(10)).
+			WillReturnError(sql.ErrNoRows)
+
+		err := repo.DeleteRecord(10)
+		require.ErrorIs(t, err, models.ErrRecordNotFound)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("already deleted", func(t *testing.T) {
+		repo, mock := newSQLMockRepo(t)
+		mock.ExpectExec(regexp.QuoteMeta(`
+		UPDATE records
+		SET deleted_at = NOW(), updated_at = NOW()
+		WHERE id = $1 AND deleted_at IS NULL
+	`)).
+			WithArgs(int64(10)).
+			WillReturnResult(sqlmock.NewResult(0, 0))
+		rows := sqlmock.NewRows([]string{"deleted_at"}).AddRow(time.Now())
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT deleted_at FROM records WHERE id = $1`)).
+			WithArgs(int64(10)).
+			WillReturnRows(rows)
+
+		err := repo.DeleteRecord(10)
+		require.ErrorIs(t, err, models.ErrAlreadyDeleted)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+}
+
+func TestRevisionAndConflictHelpers_DBPaths(t *testing.T) {
+	t.Run("create revision unique conflict", func(t *testing.T) {
+		repo, mock := newSQLMockRepo(t)
+		mock.ExpectExec(regexp.QuoteMeta(`
+		INSERT INTO record_revisions (record_id, user_id, revision, device_id, created_at)
+		VALUES ($1, $2, $3, $4, NOW())
+	`)).
+			WithArgs(int64(1), int64(2), int64(3), "device-1").
+			WillReturnError(&pgconn.PgError{Code: "23505"})
+
+		err := repo.CreateRevision(&models.RecordRevision{
+			RecordID: 1, UserID: 2, Revision: 3, DeviceID: "device-1",
+		})
+		require.ErrorIs(t, err, models.ErrRevisionConflict)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("get max revision", func(t *testing.T) {
+		repo, mock := newSQLMockRepo(t)
+		rows := sqlmock.NewRows([]string{"max"}).AddRow(int64(7))
+		mock.ExpectQuery(regexp.QuoteMeta(`
+		SELECT COALESCE(MAX(revision), 0) FROM record_revisions WHERE user_id = $1
+	`)).
+			WithArgs(int64(2)).
+			WillReturnRows(rows)
+
+		rev, err := repo.GetMaxRevision(2)
+		require.NoError(t, err)
+		require.Equal(t, int64(7), rev)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("resolve conflict not found", func(t *testing.T) {
+		repo, mock := newSQLMockRepo(t)
+		mock.ExpectExec(regexp.QuoteMeta(`
+		UPDATE sync_conflicts
+		SET resolved = TRUE, resolution = $2, updated_at = NOW()
+		WHERE id = $1
+	`)).
+			WithArgs(int64(99), "local").
+			WillReturnResult(sqlmock.NewResult(0, 0))
+
+		err := repo.ResolveConflict(99, "local")
+		require.ErrorIs(t, err, models.ErrConflictAlreadyResolved)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+}
+
+func TestUploadSessionHelpers_DBPaths(t *testing.T) {
+	t.Run("create upload session applies default status", func(t *testing.T) {
+		repo, mock := newSQLMockRepo(t)
+		mock.ExpectQuery(regexp.QuoteMeta(`
+		INSERT INTO upload_sessions (
+			record_id, user_id, status, total_chunks, received_chunks,
+			chunk_size, total_size, key_version, created_at, updated_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
+		RETURNING id
+	`)).
+			WithArgs(int64(10), int64(20), models.UploadStatusPending, int64(3), int64(0), int64(64), int64(192), int64(1)).
+			WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(int64(55)))
+
+		session := &models.UploadSession{
+			RecordID: 10, UserID: 20, TotalChunks: 3, ReceivedChunks: 0, ChunkSize: 64, TotalSize: 192, KeyVersion: 1,
+		}
+		err := repo.CreateUploadSession(session)
+		require.NoError(t, err)
+		require.Equal(t, models.UploadStatusPending, session.Status)
+		require.Equal(t, int64(55), session.ID)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("get completed upload not found", func(t *testing.T) {
+		repo, mock := newSQLMockRepo(t)
+		mock.ExpectQuery(regexp.QuoteMeta(`
+		SELECT id, record_id, user_id, status, total_chunks, received_chunks, chunk_size, total_size, key_version
+		FROM upload_sessions
+		WHERE record_id = $1 AND status = 'completed'
+		ORDER BY updated_at DESC
+		LIMIT 1
+	`)).
+			WithArgs(int64(10)).
+			WillReturnError(sql.ErrNoRows)
+
+		session, err := repo.GetCompletedUploadByRecordID(10)
+		require.ErrorIs(t, err, models.ErrUploadNotFound)
+		require.Nil(t, session)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+}
+
+func TestListPayloads_Success(t *testing.T) {
+	repo, mock := newSQLMockRepo(t)
+	rows := sqlmock.NewRows([]string{"record_id", "version", "storage_path", "size"}).
+		AddRow(int64(10), int64(1), "payloads/10/1.bin", int64(100)).
+		AddRow(int64(10), int64(2), "payloads/10/2.bin", int64(200))
+	mock.ExpectQuery(regexp.QuoteMeta(`
+		SELECT record_id, version, storage_path, size
+		FROM payloads
+		WHERE record_id = $1
+		ORDER BY version ASC
+	`)).
+		WithArgs(int64(10)).
+		WillReturnRows(rows)
+
+	payloads, err := repo.ListPayloads(10)
+	require.NoError(t, err)
+	require.Len(t, payloads, 2)
+	require.Equal(t, int64(2), payloads[1].Version)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestUpdateUploadSession_NotFound(t *testing.T) {
+	repo, mock := newSQLMockRepo(t)
+	mock.ExpectExec(regexp.QuoteMeta(`
+		UPDATE upload_sessions
+		SET status = $2,
+		    total_chunks = $3,
+		    received_chunks = $4,
+		    chunk_size = $5,
+		    total_size = $6,
+		    key_version = $7,
+		    updated_at = NOW()
+		WHERE id = $1
+	`)).
+		WithArgs(int64(55), models.UploadStatusPending, int64(3), int64(1), int64(64), int64(192), int64(1)).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+
+	err := repo.UpdateUploadSession(&models.UploadSession{
+		ID: 55, Status: models.UploadStatusPending, TotalChunks: 3, ReceivedChunks: 1, ChunkSize: 64, TotalSize: 192, KeyVersion: 1,
+	})
+	require.ErrorIs(t, err, models.ErrUploadNotFound)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestListKeyVersions_Success(t *testing.T) {
+	repo, mock := newSQLMockRepo(t)
+	now := time.Now()
+	rows := sqlmock.NewRows([]string{"id", "version", "status", "encrypted_key", "key_nonce", "created_at", "deprecated_at", "retired_at"}).
+		AddRow(int64(1), int64(1), "active", []byte("enc1"), []byte("nonce1"), now, sql.NullTime{}, sql.NullTime{}).
+		AddRow(int64(2), int64(2), "deprecated", []byte("enc2"), []byte("nonce2"), now, sql.NullTime{Time: now, Valid: true}, sql.NullTime{})
+	mock.ExpectQuery(regexp.QuoteMeta(`
+		SELECT id, version, status, encrypted_key, key_nonce, created_at, deprecated_at, retired_at
+		FROM key_versions
+		ORDER BY version ASC
+	`)).
+		WillReturnRows(rows)
+
+	versions, err := repo.ListKeyVersions()
+	require.NoError(t, err)
+	require.Len(t, versions, 2)
+	require.Equal(t, models.KeyStatusDeprecated, versions[1].Status)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestUpdateKeyVersion_NotFound(t *testing.T) {
+	repo, mock := newSQLMockRepo(t)
+	now := time.Now()
+	mock.ExpectExec(regexp.QuoteMeta(`
+		UPDATE key_versions
+		SET status = $2, deprecated_at = $3, retired_at = $4
+		WHERE version = $1
+	`)).
+		WithArgs(int64(2), models.KeyStatusDeprecated, &now, (*time.Time)(nil)).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+
+	err := repo.UpdateKeyVersion(&models.KeyVersion{
+		Version:      2,
+		Status:       models.KeyStatusDeprecated,
+		DeprecatedAt: &now,
+	})
+	require.ErrorIs(t, err, models.ErrUnknownKeyVersion)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestGetUploadSession_Success(t *testing.T) {
+	repo, mock := newSQLMockRepo(t)
+	mock.ExpectQuery(regexp.QuoteMeta(`
+		SELECT id, record_id, user_id, status, total_chunks, received_chunks, chunk_size, total_size, key_version
+		FROM upload_sessions
+		WHERE id = $1
+	`)).
+		WithArgs(int64(55)).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "record_id", "user_id", "status", "total_chunks", "received_chunks", "chunk_size", "total_size", "key_version",
+		}).AddRow(int64(55), int64(10), int64(20), "pending", int64(3), int64(1), int64(64), int64(192), int64(1)))
+	mock.ExpectQuery(regexp.QuoteMeta(`
+		SELECT chunk_index FROM upload_chunks WHERE upload_id = $1
+	`)).
+		WithArgs(int64(55)).
+		WillReturnRows(sqlmock.NewRows([]string{"chunk_index"}).AddRow(int64(0)).AddRow(int64(2)))
+
+	session, err := repo.GetUploadSession(55)
+	require.NoError(t, err)
+	require.NotNil(t, session)
+	require.True(t, session.ReceivedChunkSet[0])
+	require.True(t, session.ReceivedChunkSet[2])
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestGetChunks_UploadNotFound(t *testing.T) {
+	repo, mock := newSQLMockRepo(t)
+	mock.ExpectQuery(regexp.QuoteMeta(`
+		SELECT key_version
+		FROM upload_sessions
+		WHERE id = $1
+	`)).
+		WithArgs(int64(55)).
+		WillReturnError(sql.ErrNoRows)
+
+	chunks, err := repo.GetChunks(55)
+	require.ErrorIs(t, err, models.ErrUploadNotFound)
+	require.Nil(t, chunks)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestUpdateKeyVersion_Success(t *testing.T) {
+	repo, mock := newSQLMockRepo(t)
+	now := time.Now()
+	mock.ExpectExec(regexp.QuoteMeta(`
+		UPDATE key_versions
+		SET status = $2, deprecated_at = $3, retired_at = $4
+		WHERE version = $1
+	`)).
+		WithArgs(int64(2), models.KeyStatusDeprecated, &now, (*time.Time)(nil)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	err := repo.UpdateKeyVersion(&models.KeyVersion{
+		Version:      2,
+		Status:       models.KeyStatusDeprecated,
+		DeprecatedAt: &now,
+	})
+	require.NoError(t, err)
+	require.NoError(t, mock.ExpectationsWereMet())
 }

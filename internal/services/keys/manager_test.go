@@ -3,6 +3,8 @@ package keys
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
+	"io"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -214,4 +216,143 @@ func TestCreateActive(t *testing.T) {
 		require.Equal(t, kv.Version, stored.Version)
 		require.Equal(t, models.KeyStatusActive, stored.Status)
 	})
+}
+
+type errRepo struct {
+	getActiveErr error
+	getErr       error
+	listErr      error
+	createErr    error
+	updateErr    error
+	kv           *models.KeyVersion
+}
+
+func (e *errRepo) CreateKeyVersion(kv *models.KeyVersion) error { return e.createErr }
+func (e *errRepo) GetKeyVersion(version int64) (*models.KeyVersion, error) {
+	if e.getErr != nil {
+		return nil, e.getErr
+	}
+	if e.kv != nil {
+		return e.kv, nil
+	}
+	return nil, models.ErrUnknownKeyVersion
+}
+func (e *errRepo) GetActiveKeyVersion() (*models.KeyVersion, error) {
+	if e.getActiveErr != nil {
+		return nil, e.getActiveErr
+	}
+	if e.kv != nil {
+		return e.kv, nil
+	}
+	return nil, models.ErrUnknownKeyVersion
+}
+func (e *errRepo) ListKeyVersions() ([]models.KeyVersion, error) {
+	if e.listErr != nil {
+		return nil, e.listErr
+	}
+	if e.kv != nil {
+		return []models.KeyVersion{*e.kv}, nil
+	}
+	return nil, nil
+}
+func (e *errRepo) UpdateKeyVersion(kv *models.KeyVersion) error { return e.updateErr }
+
+type errReader struct{}
+
+func (errReader) Read([]byte) (int, error) { return 0, io.ErrUnexpectedEOF }
+
+func TestNewManager_Errors(t *testing.T) {
+	_, err := NewManager(nil, testMasterKey(t))
+	require.EqualError(t, err, "key repository is required")
+
+	_, err = NewManager(newMemRepo(), "")
+	require.EqualError(t, err, "master key is empty")
+}
+
+func TestParseMasterKey_Formats(t *testing.T) {
+	raw := "1234567890123456789012345678901_"
+	parsed, err := parseMasterKey(raw)
+	require.NoError(t, err)
+	require.Equal(t, []byte(raw), parsed)
+
+	base64Key := base64.StdEncoding.EncodeToString([]byte(raw))
+	parsed, err = parseMasterKey(base64Key)
+	require.NoError(t, err)
+	require.Equal(t, []byte(raw), parsed)
+
+	_, err = parseMasterKey(base64.StdEncoding.EncodeToString([]byte("short")))
+	require.EqualError(t, err, "master key must be 32 bytes")
+
+	_, err = parseMasterKey("not-base64-and-not-32-bytes")
+	require.EqualError(t, err, "master key must be base64-encoded 32 bytes")
+}
+
+func TestManager_ErrorBranches(t *testing.T) {
+	t.Run("ensure active returns repository error", func(t *testing.T) {
+		repo := &errRepo{getActiveErr: errors.New("repo boom")}
+		mgr, err := NewManager(repo, testMasterKey(t))
+		require.NoError(t, err)
+
+		_, err = mgr.EnsureActive()
+		require.EqualError(t, err, "repo boom")
+	})
+
+	t.Run("rotate returns repository error", func(t *testing.T) {
+		repo := &errRepo{getActiveErr: errors.New("repo boom")}
+		mgr, err := NewManager(repo, testMasterKey(t))
+		require.NoError(t, err)
+
+		_, err = mgr.Rotate()
+		require.EqualError(t, err, "repo boom")
+	})
+
+	t.Run("create key version returns list error", func(t *testing.T) {
+		repo := &errRepo{listErr: errors.New("list boom")}
+		mgr, err := NewManager(repo, testMasterKey(t))
+		require.NoError(t, err)
+
+		_, err = mgr.CreateActive()
+		require.EqualError(t, err, "list boom")
+	})
+
+	t.Run("create key version returns create error", func(t *testing.T) {
+		repo := &errRepo{createErr: errors.New("create boom")}
+		mgr, err := NewManager(repo, testMasterKey(t))
+		require.NoError(t, err)
+
+		_, err = mgr.CreateActive()
+		require.EqualError(t, err, "create boom")
+	})
+}
+
+func TestManager_KeyAccessErrors(t *testing.T) {
+	mgr, err := NewManager(newMemRepo(), testMasterKey(t))
+	require.NoError(t, err)
+
+	_, err = mgr.unwrapDataKey(nil)
+	require.EqualError(t, err, "key version is nil")
+
+	_, err = mgr.unwrapDataKey(&models.KeyVersion{})
+	require.EqualError(t, err, "key material is missing")
+
+	repo := &errRepo{kv: &models.KeyVersion{Version: 1, Status: models.KeyStatusDeprecated}}
+	mgr, err = NewManager(repo, testMasterKey(t))
+	require.NoError(t, err)
+	_, err = mgr.KeyForEncrypt(1)
+	require.ErrorIs(t, err, models.ErrKeyVersionNotActive)
+
+	repo = &errRepo{kv: &models.KeyVersion{Version: 1, Status: models.KeyStatusRetired}}
+	mgr, err = NewManager(repo, testMasterKey(t))
+	require.NoError(t, err)
+	_, err = mgr.KeyForDecrypt(1)
+	require.ErrorIs(t, err, models.ErrKeyVersionCannotDecrypt)
+}
+
+func TestManager_RandFailures(t *testing.T) {
+	mgr, err := NewManager(newMemRepo(), testMasterKey(t))
+	require.NoError(t, err)
+
+	mgr.rand = errReader{}
+	_, err = mgr.CreateActive()
+	require.Error(t, err)
 }

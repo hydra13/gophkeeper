@@ -24,6 +24,18 @@ func TestJSON(t *testing.T) {
 	require.Equal(t, map[string]string{"status": "ok"}, body)
 }
 
+func TestJSON_EncodeError(t *testing.T) {
+	t.Parallel()
+
+	rec := httptest.NewRecorder()
+
+	JSON(rec, http.StatusCreated, map[string]any{"ch": make(chan int)})
+
+	require.Equal(t, http.StatusCreated, rec.Code)
+	require.Equal(t, "application/json", rec.Header().Get("Content-Type"))
+	require.Empty(t, rec.Body.String())
+}
+
 func TestError(t *testing.T) {
 	t.Parallel()
 
