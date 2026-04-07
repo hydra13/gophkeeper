@@ -9,6 +9,7 @@ import (
 
 	"github.com/rs/zerolog"
 
+	"github.com/hydra13/gophkeeper/internal/api/responses"
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
@@ -47,13 +48,13 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	var req RefreshRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		h.log.Debug().Err(err).Msg("refresh: failed to decode request body")
-		writeError(h.log, w, http.StatusBadRequest, "invalid request body")
+		responses.Error(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
 	if req.RefreshToken == "" {
 		h.log.Debug().Msg("refresh: refresh_token is required")
-		writeError(h.log, w, http.StatusBadRequest, "refresh_token is required")
+		responses.Error(w, http.StatusBadRequest, "refresh_token is required")
 		return
 	}
 
@@ -63,36 +64,20 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(h.log, w, http.StatusOK, RefreshResponse{
+	responses.JSON(w, http.StatusOK, RefreshResponse{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 	})
 }
 
-func writeJSON(log zerolog.Logger, w http.ResponseWriter, status int, v interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	if err := json.NewEncoder(w).Encode(v); err != nil {
-		log.Error().Err(err).Msg("refresh response encode failed")
-	}
-}
-
-func writeError(log zerolog.Logger, w http.ResponseWriter, status int, message string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	if err := json.NewEncoder(w).Encode(map[string]string{"error": message}); err != nil {
-		log.Error().Err(err).Msg("refresh error response encode failed")
-	}
-}
-
 func mapError(w http.ResponseWriter, log zerolog.Logger, err error, op string) {
 	switch {
 	case errors.Is(err, models.ErrSessionExpired), errors.Is(err, models.ErrSessionRevoked):
-		writeError(log, w, http.StatusUnauthorized, err.Error())
+		responses.Error(w, http.StatusUnauthorized, err.Error())
 	case errors.Is(err, models.ErrUnauthorized):
-		writeError(log, w, http.StatusUnauthorized, err.Error())
+		responses.Error(w, http.StatusUnauthorized, err.Error())
 	default:
 		log.Error().Err(err).Str("op", op).Msg("internal error")
-		writeError(log, w, http.StatusInternalServerError, "internal error")
+		responses.Error(w, http.StatusInternalServerError, "internal error")
 	}
 }

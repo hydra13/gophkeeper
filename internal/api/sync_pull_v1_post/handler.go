@@ -3,10 +3,10 @@ package sync_pull_v1_post
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
 
 	recordsCommon "github.com/hydra13/gophkeeper/internal/api/records_common"
+	"github.com/hydra13/gophkeeper/internal/api/responses"
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
@@ -68,22 +68,22 @@ func NewHandler(service SyncPuller) *Handler {
 // ServeHTTP возвращает изменения синхронизации.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		responses.Error(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 
 	var req Request
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		responses.Error(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
 	if req.UserID <= 0 {
-		http.Error(w, "invalid user_id", http.StatusBadRequest)
+		responses.Error(w, http.StatusBadRequest, "invalid user_id")
 		return
 	}
 	if req.DeviceID == "" {
-		http.Error(w, "device_id is required", http.StatusBadRequest)
+		responses.Error(w, http.StatusBadRequest, "device_id is required")
 		return
 	}
 	if req.Limit <= 0 {
@@ -92,7 +92,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	revs, records, conflicts, err := h.service.Pull(req.UserID, req.DeviceID, req.SinceRevision, req.Limit)
 	if err != nil {
-		http.Error(w, "internal server error", http.StatusInternalServerError)
+		responses.Error(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 
@@ -150,9 +150,5 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		resp.Conflicts = append(resp.Conflicts, dto)
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		log.Printf("sync pull response encode failed: %v", err)
-	}
+	responses.JSON(w, http.StatusOK, resp)
 }

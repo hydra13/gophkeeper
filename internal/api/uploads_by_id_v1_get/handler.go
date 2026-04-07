@@ -2,11 +2,11 @@
 package uploads_by_id_v1_get
 
 import (
-	"encoding/json"
 	"net/http"
 	"strconv"
 	"strings"
 
+	"github.com/hydra13/gophkeeper/internal/api/responses"
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
@@ -28,30 +28,27 @@ func NewHandler(service UploadStatusGetter) *Handler {
 // ServeHTTP возвращает статус загрузки.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		responses.Error(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 
 	uploadID, err := extractUploadID(r.URL.Path)
 	if err != nil {
-		http.Error(w, "invalid upload_id", http.StatusBadRequest)
+		responses.Error(w, http.StatusBadRequest, "invalid upload_id")
 		return
 	}
 
 	resp, err := h.service.GetUploadStatus(uploadID)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
-			http.Error(w, err.Error(), http.StatusNotFound)
+			responses.Error(w, http.StatusNotFound, err.Error())
 			return
 		}
-		http.Error(w, "internal server error", http.StatusInternalServerError)
+		responses.Error(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-	}
+	responses.JSON(w, http.StatusOK, resp)
 }
 
 func extractUploadID(path string) (int64, error) {

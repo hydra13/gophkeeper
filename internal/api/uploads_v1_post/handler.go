@@ -3,8 +3,9 @@ package uploads_v1_post
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
+
+	"github.com/hydra13/gophkeeper/internal/api/responses"
 )
 
 // Request описывает запрос на создание загрузки.
@@ -41,38 +42,38 @@ func NewHandler(service UploadCreator) *Handler {
 // ServeHTTP создаёт сессию загрузки.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		responses.Error(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 
 	var req Request
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		responses.Error(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
 	if req.UserID <= 0 {
-		http.Error(w, "invalid user_id", http.StatusBadRequest)
+		responses.Error(w, http.StatusBadRequest, "invalid user_id")
 		return
 	}
 	if req.RecordID <= 0 {
-		http.Error(w, "invalid record_id", http.StatusBadRequest)
+		responses.Error(w, http.StatusBadRequest, "invalid record_id")
 		return
 	}
 	if req.TotalChunks <= 0 {
-		http.Error(w, "total_chunks must be positive", http.StatusBadRequest)
+		responses.Error(w, http.StatusBadRequest, "total_chunks must be positive")
 		return
 	}
 	if req.ChunkSize <= 0 {
-		http.Error(w, "chunk_size must be positive", http.StatusBadRequest)
+		responses.Error(w, http.StatusBadRequest, "chunk_size must be positive")
 		return
 	}
 	if req.TotalSize <= 0 {
-		http.Error(w, "total_size must be positive", http.StatusBadRequest)
+		responses.Error(w, http.StatusBadRequest, "total_size must be positive")
 		return
 	}
 	if req.KeyVersion <= 0 {
-		http.Error(w, "key_version must be positive", http.StatusBadRequest)
+		responses.Error(w, http.StatusBadRequest, "key_version must be positive")
 		return
 	}
 
@@ -85,16 +86,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		req.KeyVersion,
 	)
 	if err != nil {
-		http.Error(w, "internal server error", http.StatusInternalServerError)
+		responses.Error(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	if err := json.NewEncoder(w).Encode(Response{
+	responses.JSON(w, http.StatusCreated, Response{
 		UploadID: uploadID,
 		Status:   "pending",
-	}); err != nil {
-		log.Printf("create upload response encode failed: %v", err)
-	}
+	})
 }

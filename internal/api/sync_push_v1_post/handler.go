@@ -3,10 +3,10 @@ package sync_push_v1_post
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
 
 	recordsCommon "github.com/hydra13/gophkeeper/internal/api/records_common"
+	"github.com/hydra13/gophkeeper/internal/api/responses"
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
@@ -70,32 +70,32 @@ func NewHandler(service SyncPusher) *Handler {
 // ServeHTTP принимает изменения синхронизации.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		responses.Error(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 
 	var req Request
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		responses.Error(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
 	if req.UserID <= 0 {
-		http.Error(w, "invalid user_id", http.StatusBadRequest)
+		responses.Error(w, http.StatusBadRequest, "invalid user_id")
 		return
 	}
 	if req.DeviceID == "" {
-		http.Error(w, "device_id is required", http.StatusBadRequest)
+		responses.Error(w, http.StatusBadRequest, "device_id is required")
 		return
 	}
 	if len(req.Changes) == 0 {
-		http.Error(w, "changes are required", http.StatusBadRequest)
+		responses.Error(w, http.StatusBadRequest, "changes are required")
 		return
 	}
 
 	accepted, conflicts, err := h.service.Push(req.UserID, req.DeviceID, toDomainChanges(req.Changes))
 	if err != nil {
-		http.Error(w, "internal server error", http.StatusInternalServerError)
+		responses.Error(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 
@@ -130,10 +130,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		resp.Conflicts = append(resp.Conflicts, dto)
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		log.Printf("sync push response encode failed: %v", err)
-	}
+	responses.JSON(w, http.StatusOK, resp)
 }
 
 func toDomainChanges(changes []PendingChange) []models.PendingChange {

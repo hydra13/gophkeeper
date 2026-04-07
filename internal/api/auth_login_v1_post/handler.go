@@ -9,6 +9,7 @@ import (
 
 	"github.com/rs/zerolog"
 
+	"github.com/hydra13/gophkeeper/internal/api/responses"
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
@@ -51,13 +52,13 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	var req LoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		h.log.Debug().Err(err).Msg("login: failed to decode request body")
-		writeError(h.log, w, http.StatusBadRequest, "invalid request body")
+		responses.Error(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
 	if err := validateLogin(req); err != nil {
 		h.log.Debug().Err(err).Msg("login: validation failed")
-		writeError(h.log, w, http.StatusBadRequest, err.Error())
+		responses.Error(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -67,7 +68,7 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(h.log, w, http.StatusOK, LoginResponse{
+	responses.JSON(w, http.StatusOK, LoginResponse{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 	})
@@ -86,30 +87,14 @@ func validateLogin(req LoginRequest) error {
 	return nil
 }
 
-func writeJSON(log zerolog.Logger, w http.ResponseWriter, status int, v interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	if err := json.NewEncoder(w).Encode(v); err != nil {
-		log.Error().Err(err).Msg("login response encode failed")
-	}
-}
-
-func writeError(log zerolog.Logger, w http.ResponseWriter, status int, message string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	if err := json.NewEncoder(w).Encode(map[string]string{"error": message}); err != nil {
-		log.Error().Err(err).Msg("login error response encode failed")
-	}
-}
-
 func mapError(w http.ResponseWriter, log zerolog.Logger, err error, op string) {
 	switch {
 	case errors.Is(err, models.ErrInvalidCredentials):
-		writeError(log, w, http.StatusUnauthorized, err.Error())
+		responses.Error(w, http.StatusUnauthorized, err.Error())
 	case errors.Is(err, models.ErrUserNotFound):
-		writeError(log, w, http.StatusUnauthorized, "invalid credentials")
+		responses.Error(w, http.StatusUnauthorized, "invalid credentials")
 	default:
 		log.Error().Err(err).Str("op", op).Msg("internal error")
-		writeError(log, w, http.StatusInternalServerError, "internal error")
+		responses.Error(w, http.StatusInternalServerError, "internal error")
 	}
 }

@@ -7,6 +7,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.96.2
 	github.com/aws/smithy-go v1.24.2
 	github.com/gdamore/tcell/v2 v2.9.0
+	github.com/go-chi/chi/v5 v5.2.5
 	github.com/gojuno/minimock/v3 v3.4.7
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/jackc/pgx/v5 v5.7.6
@@ -17,6 +18,7 @@ require (
 	github.com/wailsapp/wails/v2 v2.11.0
 	golang.org/x/crypto v0.46.0
 	golang.org/x/term v0.40.0
+	golang.org/x/time v0.15.0
 	google.golang.org/grpc v1.79.1
 	google.golang.org/protobuf v1.36.10
 )
@@ -33,7 +35,6 @@ require (
 	github.com/bep/debounce v1.2.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/gdamore/encoding v1.0.1 // indirect
-	github.com/go-chi/chi/v5 v5.2.5 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
@@ -70,7 +71,6 @@ require (
 	golang.org/x/sync v0.19.0 // indirect
 	golang.org/x/sys v0.41.0 // indirect
 	golang.org/x/text v0.32.0 // indirect
-	golang.org/x/time v0.15.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251202230838-ff82c1b0f217 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

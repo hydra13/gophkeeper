@@ -127,6 +127,10 @@ func TestSyncPullHandler_InvalidBody(t *testing.T) {
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected status 400, got %d", w.Code)
 	}
+	require.Equal(t, "application/json", w.Header().Get("Content-Type"))
+	var resp map[string]string
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+	require.Equal(t, "invalid request body", resp["error"])
 }
 
 func TestSyncPullHandler_InvalidUserID(t *testing.T) {

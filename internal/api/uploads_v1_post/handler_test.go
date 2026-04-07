@@ -201,6 +201,10 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 			require.Equal(t, tt.wantCode, rec.Code, rec.Body.String())
 			if tt.wantCode != http.StatusCreated {
+				require.Equal(t, "application/json", rec.Header().Get("Content-Type"))
+				var errResp map[string]string
+				require.NoError(t, json.NewDecoder(rec.Body).Decode(&errResp))
+				require.NotEmpty(t, errResp["error"])
 				return
 			}
 

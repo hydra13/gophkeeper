@@ -2,12 +2,11 @@
 package uploads_by_id_chunks_v1_get
 
 import (
-	"encoding/json"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
 
+	"github.com/hydra13/gophkeeper/internal/api/responses"
 	"github.com/hydra13/gophkeeper/internal/models"
 )
 
@@ -29,17 +28,17 @@ func NewHandler(service ChunkDownloader) *Handler {
 // ServeHTTP возвращает чанк загрузки.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		responses.Error(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 
 	uploadID, chunkIndex, err := extractUploadIDAndChunkIndex(r.URL.Path)
 	if err != nil {
-		http.Error(w, "invalid upload_id or chunk_index", http.StatusBadRequest)
+		responses.Error(w, http.StatusBadRequest, "invalid upload_id or chunk_index")
 		return
 	}
 	if chunkIndex < 0 {
-		http.Error(w, "chunk_index must be non-negative", http.StatusBadRequest)
+		responses.Error(w, http.StatusBadRequest, "chunk_index must be non-negative")
 		return
 	}
 
@@ -49,10 +48,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		log.Printf("download chunk response encode failed: %v", err)
-	}
+	responses.JSON(w, http.StatusOK, resp)
 }
 
 func extractUploadIDAndChunkIndex(path string) (int64, int64, error) {
@@ -89,27 +85,27 @@ func extractUploadIDAndChunkIndex(path string) (int64, int64, error) {
 func mapDownloadError(w http.ResponseWriter, err error) {
 	switch {
 	case isErr(err, "upload session not found"):
-		http.Error(w, err.Error(), http.StatusNotFound)
+		responses.Error(w, http.StatusNotFound, err.Error())
 	case isErr(err, "chunk") && isErr(err, "not found"):
-		http.Error(w, err.Error(), http.StatusNotFound)
+		responses.Error(w, http.StatusNotFound, err.Error())
 	case isErr(err, "download session not found"):
-		http.Error(w, err.Error(), http.StatusNotFound)
+		responses.Error(w, http.StatusNotFound, err.Error())
 	case isErr(err, "download session already completed"):
-		http.Error(w, err.Error(), http.StatusConflict)
+		responses.Error(w, http.StatusConflict, err.Error())
 	case isErr(err, "download session is aborted"):
-		http.Error(w, err.Error(), http.StatusGone)
+		responses.Error(w, http.StatusGone, err.Error())
 	case isErr(err, "download session is not active"):
-		http.Error(w, err.Error(), http.StatusConflict)
+		responses.Error(w, http.StatusConflict, err.Error())
 	case isErr(err, "upload session is not pending"):
-		http.Error(w, err.Error(), http.StatusConflict)
+		responses.Error(w, http.StatusConflict, err.Error())
 	case isErr(err, "chunk index out of range"):
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		responses.Error(w, http.StatusBadRequest, err.Error())
 	case isErr(err, "chunk already confirmed"):
-		http.Error(w, err.Error(), http.StatusConflict)
+		responses.Error(w, http.StatusConflict, err.Error())
 	case isErr(err, "chunk order violated"):
-		http.Error(w, err.Error(), http.StatusConflict)
+		responses.Error(w, http.StatusConflict, err.Error())
 	default:
-		http.Error(w, "internal server error", http.StatusInternalServerError)
+		responses.Error(w, http.StatusInternalServerError, "internal server error")
 	}
 }
 

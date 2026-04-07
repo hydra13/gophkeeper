@@ -3,10 +3,11 @@ package uploads_by_id_chunks_v1_post
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/hydra13/gophkeeper/internal/api/responses"
 )
 
 // ChunkRequest описывает запрос на загрузку чанка.
@@ -43,30 +44,30 @@ func NewHandler(service ChunkUploader) *Handler {
 // ServeHTTP принимает чанк загрузки.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		responses.Error(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 
 	uploadID, err := extractUploadID(r.URL.Path)
 	if err != nil {
-		http.Error(w, "invalid upload_id", http.StatusBadRequest)
+		responses.Error(w, http.StatusBadRequest, "invalid upload_id")
 		return
 	}
 
 	var req ChunkRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		responses.Error(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
 	req.UploadID = uploadID
 
 	if req.ChunkIndex < 0 {
-		http.Error(w, "chunk_index must be non-negative", http.StatusBadRequest)
+		responses.Error(w, http.StatusBadRequest, "chunk_index must be non-negative")
 		return
 	}
 	if len(req.Data) == 0 {
-		http.Error(w, "data is required", http.StatusBadRequest)
+		responses.Error(w, http.StatusBadRequest, "data is required")
 		return
 	}
 
@@ -86,10 +87,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		resp.MissingChunks = missing
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		log.Printf("upload chunk response encode failed: %v", err)
-	}
+	responses.JSON(w, http.StatusOK, resp)
 }
 
 func extractUploadID(path string) (int64, error) {
@@ -105,21 +103,21 @@ func extractUploadID(path string) (int64, error) {
 func mapChunkError(w http.ResponseWriter, err error) {
 	switch {
 	case isErr(err, "upload session not found"):
-		http.Error(w, err.Error(), http.StatusNotFound)
+		responses.Error(w, http.StatusNotFound, err.Error())
 	case isErr(err, "upload session already completed"):
-		http.Error(w, err.Error(), http.StatusConflict)
+		responses.Error(w, http.StatusConflict, err.Error())
 	case isErr(err, "upload session is aborted"):
-		http.Error(w, err.Error(), http.StatusGone)
+		responses.Error(w, http.StatusGone, err.Error())
 	case isErr(err, "upload session is not pending"):
-		http.Error(w, err.Error(), http.StatusConflict)
+		responses.Error(w, http.StatusConflict, err.Error())
 	case isErr(err, "chunk index out of range"):
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		responses.Error(w, http.StatusBadRequest, err.Error())
 	case isErr(err, "chunk already received"):
-		http.Error(w, err.Error(), http.StatusConflict)
+		responses.Error(w, http.StatusConflict, err.Error())
 	case isErr(err, "chunk order violated"):
-		http.Error(w, err.Error(), http.StatusConflict)
+		responses.Error(w, http.StatusConflict, err.Error())
 	default:
-		http.Error(w, "internal server error", http.StatusInternalServerError)
+		responses.Error(w, http.StatusInternalServerError, "internal server error")
 	}
 }
 

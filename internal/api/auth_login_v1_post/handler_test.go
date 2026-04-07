@@ -147,7 +147,14 @@ func TestHandler_Handle(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, "access-token", response.AccessToken)
 				assert.Equal(t, "refresh-token", response.RefreshToken)
+				return
 			}
+
+			require.Equal(t, "application/json", resp.Header.Get("Content-Type"))
+			var response map[string]string
+			err := json.NewDecoder(resp.Body).Decode(&response)
+			require.NoError(t, err)
+			require.NotEmpty(t, response["error"])
 		})
 	}
 }
