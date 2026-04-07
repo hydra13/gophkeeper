@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/hydra13/gophkeeper/internal/option"
 )
 
 const (
@@ -29,28 +30,38 @@ type JWTManager struct {
 	now       func() time.Time
 }
 
+// JWTOption настраивает optional/runtime/test-параметры JWT manager.
+type JWTOption = option.Option[JWTManager]
+
+// WithAccessTTL задаёт TTL access-токена.
+func WithAccessTTL(ttl time.Duration) JWTOption {
+	return func(m *JWTManager) {
+		m.accessTTL = ttl
+	}
+}
+
+// WithJWTClock подменяет источник времени для тестов и runtime-настроек.
+func WithJWTClock(now func() time.Time) JWTOption {
+	return func(m *JWTManager) {
+		if now != nil {
+			m.now = now
+		}
+	}
+}
+
 // NewJWTManager создаёт менеджер JWT с заданным TTL access-токена.
-func NewJWTManager(secret string, accessTTL time.Duration) (*JWTManager, error) {
+func NewJWTManager(secret string, opts ...JWTOption) (*JWTManager, error) {
 	if secret == "" {
 		return nil, errors.New("jwt secret is required")
 	}
-	if accessTTL <= 0 {
-		accessTTL = defaultAccessTTL
-	}
-	return &JWTManager{
+	manager := &JWTManager{
 		secret:    []byte(secret),
-		accessTTL: accessTTL,
+		accessTTL: defaultAccessTTL,
 		now:       time.Now,
-	}, nil
-}
-
-func newJWTManagerWithClock(secret string, accessTTL time.Duration, now func() time.Time) (*JWTManager, error) {
-	manager, err := NewJWTManager(secret, accessTTL)
-	if err != nil {
-		return nil, err
 	}
-	if now != nil {
-		manager.now = now
+	option.Apply(manager, opts...)
+	if manager.accessTTL <= 0 {
+		return nil, errors.New("access ttl must be positive")
 	}
 	return manager, nil
 }

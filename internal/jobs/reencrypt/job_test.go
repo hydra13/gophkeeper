@@ -5,6 +5,8 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"iter"
+	"sync"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -22,12 +24,15 @@ import (
 
 // mockRepo implements Repository for unit tests.
 type mockRepo struct {
+	mu                  sync.Mutex
 	records             []models.Record
 	payloads            map[int64][]models.StoredPayload
 	updatedRecords      []*models.Record
 	updatedPayloadSizes []struct{ recordID, version, size int64 }
 	listCalls           int
 	listErr             error
+	seqListErr          error
+	useSeq              bool
 	updateErr           error
 }
 
@@ -38,12 +43,16 @@ func newMockRepo() *mockRepo {
 }
 
 func (m *mockRepo) ListRecordsForReencrypt(activeVersion int64, limit int) ([]models.Record, error) {
+	m.mu.Lock()
 	m.listCalls++
-	if m.listErr != nil {
-		return nil, m.listErr
+	listErr := m.listErr
+	records := append([]models.Record(nil), m.records...)
+	m.mu.Unlock()
+	if listErr != nil {
+		return nil, listErr
 	}
 	var result []models.Record
-	for _, r := range m.records {
+	for _, r := range records {
 		if r.KeyVersion != activeVersion {
 			result = append(result, r)
 		}
@@ -54,7 +63,44 @@ func (m *mockRepo) ListRecordsForReencrypt(activeVersion int64, limit int) ([]mo
 	return result, nil
 }
 
+func (m *mockRepo) ListRecordsForReencryptSeq(activeVersion int64, limit int) iter.Seq2[models.Record, error] {
+	return func(yield func(models.Record, error) bool) {
+		m.mu.Lock()
+		m.useSeq = true
+		m.listCalls++
+		listErr := m.listErr
+		seqListErr := m.seqListErr
+		records := append([]models.Record(nil), m.records...)
+		m.mu.Unlock()
+		if listErr != nil {
+			var zero models.Record
+			yield(zero, listErr)
+			return
+		}
+		if seqListErr != nil {
+			var zero models.Record
+			yield(zero, seqListErr)
+			return
+		}
+		count := 0
+		for _, record := range records {
+			if record.KeyVersion == activeVersion {
+				continue
+			}
+			if limit > 0 && count >= limit {
+				return
+			}
+			count++
+			if !yield(record, nil) {
+				return
+			}
+		}
+	}
+}
+
 func (m *mockRepo) UpdateRecord(record *models.Record) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if m.updateErr != nil {
 		return m.updateErr
 	}
@@ -70,12 +116,44 @@ func (m *mockRepo) UpdateRecord(record *models.Record) error {
 }
 
 func (m *mockRepo) ListPayloads(recordID int64) ([]models.StoredPayload, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	return m.payloads[recordID], nil
 }
 
 func (m *mockRepo) UpdatePayloadSize(recordID int64, version int64, size int64) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.updatedPayloadSizes = append(m.updatedPayloadSizes, struct{ recordID, version, size int64 }{recordID, version, size})
 	return nil
+}
+
+func (m *mockRepo) ListCalls() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.listCalls
+}
+
+func (m *mockRepo) UsedSeq() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.useSeq
+}
+
+func (m *mockRepo) UpdatedRecords() []*models.Record {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := make([]*models.Record, len(m.updatedRecords))
+	copy(out, m.updatedRecords)
+	return out
+}
+
+func (m *mockRepo) UpdatedPayloadSizes() []struct{ recordID, version, size int64 } {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := make([]struct{ recordID, version, size int64 }, len(m.updatedPayloadSizes))
+	copy(out, m.updatedPayloadSizes)
+	return out
 }
 
 // mockBlob implements repositories.BlobStorage.
@@ -360,15 +438,15 @@ func TestStartRunsOnTickerSchedule(t *testing.T) {
 		require.NoError(t, err)
 
 		synctest.Wait()
-		require.Equal(t, 1, repo.listCalls)
+		require.Equal(t, 1, repo.ListCalls())
 
 		time.Sleep(5 * time.Second)
 		synctest.Wait()
-		require.Equal(t, 2, repo.listCalls)
+		require.Equal(t, 2, repo.ListCalls())
 
 		time.Sleep(5 * time.Second)
 		synctest.Wait()
-		require.Equal(t, 3, repo.listCalls)
+		require.Equal(t, 3, repo.ListCalls())
 
 		cancel()
 		synctest.Wait()
@@ -392,7 +470,7 @@ func TestStopPreventsFutureRuns(t *testing.T) {
 		require.NoError(t, err)
 
 		synctest.Wait()
-		require.Equal(t, 1, repo.listCalls)
+		require.Equal(t, 1, repo.ListCalls())
 
 		err = job.Stop(ctx)
 		require.NoError(t, err)
@@ -400,7 +478,7 @@ func TestStopPreventsFutureRuns(t *testing.T) {
 
 		time.Sleep(10 * time.Second)
 		synctest.Wait()
-		require.Equal(t, 1, repo.listCalls)
+		require.Equal(t, 1, repo.ListCalls())
 	})
 }
 
@@ -447,6 +525,18 @@ func TestRunOnceListError(t *testing.T) {
 		err := job.runOnce(context.Background())
 		require.EqualError(t, err, "db down")
 	})
+
+	t.Run("propagates ListRecordsForReencryptSeq error", func(t *testing.T) {
+		mgr, crypto := buildRealCrypto(t)
+		repo := newMockRepo()
+		repo.seqListErr = fmt.Errorf("stream down")
+		blob := newMockBlob()
+
+		job := New(WithDeps(repo, blob, crypto, mgr))
+		err := job.runOnce(context.Background())
+		require.EqualError(t, err, "stream down")
+		require.True(t, repo.UsedSeq())
+	})
 }
 
 func TestRunOnceUpdateError(t *testing.T) {
@@ -484,7 +574,27 @@ func TestRunOnceSkipsAlreadyActive(t *testing.T) {
 		job := New(WithDeps(repo, blob, crypto, mgr))
 		err = job.runOnce(context.Background())
 		require.NoError(t, err)
-		require.Empty(t, repo.updatedRecords)
+		require.Empty(t, repo.UpdatedRecords())
+	})
+
+	t.Run("uses streaming path when available", func(t *testing.T) {
+		mgr, crypto := buildRealCrypto(t)
+		active, err := mgr.EnsureActive()
+		require.NoError(t, err)
+
+		repo := newMockRepo()
+		repo.records = []models.Record{
+			{ID: 1, Type: models.RecordTypeText, KeyVersion: active.Version - 1},
+		}
+		blob := newMockBlob()
+
+		job := New(WithDeps(repo, blob, crypto, mgr))
+		err = job.runOnce(context.Background())
+		require.NoError(t, err)
+		updatedRecords := repo.UpdatedRecords()
+		require.True(t, repo.UsedSeq())
+		require.Len(t, updatedRecords, 1)
+		require.Equal(t, active.Version, updatedRecords[0].KeyVersion)
 	})
 }
 
@@ -532,8 +642,9 @@ func TestReencryptBinary(t *testing.T) {
 		require.NotEqual(t, encryptedData, newData)
 
 		// Payload size should have been updated
-		require.Len(t, repo.updatedPayloadSizes, 1)
-		require.Equal(t, int64(1), repo.updatedPayloadSizes[0].recordID)
+		updatedPayloadSizes := repo.UpdatedPayloadSizes()
+		require.Len(t, updatedPayloadSizes, 1)
+		require.Equal(t, int64(1), updatedPayloadSizes[0].recordID)
 
 		// Verify we can decrypt with new version
 		decrypted, err := crypto.Decrypt(newData, active.Version)
@@ -635,8 +746,9 @@ func TestRunOnceTextRecord(t *testing.T) {
 		require.NoError(t, err)
 
 		// Both records should have been updated
-		require.Len(t, repo.updatedRecords, 2)
-		for _, r := range repo.updatedRecords {
+		updatedRecords := repo.UpdatedRecords()
+		require.Len(t, updatedRecords, 2)
+		for _, r := range updatedRecords {
 			require.Equal(t, newActive.Version, r.KeyVersion)
 		}
 	})

@@ -2,9 +2,11 @@ package reencrypt
 
 import (
 	"context"
+	"iter"
 	"time"
 
 	"github.com/hydra13/gophkeeper/internal/models"
+	"github.com/hydra13/gophkeeper/internal/option"
 	"github.com/hydra13/gophkeeper/internal/repositories"
 	cryptosvc "github.com/hydra13/gophkeeper/internal/services/crypto"
 	"github.com/hydra13/gophkeeper/internal/services/keys"
@@ -23,6 +25,10 @@ type Repository interface {
 	UpdatePayloadSize(recordID int64, version int64, size int64) error
 }
 
+type recordsForReencryptSeqRepo interface {
+	ListRecordsForReencryptSeq(activeVersion int64, limit int) iter.Seq2[models.Record, error]
+}
+
 // Job переупаковывает записи на актуальный ключ.
 type Job struct {
 	repo      Repository
@@ -37,7 +43,7 @@ type Job struct {
 }
 
 // Option настраивает задачу.
-type Option func(*Job)
+type Option = option.Option[Job]
 
 // WithDeps задаёт зависимости задачи.
 func WithDeps(repo Repository, blob repositories.BlobStorage, crypto cryptosvc.CryptoService, keyManager *keys.Manager) Option {
@@ -72,9 +78,7 @@ func New(opts ...Option) *Job {
 		stopCh:    make(chan struct{}),
 		doneCh:    make(chan struct{}),
 	}
-	for _, opt := range opts {
-		opt(job)
-	}
+	option.Apply(job, opts...)
 	return job
 }
 
@@ -130,29 +134,59 @@ func (j *Job) runOnce(ctx context.Context) error {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		records, err := j.repo.ListRecordsForReencrypt(activeVersion, j.batchSize)
+
+		processed, err := j.processBatch(activeVersion)
 		if err != nil {
 			return err
 		}
-		if len(records) == 0 {
+		if processed == 0 {
 			return nil
 		}
-		for i := range records {
-			record := records[i]
-			if record.KeyVersion == activeVersion {
-				continue
-			}
-			if record.Type == models.RecordTypeBinary {
-				if err := j.reencryptBinary(&record, activeVersion); err != nil {
-					return err
-				}
-			}
-			record.KeyVersion = activeVersion
-			if err := j.repo.UpdateRecord(&record); err != nil {
-				return err
-			}
+	}
+}
+
+func (j *Job) processBatch(activeVersion int64) (int, error) {
+	if seqRepo, ok := j.repo.(recordsForReencryptSeqRepo); ok {
+		return j.processBatchSeq(seqRepo.ListRecordsForReencryptSeq(activeVersion, j.batchSize), activeVersion)
+	}
+
+	records, err := j.repo.ListRecordsForReencrypt(activeVersion, j.batchSize)
+	if err != nil {
+		return 0, err
+	}
+	for i := range records {
+		if err := j.processRecord(records[i], activeVersion); err != nil {
+			return 0, err
 		}
 	}
+	return len(records), nil
+}
+
+func (j *Job) processBatchSeq(records iter.Seq2[models.Record, error], activeVersion int64) (int, error) {
+	processed := 0
+	for record, err := range records {
+		if err != nil {
+			return 0, err
+		}
+		if err := j.processRecord(record, activeVersion); err != nil {
+			return 0, err
+		}
+		processed++
+	}
+	return processed, nil
+}
+
+func (j *Job) processRecord(record models.Record, activeVersion int64) error {
+	if record.KeyVersion == activeVersion {
+		return nil
+	}
+	if record.Type == models.RecordTypeBinary {
+		if err := j.reencryptBinary(&record, activeVersion); err != nil {
+			return err
+		}
+	}
+	record.KeyVersion = activeVersion
+	return j.repo.UpdateRecord(&record)
 }
 
 func (j *Job) reencryptBinary(record *models.Record, newVersion int64) error {

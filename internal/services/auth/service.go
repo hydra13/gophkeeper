@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/hydra13/gophkeeper/internal/models"
+	"github.com/hydra13/gophkeeper/internal/option"
 	"github.com/hydra13/gophkeeper/internal/services/passwords"
 )
 
@@ -41,12 +42,31 @@ type Service struct {
 	now        func() time.Time
 }
 
+// ServiceOption настраивает optional/runtime/test-параметры сервиса.
+type ServiceOption = option.Option[Service]
+
+// WithSessionTTL задаёт TTL пользовательской сессии.
+func WithSessionTTL(ttl time.Duration) ServiceOption {
+	return func(s *Service) {
+		s.sessionTTL = ttl
+	}
+}
+
+// WithSessionClock подменяет источник времени для тестов и runtime-настроек.
+func WithSessionClock(now func() time.Time) ServiceOption {
+	return func(s *Service) {
+		if now != nil {
+			s.now = now
+		}
+	}
+}
+
 // NewService создаёт сервис аутентификации.
 func NewService(
 	usersRepo UserRepo,
 	sessionsRepo SessionRepo,
 	jwtManager TokenManager,
-	sessionTTL time.Duration,
+	opts ...ServiceOption,
 ) (*Service, error) {
 	if usersRepo == nil {
 		return nil, errors.New("user repository is required")
@@ -57,16 +77,19 @@ func NewService(
 	if jwtManager == nil {
 		return nil, errors.New("jwt manager is required")
 	}
-	if sessionTTL <= 0 {
-		sessionTTL = defaultSessionTTL
-	}
-	return &Service{
+
+	service := &Service{
 		users:      usersRepo,
 		sessions:   sessionsRepo,
 		jwt:        jwtManager,
-		sessionTTL: sessionTTL,
+		sessionTTL: defaultSessionTTL,
 		now:        time.Now,
-	}, nil
+	}
+	option.Apply(service, opts...)
+	if service.sessionTTL <= 0 {
+		return nil, errors.New("session ttl must be positive")
+	}
+	return service, nil
 }
 
 func (s *Service) Register(ctx context.Context, email, password string) (int64, error) {

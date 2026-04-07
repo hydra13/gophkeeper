@@ -4,6 +4,7 @@ package sync
 import (
 	"errors"
 	"fmt"
+	"iter"
 
 	"github.com/hydra13/gophkeeper/internal/models"
 )
@@ -22,6 +23,10 @@ type SyncRepo interface {
 	GetConflicts(userID int64) ([]models.SyncConflict, error)
 	CreateConflict(conflict *models.SyncConflict) error
 	ResolveConflict(conflictID int64, resolution string) error
+}
+
+type revisionsSeqRepo interface {
+	GetRevisionsSeq(userID int64, sinceRevision int64) iter.Seq2[models.RecordRevision, error]
 }
 
 // Service координирует pull/push синхронизацию и конфликты.
@@ -259,15 +264,66 @@ func (s *Service) Pull(userID int64, deviceID string, sinceRevision int64, limit
 		limit = 50
 	}
 
-	revisions, err := s.syncRepo.GetRevisions(userID, sinceRevision)
+	revisions, records, err := s.collectPullRecords(userID, sinceRevision, limit)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("get revisions: %w", err)
+		return nil, nil, nil, err
 	}
 
+	conflicts, err := s.syncRepo.GetConflicts(userID)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("get conflicts: %w", err)
+	}
+
+	return revisions, records, conflicts, nil
+}
+
+func (s *Service) collectPullRecords(userID int64, sinceRevision int64, limit int64) ([]models.RecordRevision, []models.Record, error) {
+	if seqRepo, ok := s.syncRepo.(revisionsSeqRepo); ok {
+		return s.collectPullRecordsSeq(userID, limit, seqRepo.GetRevisionsSeq(userID, sinceRevision))
+	}
+
+	revisions, err := s.syncRepo.GetRevisions(userID, sinceRevision)
+	if err != nil {
+		return nil, nil, fmt.Errorf("get revisions: %w", err)
+	}
 	if int64(len(revisions)) > limit {
 		revisions = revisions[:limit]
 	}
+	records, err := s.recordsForRevisions(revisions)
+	if err != nil {
+		return nil, nil, err
+	}
+	return revisions, records, nil
+}
 
+func (s *Service) collectPullRecordsSeq(userID int64, limit int64, revisionsSeq iter.Seq2[models.RecordRevision, error]) ([]models.RecordRevision, []models.Record, error) {
+	revisions := make([]models.RecordRevision, 0, limit)
+	recordByID := make(map[int64]bool)
+	var records []models.Record
+
+	for revision, err := range revisionsSeq {
+		if err != nil {
+			return nil, nil, fmt.Errorf("get revisions: %w", err)
+		}
+		if int64(len(revisions)) >= limit {
+			break
+		}
+		revisions = append(revisions, revision)
+		if recordByID[revision.RecordID] {
+			continue
+		}
+		recordByID[revision.RecordID] = true
+		record, err := s.recordRepo.GetRecord(revision.RecordID)
+		if err != nil {
+			return nil, nil, fmt.Errorf("get record %d: %w", revision.RecordID, err)
+		}
+		records = append(records, *record)
+	}
+
+	return revisions, records, nil
+}
+
+func (s *Service) recordsForRevisions(revisions []models.RecordRevision) ([]models.Record, error) {
 	recordByID := make(map[int64]bool, len(revisions))
 	var records []models.Record
 	for _, rev := range revisions {
@@ -277,17 +333,11 @@ func (s *Service) Pull(userID int64, deviceID string, sinceRevision int64, limit
 		recordByID[rev.RecordID] = true
 		rec, err := s.recordRepo.GetRecord(rev.RecordID)
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("get record %d: %w", rev.RecordID, err)
+			return nil, fmt.Errorf("get record %d: %w", rev.RecordID, err)
 		}
 		records = append(records, *rec)
 	}
-
-	conflicts, err := s.syncRepo.GetConflicts(userID)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("get conflicts: %w", err)
-	}
-
-	return revisions, records, conflicts, nil
+	return records, nil
 }
 
 // GetConflicts возвращает незакрытые конфликты пользователя.

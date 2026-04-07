@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"iter"
 	"log"
 	"time"
 
@@ -228,37 +229,57 @@ func (r *Repository) ListRecords(userID int64, recordType models.RecordType, inc
 }
 
 func (r *Repository) ListRecordsForReencrypt(activeVersion int64, limit int) ([]models.Record, error) {
-	if _, err := r.ensureCrypto(); err != nil {
-		return nil, err
-	}
-	if limit <= 0 {
-		limit = 100
-	}
-	rows, err := r.db.QueryContext(context.Background(), `
-		SELECT id, user_id, type, name, metadata, payload, revision, deleted_at,
-		       device_id, key_version, payload_version, created_at, updated_at
-		FROM records
-		WHERE key_version <> $1 AND deleted_at IS NULL
-		ORDER BY id ASC
-		LIMIT $2
-	`, activeVersion, limit)
-	if err != nil {
-		return nil, err
-	}
-	defer closeRows(rows)
-
 	var records []models.Record
-	for rows.Next() {
-		record, scanErr := r.scanRecord(rows)
-		if scanErr != nil {
-			return nil, scanErr
+	for record, err := range r.ListRecordsForReencryptSeq(activeVersion, limit) {
+		if err != nil {
+			return nil, err
 		}
-		records = append(records, *record)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
+		records = append(records, record)
 	}
 	return records, nil
+}
+
+func (r *Repository) ListRecordsForReencryptSeq(activeVersion int64, limit int) iter.Seq2[models.Record, error] {
+	return func(yield func(models.Record, error) bool) {
+		if _, err := r.ensureCrypto(); err != nil {
+			var zero models.Record
+			yield(zero, err)
+			return
+		}
+		if limit <= 0 {
+			limit = 100
+		}
+		rows, err := r.db.QueryContext(context.Background(), `
+			SELECT id, user_id, type, name, metadata, payload, revision, deleted_at,
+			       device_id, key_version, payload_version, created_at, updated_at
+			FROM records
+			WHERE key_version <> $1 AND deleted_at IS NULL
+			ORDER BY id ASC
+			LIMIT $2
+		`, activeVersion, limit)
+		if err != nil {
+			var zero models.Record
+			yield(zero, err)
+			return
+		}
+		defer closeRows(rows)
+
+		for rows.Next() {
+			record, scanErr := r.scanRecord(rows)
+			if scanErr != nil {
+				var zero models.Record
+				yield(zero, scanErr)
+				return
+			}
+			if !yield(*record, nil) {
+				return
+			}
+		}
+		if err := rows.Err(); err != nil {
+			var zero models.Record
+			yield(zero, err)
+		}
+	}
 }
 
 func (r *Repository) UpdateRecord(record *models.Record) error {
@@ -436,29 +457,47 @@ func (r *Repository) DeleteRecord(id int64) error {
 }
 
 func (r *Repository) GetRevisions(userID int64, sinceRevision int64) ([]models.RecordRevision, error) {
-	rows, err := r.db.QueryContext(context.Background(), `
-		SELECT id, record_id, user_id, revision, device_id
-		FROM record_revisions
-		WHERE user_id = $1 AND revision > $2
-		ORDER BY revision ASC
-	`, userID, sinceRevision)
-	if err != nil {
-		return nil, err
-	}
-	defer closeRows(rows)
-
 	var revisions []models.RecordRevision
-	for rows.Next() {
-		var rev models.RecordRevision
-		if err := rows.Scan(&rev.ID, &rev.RecordID, &rev.UserID, &rev.Revision, &rev.DeviceID); err != nil {
+	for revision, err := range r.GetRevisionsSeq(userID, sinceRevision) {
+		if err != nil {
 			return nil, err
 		}
-		revisions = append(revisions, rev)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
+		revisions = append(revisions, revision)
 	}
 	return revisions, nil
+}
+
+func (r *Repository) GetRevisionsSeq(userID int64, sinceRevision int64) iter.Seq2[models.RecordRevision, error] {
+	return func(yield func(models.RecordRevision, error) bool) {
+		rows, err := r.db.QueryContext(context.Background(), `
+			SELECT id, record_id, user_id, revision, device_id
+			FROM record_revisions
+			WHERE user_id = $1 AND revision > $2
+			ORDER BY revision ASC
+		`, userID, sinceRevision)
+		if err != nil {
+			var zero models.RecordRevision
+			yield(zero, err)
+			return
+		}
+		defer closeRows(rows)
+
+		for rows.Next() {
+			var rev models.RecordRevision
+			if err := rows.Scan(&rev.ID, &rev.RecordID, &rev.UserID, &rev.Revision, &rev.DeviceID); err != nil {
+				var zero models.RecordRevision
+				yield(zero, err)
+				return
+			}
+			if !yield(rev, nil) {
+				return
+			}
+		}
+		if err := rows.Err(); err != nil {
+			var zero models.RecordRevision
+			yield(zero, err)
+		}
+	}
 }
 
 func (r *Repository) CreateRevision(rev *models.RecordRevision) error {

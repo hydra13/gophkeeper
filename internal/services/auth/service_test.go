@@ -129,14 +129,14 @@ func (m *memSessionRepo) UpdateLastSeenAt(id int64) error {
 
 func newTestService(t *testing.T) *Service {
 	t.Helper()
-	jwtManager, err := NewJWTManager("test-secret-key-for-tests", 15*time.Minute)
+	jwtManager, err := NewJWTManager("test-secret-key-for-tests", WithAccessTTL(15*time.Minute))
 	require.NoError(t, err)
 
 	svc, err := NewService(
 		newMemUserRepo(),
 		newMemSessionRepo(),
 		jwtManager,
-		time.Hour,
+		WithSessionTTL(time.Hour),
 	)
 	require.NoError(t, err)
 	return svc
@@ -212,10 +212,10 @@ func TestValidateToken_Invalid(t *testing.T) {
 
 func TestValidateToken_Expired(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		jwtManager, err := newJWTManagerWithClock("test-secret", time.Nanosecond, time.Now)
+		jwtManager, err := NewJWTManager("test-secret", WithAccessTTL(time.Nanosecond), WithJWTClock(time.Now))
 		require.NoError(t, err)
 
-		svc, err := NewService(newMemUserRepo(), newMemSessionRepo(), jwtManager, time.Hour)
+		svc, err := NewService(newMemUserRepo(), newMemSessionRepo(), jwtManager, WithSessionTTL(time.Hour))
 		require.NoError(t, err)
 
 		token, err := svc.jwt.NewAccessToken(1, 1)
@@ -387,10 +387,48 @@ func TestValidateSession_InvalidToken(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestNewService_DefaultSessionTTL(t *testing.T) {
+	t.Parallel()
+
+	jwtManager, err := NewJWTManager("secret")
+	require.NoError(t, err)
+
+	svc, err := NewService(newMemUserRepo(), newMemSessionRepo(), jwtManager)
+	require.NoError(t, err)
+	require.Equal(t, defaultSessionTTL, svc.sessionTTL)
+}
+
+func TestNewService_WithSessionClock(t *testing.T) {
+	t.Parallel()
+
+	fixedNow := time.Date(2026, time.April, 8, 12, 0, 0, 0, time.UTC)
+	jwtManager, err := NewJWTManager("secret", WithAccessTTL(time.Minute))
+	require.NoError(t, err)
+
+	sessions := newMemSessionRepo()
+	svc, err := NewService(
+		newMemUserRepo(),
+		sessions,
+		jwtManager,
+		WithSessionTTL(2*time.Hour),
+		WithSessionClock(func() time.Time { return fixedNow }),
+	)
+	require.NoError(t, err)
+
+	_, err = svc.Register(context.Background(), "user@example.com", "super-secret")
+	require.NoError(t, err)
+
+	_, _, err = svc.Login(context.Background(), "user@example.com", "super-secret", "device-1", "MacBook", "cli")
+	require.NoError(t, err)
+	require.Len(t, sessions.sessions, 1)
+	require.Equal(t, fixedNow, sessions.sessions[0].LastSeenAt)
+	require.Equal(t, fixedNow.Add(2*time.Hour), sessions.sessions[0].ExpiresAt)
+}
+
 func TestNewJWTManager_EmptySecret(t *testing.T) {
 	t.Parallel()
 
-	_, err := NewJWTManager("", 15*time.Minute)
+	_, err := NewJWTManager("", WithAccessTTL(15*time.Minute))
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "secret is required")
 }
@@ -398,12 +436,20 @@ func TestNewJWTManager_EmptySecret(t *testing.T) {
 func TestNewJWTManager_DefaultTTL(t *testing.T) {
 	t.Parallel()
 
-	mgr, err := NewJWTManager("secret", 0)
+	mgr, err := NewJWTManager("secret")
 	require.NoError(t, err)
 	require.Equal(t, defaultAccessTTL, mgr.accessTTL)
 }
 
-func TestNewJWTManagerWithClock(t *testing.T) {
+func TestNewJWTManager_InvalidAccessTTL(t *testing.T) {
+	t.Parallel()
+
+	_, err := NewJWTManager("secret", WithAccessTTL(0))
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "access ttl must be positive")
+}
+
+func TestNewJWTManager_WithJWTClock(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -442,7 +488,7 @@ func TestNewJWTManagerWithClock(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			mgr, err := newJWTManagerWithClock(tc.secret, time.Minute, tc.now)
+			mgr, err := NewJWTManager(tc.secret, WithAccessTTL(time.Minute), WithJWTClock(tc.now))
 			tc.checkErr(t, err)
 			if tc.checkMgr != nil {
 				tc.checkMgr(t, mgr)
@@ -488,7 +534,7 @@ func TestJWTManagerValidateTokenErrors(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			mgr, err := NewJWTManager("secret", time.Minute)
+			mgr, err := NewJWTManager("secret", WithAccessTTL(time.Minute))
 			require.NoError(t, err)
 
 			_, _, err = mgr.ValidateToken(tc.token(t))
@@ -533,17 +579,28 @@ func TestLogoutAllDevices(t *testing.T) {
 }
 
 func TestNewService_NilDeps(t *testing.T) {
-	jwtManager, err := NewJWTManager("test-secret", 15*time.Minute)
+	jwtManager, err := NewJWTManager("test-secret", WithAccessTTL(15*time.Minute))
 	require.NoError(t, err)
 
-	_, err = NewService(nil, newMemSessionRepo(), jwtManager, time.Hour)
+	_, err = NewService(nil, newMemSessionRepo(), jwtManager, WithSessionTTL(time.Hour))
 	require.Error(t, err)
 
-	_, err = NewService(newMemUserRepo(), nil, jwtManager, time.Hour)
+	_, err = NewService(newMemUserRepo(), nil, jwtManager, WithSessionTTL(time.Hour))
 	require.Error(t, err)
 
-	_, err = NewService(newMemUserRepo(), newMemSessionRepo(), nil, time.Hour)
+	_, err = NewService(newMemUserRepo(), newMemSessionRepo(), nil, WithSessionTTL(time.Hour))
 	require.Error(t, err)
+}
+
+func TestNewService_InvalidSessionTTL(t *testing.T) {
+	t.Parallel()
+
+	jwtManager, err := NewJWTManager("secret")
+	require.NoError(t, err)
+
+	_, err = NewService(newMemUserRepo(), newMemSessionRepo(), jwtManager, WithSessionTTL(0))
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "session ttl must be positive")
 }
 
 func TestLogout_RevokesSpecificSession(t *testing.T) {

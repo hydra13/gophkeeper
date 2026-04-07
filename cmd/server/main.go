@@ -109,7 +109,7 @@ func wireDepsWithFactories(cfg *config.Config, log zerolog.Logger, factories wir
 		return app.AppDeps{}, cleanup, err
 	}
 
-	jwtManager, err := authsvc.NewJWTManager(cfg.Auth.JWTSecret, cfg.Auth.TokenDuration)
+	jwtManager, err := authsvc.NewJWTManager(cfg.Auth.JWTSecret, authsvc.WithAccessTTL(cfg.Auth.TokenDuration))
 	if err != nil {
 		return app.AppDeps{}, cleanup, err
 	}
@@ -118,7 +118,6 @@ func wireDepsWithFactories(cfg *config.Config, log zerolog.Logger, factories wir
 		repo,
 		repo,
 		jwtManager,
-		0,
 	)
 	if err != nil {
 		return app.AppDeps{}, cleanup, err

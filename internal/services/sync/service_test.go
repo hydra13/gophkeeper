@@ -2,6 +2,7 @@ package sync
 
 import (
 	"errors"
+	"iter"
 	"testing"
 	"time"
 
@@ -11,6 +12,15 @@ import (
 	"github.com/hydra13/gophkeeper/internal/models"
 	syncmocks "github.com/hydra13/gophkeeper/internal/services/sync/mocks"
 )
+
+type syncRepoWithSeq struct {
+	*syncmocks.SyncRepoMock
+	seq func(userID int64, sinceRevision int64) iter.Seq2[models.RecordRevision, error]
+}
+
+func (s *syncRepoWithSeq) GetRevisionsSeq(userID int64, sinceRevision int64) iter.Seq2[models.RecordRevision, error] {
+	return s.seq(userID, sinceRevision)
+}
 
 func newTestService(t *testing.T, sr *syncmocks.SyncRepoMock, rr *syncmocks.RecordRepoMock) *Service {
 	t.Helper()
@@ -342,6 +352,49 @@ func TestPull_WithRevisionsAndLimit(t *testing.T) {
 	require.Len(t, gotConflicts, 1)
 	require.Equal(t, 1, getRecordCalls)
 	require.Equal(t, int64(10), records[0].ID)
+}
+
+func TestPull_UsesStreamingRevisionsWhenAvailable(t *testing.T) {
+	mc := minimock.NewController(t)
+	sr := syncmocks.NewSyncRepoMock(mc)
+	rr := syncmocks.NewRecordRepoMock(mc)
+	streamCalls := 0
+
+	svc, err := NewService(&syncRepoWithSeq{
+		SyncRepoMock: sr,
+		seq: func(userID int64, sinceRevision int64) iter.Seq2[models.RecordRevision, error] {
+			return func(yield func(models.RecordRevision, error) bool) {
+				streamCalls++
+				require.Equal(t, int64(1), userID)
+				require.Equal(t, int64(0), sinceRevision)
+
+				if !yield(models.RecordRevision{RecordID: 10, UserID: 1, Revision: 1, DeviceID: "device-1"}, nil) {
+					return
+				}
+				yield(models.RecordRevision{RecordID: 10, UserID: 1, Revision: 2, DeviceID: "device-2"}, nil)
+			}
+		},
+	}, rr)
+	require.NoError(t, err)
+
+	rr.GetRecordMock.Expect(10).Return(&models.Record{
+		ID:         10,
+		UserID:     1,
+		Type:       models.RecordTypeText,
+		Name:       "first",
+		DeviceID:   "device-1",
+		KeyVersion: 1,
+		Payload:    models.TextPayload{Content: "a"},
+	}, nil)
+	sr.GetConflictsMock.Expect(1).Return(nil, nil)
+
+	gotRevisions, records, gotConflicts, err := svc.Pull(1, "device-1", 0, 2)
+
+	require.NoError(t, err)
+	require.Len(t, gotRevisions, 2)
+	require.Len(t, records, 1)
+	require.Empty(t, gotConflicts)
+	require.Equal(t, 1, streamCalls)
 }
 
 func TestGetConflicts(t *testing.T) {
@@ -752,6 +805,30 @@ func TestPull_ErrorBranches(t *testing.T) {
 
 		revisions, records, conflicts, err := svc.Pull(1, "device-1", 0, 0)
 		require.Error(t, err)
+		require.Nil(t, revisions)
+		require.Nil(t, records)
+		require.Nil(t, conflicts)
+	})
+
+	t.Run("streaming get revisions error", func(t *testing.T) {
+		mc := minimock.NewController(t)
+		sr := syncmocks.NewSyncRepoMock(mc)
+		rr := syncmocks.NewRecordRepoMock(mc)
+
+		svc, err := NewService(&syncRepoWithSeq{
+			SyncRepoMock: sr,
+			seq: func(userID int64, sinceRevision int64) iter.Seq2[models.RecordRevision, error] {
+				return func(yield func(models.RecordRevision, error) bool) {
+					var zero models.RecordRevision
+					yield(zero, errors.New("stream boom"))
+				}
+			},
+		}, rr)
+		require.NoError(t, err)
+
+		revisions, records, conflicts, err := svc.Pull(1, "device-1", 0, 0)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "get revisions")
 		require.Nil(t, revisions)
 		require.Nil(t, records)
 		require.Nil(t, conflicts)
