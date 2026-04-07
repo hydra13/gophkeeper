@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/require"
@@ -25,6 +26,7 @@ type mockRepo struct {
 	payloads            map[int64][]models.StoredPayload
 	updatedRecords      []*models.Record
 	updatedPayloadSizes []struct{ recordID, version, size int64 }
+	listCalls           int
 	listErr             error
 	updateErr           error
 }
@@ -36,6 +38,7 @@ func newMockRepo() *mockRepo {
 }
 
 func (m *mockRepo) ListRecordsForReencrypt(activeVersion int64, limit int) ([]models.Record, error) {
+	m.listCalls++
 	if m.listErr != nil {
 		return nil, m.listErr
 	}
@@ -336,6 +339,68 @@ func TestStopAfterStart(t *testing.T) {
 
 		err := job.Stop(ctx)
 		require.NoError(t, err)
+	})
+}
+
+func TestStartRunsOnTickerSchedule(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mgr, crypto := buildRealCrypto(t)
+		repo := newMockRepo()
+		blob := newMockBlob()
+
+		job := New(
+			WithDeps(repo, blob, crypto, mgr),
+			WithInterval(5*time.Second),
+		)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		err := job.Start(ctx)
+		require.NoError(t, err)
+
+		synctest.Wait()
+		require.Equal(t, 1, repo.listCalls)
+
+		time.Sleep(5 * time.Second)
+		synctest.Wait()
+		require.Equal(t, 2, repo.listCalls)
+
+		time.Sleep(5 * time.Second)
+		synctest.Wait()
+		require.Equal(t, 3, repo.listCalls)
+
+		cancel()
+		synctest.Wait()
+	})
+}
+
+func TestStopPreventsFutureRuns(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mgr, crypto := buildRealCrypto(t)
+		repo := newMockRepo()
+		blob := newMockBlob()
+
+		job := New(
+			WithDeps(repo, blob, crypto, mgr),
+			WithInterval(5*time.Second),
+		)
+
+		ctx := context.Background()
+
+		err := job.Start(ctx)
+		require.NoError(t, err)
+
+		synctest.Wait()
+		require.Equal(t, 1, repo.listCalls)
+
+		err = job.Stop(ctx)
+		require.NoError(t, err)
+		synctest.Wait()
+
+		time.Sleep(10 * time.Second)
+		synctest.Wait()
+		require.Equal(t, 1, repo.listCalls)
 	})
 }
 

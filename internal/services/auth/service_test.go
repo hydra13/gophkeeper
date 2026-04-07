@@ -2,9 +2,13 @@ package auth
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
 	"testing"
+	"testing/synctest"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/require"
 
 	"github.com/hydra13/gophkeeper/internal/models"
@@ -207,19 +211,21 @@ func TestValidateToken_Invalid(t *testing.T) {
 }
 
 func TestValidateToken_Expired(t *testing.T) {
-	jwtManager, err := NewJWTManager("test-secret", 1*time.Nanosecond)
-	require.NoError(t, err)
+	synctest.Test(t, func(t *testing.T) {
+		jwtManager, err := newJWTManagerWithClock("test-secret", time.Nanosecond, time.Now)
+		require.NoError(t, err)
 
-	svc, err := NewService(newMemUserRepo(), newMemSessionRepo(), jwtManager, time.Hour)
-	require.NoError(t, err)
+		svc, err := NewService(newMemUserRepo(), newMemSessionRepo(), jwtManager, time.Hour)
+		require.NoError(t, err)
 
-	token, err := svc.jwt.NewAccessToken(1, 1)
-	require.NoError(t, err)
+		token, err := svc.jwt.NewAccessToken(1, 1)
+		require.NoError(t, err)
 
-	time.Sleep(10 * time.Millisecond)
+		time.Sleep(2 * time.Nanosecond)
 
-	_, err = svc.ValidateToken(token)
-	require.Error(t, err)
+		_, err = svc.ValidateToken(token)
+		require.Error(t, err)
+	})
 }
 
 func TestRefresh_Success(t *testing.T) {
@@ -382,15 +388,114 @@ func TestValidateSession_InvalidToken(t *testing.T) {
 }
 
 func TestNewJWTManager_EmptySecret(t *testing.T) {
+	t.Parallel()
+
 	_, err := NewJWTManager("", 15*time.Minute)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "secret is required")
 }
 
 func TestNewJWTManager_DefaultTTL(t *testing.T) {
+	t.Parallel()
+
 	mgr, err := NewJWTManager("secret", 0)
 	require.NoError(t, err)
 	require.Equal(t, defaultAccessTTL, mgr.accessTTL)
+}
+
+func TestNewJWTManagerWithClock(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		secret   string
+		now      func() time.Time
+		checkErr func(*testing.T, error)
+		checkMgr func(*testing.T, *JWTManager)
+	}{
+		{
+			name:   "nil clock uses default",
+			secret: "secret",
+			checkErr: func(t *testing.T, err error) {
+				t.Helper()
+				require.NoError(t, err)
+			},
+			checkMgr: func(t *testing.T, mgr *JWTManager) {
+				t.Helper()
+				require.NotNil(t, mgr.now)
+			},
+		},
+		{
+			name:   "propagates constructor error",
+			secret: "",
+			now:    time.Now,
+			checkErr: func(t *testing.T, err error) {
+				t.Helper()
+				require.Error(t, err)
+				require.Contains(t, err.Error(), "secret is required")
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			mgr, err := newJWTManagerWithClock(tc.secret, time.Minute, tc.now)
+			tc.checkErr(t, err)
+			if tc.checkMgr != nil {
+				tc.checkMgr(t, mgr)
+			}
+		})
+	}
+}
+
+func TestJWTManagerValidateTokenErrors(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name    string
+		token   func(*testing.T) string
+		wantErr string
+	}{
+		{
+			name: "unexpected signing method",
+			token: func(t *testing.T) string {
+				t.Helper()
+
+				privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+				require.NoError(t, err)
+
+				token := jwt.NewWithClaims(jwt.SigningMethodRS256, Claims{
+					RegisteredClaims: jwt.RegisteredClaims{
+						ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Minute)),
+					},
+					UserID:    1,
+					SessionID: 2,
+				})
+
+				tokenString, err := token.SignedString(privateKey)
+				require.NoError(t, err)
+				return tokenString
+			},
+			wantErr: "unexpected signing method",
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			mgr, err := NewJWTManager("secret", time.Minute)
+			require.NoError(t, err)
+
+			_, _, err = mgr.ValidateToken(tc.token(t))
+			require.Error(t, err)
+			require.Contains(t, err.Error(), tc.wantErr)
+		})
+	}
 }
 
 func TestLogoutAllDevices(t *testing.T) {

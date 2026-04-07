@@ -26,6 +26,7 @@ type Claims struct {
 type JWTManager struct {
 	secret    []byte
 	accessTTL time.Duration
+	now       func() time.Time
 }
 
 // NewJWTManager создаёт менеджер JWT с заданным TTL access-токена.
@@ -39,12 +40,24 @@ func NewJWTManager(secret string, accessTTL time.Duration) (*JWTManager, error) 
 	return &JWTManager{
 		secret:    []byte(secret),
 		accessTTL: accessTTL,
+		now:       time.Now,
 	}, nil
+}
+
+func newJWTManagerWithClock(secret string, accessTTL time.Duration, now func() time.Time) (*JWTManager, error) {
+	manager, err := NewJWTManager(secret, accessTTL)
+	if err != nil {
+		return nil, err
+	}
+	if now != nil {
+		manager.now = now
+	}
+	return manager, nil
 }
 
 // NewAccessToken выпускает access-токен для пользователя и сессии.
 func (m *JWTManager) NewAccessToken(userID, sessionID int64) (string, error) {
-	now := time.Now()
+	now := m.now()
 	claims := Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			IssuedAt:  jwt.NewNumericDate(now),
@@ -68,7 +81,8 @@ func (m *JWTManager) NewRefreshToken() (string, error) {
 
 // ValidateToken проверяет токен и возвращает userID и sessionID.
 func (m *JWTManager) ValidateToken(tokenString string) (int64, int64, error) {
-	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(t *jwt.Token) (interface{}, error) {
+	parser := jwt.NewParser(jwt.WithTimeFunc(m.now))
+	token, err := parser.ParseWithClaims(tokenString, &Claims{}, func(t *jwt.Token) (interface{}, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
 		}

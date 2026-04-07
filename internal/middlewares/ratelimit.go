@@ -9,12 +9,23 @@ import (
 
 type RateLimiter struct {
 	limiter *rate.Limiter
+	now     func() time.Time
 }
 
 // NewRateLimiter создаёт ограничитель запросов.
 func NewRateLimiter(limit int, window time.Duration) *RateLimiter {
+	return newRateLimiterWithClock(limit, window, time.Now)
+}
+
+func newRateLimiterWithClock(limit int, window time.Duration, now func() time.Time) *RateLimiter {
+	if now == nil {
+		now = time.Now
+	}
 	if limit <= 0 || window <= 0 {
-		return &RateLimiter{limiter: rate.NewLimiter(rate.Limit(0), 0)}
+		return &RateLimiter{
+			limiter: rate.NewLimiter(rate.Limit(0), 0),
+			now:     now,
+		}
 	}
 
 	refillInterval := window / time.Duration(limit)
@@ -24,6 +35,7 @@ func NewRateLimiter(limit int, window time.Duration) *RateLimiter {
 
 	return &RateLimiter{
 		limiter: rate.NewLimiter(rate.Every(refillInterval), limit),
+		now:     now,
 	}
 }
 
@@ -32,7 +44,7 @@ func (l *RateLimiter) Allow() bool {
 	if l == nil || l.limiter == nil {
 		return false
 	}
-	return l.limiter.Allow()
+	return l.limiter.AllowN(l.now(), 1)
 }
 
 // RateLimit ограничивает частоту HTTP-запросов.

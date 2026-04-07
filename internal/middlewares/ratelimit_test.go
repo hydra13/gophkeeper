@@ -4,9 +4,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/time/rate"
 )
 
 func TestRateLimiter_AllowWithinLimit(t *testing.T) {
@@ -27,15 +29,89 @@ func TestRateLimiter_DenyOverLimit(t *testing.T) {
 }
 
 func TestRateLimiter_WindowReset(t *testing.T) {
-	limiter := NewRateLimiter(1, 50*time.Millisecond)
+	synctest.Test(t, func(t *testing.T) {
+		limiter := newRateLimiterWithClock(1, 50*time.Millisecond, time.Now)
 
-	assert.True(t, limiter.Allow())
-	assert.False(t, limiter.Allow())
+		assert.True(t, limiter.Allow())
+		assert.False(t, limiter.Allow())
 
-	// Wait for the window to expire.
-	time.Sleep(80 * time.Millisecond)
+		time.Sleep(50 * time.Millisecond)
 
-	assert.True(t, limiter.Allow())
+		assert.True(t, limiter.Allow())
+	})
+}
+
+func TestNewRateLimiterWithClock_NilClockUsesDefault(t *testing.T) {
+	t.Parallel()
+
+	limiter := newRateLimiterWithClock(1, time.Second, nil)
+
+	assert.NotNil(t, limiter.now)
+	assert.NotNil(t, limiter.limiter)
+}
+
+func TestNewRateLimiterWithClock_InvalidInputDisablesLimiter(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name   string
+		limit  int
+		window time.Duration
+	}{
+		{
+			name:   "non-positive limit",
+			limit:  0,
+			window: time.Second,
+		},
+		{
+			name:   "non-positive window",
+			limit:  1,
+			window: 0,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			limiter := newRateLimiterWithClock(tc.limit, tc.window, time.Now)
+			assert.False(t, limiter.Allow())
+		})
+	}
+}
+
+func TestNewRateLimiterWithClock_ClampsTinyRefillInterval(t *testing.T) {
+	t.Parallel()
+
+	limiter := newRateLimiterWithClock(10, time.Nanosecond, time.Now)
+
+	assert.Equal(t, rate.Every(time.Nanosecond), limiter.limiter.Limit())
+}
+
+func TestRateLimiterAllow_NilLimiter(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name    string
+		limiter *RateLimiter
+	}{
+		{
+			name: "nil receiver",
+		},
+		{
+			name:    "nil inner limiter",
+			limiter: &RateLimiter{},
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.False(t, tc.limiter.Allow())
+		})
+	}
 }
 
 func TestRateLimitMiddleware_Allowed(t *testing.T) {
