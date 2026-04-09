@@ -1,0 +1,31 @@
+{
+  "server": {
+    "address": ":8080",
+    "grpc_address": ":9090",
+    "tls_cert_file": "configs/certs/dev.crt",
+    "tls_key_file": "configs/certs/dev.key"
+  },
+  "database": {
+    "dsn": "postgres://postgres:postgres@localhost:5432/gophkeeper?sslmode=disable"
+  },
+  "auth": {
+    "jwt_secret": "dev-jwt-secret",
+    "token_duration": 86400000000000
+  },
+  "crypto": {
+    "master_key": "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
+  },
+  "blob": {
+    "provider": "s3",
+    "endpoint": "http://localhost:9000",
+    "bucket": "gophkeeper-dev",
+    "access_key": "minioadmin",
+    "secret_key": "minioadmin",
+    "region": "us-east-1"
+  },
+  "upload": {
+    "max_file_size": 10485760,
+    "max_chunk_size": 1048576,
+    "max_total_size": 52428800
+  }
+}

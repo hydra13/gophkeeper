@@ -1,0 +1,161 @@
+syntax = "proto3";
+
+package gophkeeper.v1;
+
+option go_package = "github.com/hydra13/gophkeeper/internal/rpc/pbv1";
+
+import "rpc/proto/v1/shared.proto";
+
+// UploadsService — загрузка/скачивание бинарных данных с поддержкой
+// chunk upload/download и resume.
+service UploadsService {
+  // CreateUploadSession — создать сессию загрузки.
+  rpc CreateUploadSession(CreateUploadSessionRequest) returns (CreateUploadSessionResponse);
+  // UploadChunk — загрузить чанк данных (client streaming).
+  rpc UploadChunk(stream UploadChunkRequest) returns (UploadChunkResponse);
+  // GetUploadStatus — получить статус upload-сессии (для resume).
+  rpc GetUploadStatus(GetUploadStatusRequest) returns (GetUploadStatusResponse);
+  // CreateDownloadSession — создать сессию скачивания.
+  rpc CreateDownloadSession(CreateDownloadSessionRequest) returns (CreateDownloadSessionResponse);
+  // DownloadChunk — скачать чанк данных (server streaming).
+  rpc DownloadChunk(DownloadChunkRequest) returns (stream DownloadChunkResponse);
+  // ConfirmChunk — подтвердить получение чанка при скачивании.
+  rpc ConfirmChunk(ConfirmChunkRequest) returns (ConfirmChunkResponse);
+  // GetDownloadStatus — получить статус download-сессии (для resume).
+  rpc GetDownloadStatus(GetDownloadStatusRequest) returns (GetDownloadStatusResponse);
+}
+
+// CreateUploadSessionRequest — запрос создания сессии загрузки.
+message CreateUploadSessionRequest {
+  // record_id — ссылка на запись типа binary.
+  int64 record_id = 1;
+  // total_chunks — общее количество чанков.
+  int64 total_chunks = 2;
+  // chunk_size — размер одного чанка в байтах.
+  int64 chunk_size = 3;
+  // total_size — общий размер загружаемого файла в байтах.
+  int64 total_size = 4;
+  // key_version — версия ключа шифрования.
+  int64 key_version = 5;
+}
+
+// CreateUploadSessionResponse — ответ создания сессии загрузки.
+message CreateUploadSessionResponse {
+  // upload_id — идентификатор созданной upload-сессии.
+  int64 upload_id = 1;
+  // status — текущий статус сессии.
+  gophkeeper.v1.UploadStatus status = 2;
+}
+
+// UploadChunkRequest — чанк данных для загрузки.
+message UploadChunkRequest {
+  // upload_id — идентификатор upload-сессии.
+  int64 upload_id = 1;
+  // chunk_index — порядковый номер чанка (начиная с 0).
+  int64 chunk_index = 2;
+  // data — бинарное содержимое чанка.
+  bytes data = 3;
+}
+
+// UploadChunkResponse — ответ завершения загрузки.
+message UploadChunkResponse {
+  // status — статус upload-сессии после загрузки чанка.
+  gophkeeper.v1.UploadStatus status = 1;
+  // received_chunks — количество принятых чанков.
+  int64 received_chunks = 2;
+  // total_chunks — общее количество чанков.
+  int64 total_chunks = 3;
+}
+
+// GetUploadStatusRequest — запрос статуса upload-сессии.
+message GetUploadStatusRequest {
+  // upload_id — идентификатор upload-сессии.
+  int64 upload_id = 1;
+}
+
+// GetUploadStatusResponse — ответ статуса upload-сессии.
+message GetUploadStatusResponse {
+  // upload_id — идентификатор upload-сессии.
+  int64 upload_id = 1;
+  // status — текущий статус.
+  gophkeeper.v1.UploadStatus status = 2;
+  // total_chunks — общее количество чанков.
+  int64 total_chunks = 3;
+  // received_chunks — количество принятых чанков.
+  int64 received_chunks = 4;
+  // missing_chunks — индексы ещё не принятых чанков (для resume).
+  repeated int64 missing_chunks = 5;
+}
+
+// CreateDownloadSessionRequest — запрос создания сессии скачивания.
+message CreateDownloadSessionRequest {
+  // record_id — ссылка на запись типа binary.
+  int64 record_id = 1;
+}
+
+// CreateDownloadSessionResponse — ответ создания сессии скачивания.
+message CreateDownloadSessionResponse {
+  // download_id — идентификатор созданной download-сессии.
+  int64 download_id = 1;
+  // status — текущий статус сессии.
+  gophkeeper.v1.DownloadStatus status = 2;
+  // total_chunks — общее количество чанков для скачивания.
+  int64 total_chunks = 3;
+}
+
+// DownloadChunkRequest — запрос на скачивание чанка.
+message DownloadChunkRequest {
+  // download_id — идентификатор download-сессии.
+  int64 download_id = 1;
+  // chunk_index — порядковый номер запрашиваемого чанка.
+  // Если не указан, сервер отдаёт следующий неподтверждённый чанк.
+  int64 chunk_index = 2;
+}
+
+// DownloadChunkResponse — чанк данных при скачивании.
+message DownloadChunkResponse {
+  // download_id — идентификатор download-сессии.
+  int64 download_id = 1;
+  // chunk_index — порядковый номер чанка.
+  int64 chunk_index = 2;
+  // data — бинарное содержимое чанка.
+  bytes data = 3;
+}
+
+// ConfirmChunkRequest — подтверждение получения чанка клиентом.
+message ConfirmChunkRequest {
+  // download_id — идентификатор download-сессии.
+  int64 download_id = 1;
+  // chunk_index — индекс подтверждённого чанка.
+  int64 chunk_index = 2;
+}
+
+// ConfirmChunkResponse — ответ подтверждения чанка.
+message ConfirmChunkResponse {
+  // status — статус download-сессии после подтверждения.
+  gophkeeper.v1.DownloadStatus status = 1;
+  // confirmed_chunks — количество подтверждённых чанков.
+  int64 confirmed_chunks = 2;
+  // total_chunks — общее количество чанков.
+  int64 total_chunks = 3;
+}
+
+// GetDownloadStatusRequest — запрос статуса download-сессии.
+message GetDownloadStatusRequest {
+  // download_id — идентификатор download-сессии.
+  int64 download_id = 1;
+}
+
+// GetDownloadStatusResponse — ответ статуса download-сессии.
+message GetDownloadStatusResponse {
+  // download_id — идентификатор download-сессии.
+  int64 download_id = 1;
+  // status — текущий статус.
+  gophkeeper.v1.DownloadStatus status = 2;
+  // total_chunks — общее количество чанков.
+  int64 total_chunks = 3;
+  // confirmed_chunks — количество подтверждённых чанков.
+  int64 confirmed_chunks = 4;
+  // remaining_chunks — индексы чанков, ожидающих подтверждения (для resume).
+  repeated int64 remaining_chunks = 5;
+}
